@@ -1,4 +1,6 @@
 # Project Title
+JerusalemYouthCenter
+
 One-line description (e.g., "Volunteer scheduling app for [Non‑Profit Name]")
 
 ## Contents
