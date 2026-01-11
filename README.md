@@ -20,6 +20,7 @@ Briefly describe what the project does, who it serves, and the main value (1–2
 - Members — Name — role — GitHub
 - Mahmoud Masri mahmoudmr@post.jce.ac.il
 - afnan rabieh- Afnanrabieh
+- Hadeel Shehadeh-HadeelShehadeh26
 Include student IDs if required.
 
 ## Quick start (local)
