@@ -15,6 +15,7 @@ Briefly describe what the project does, who it serves, and the main value (1–2
 - Key deliverable for them: e.g., "Simple roster export and sign-up form."
 
 ## Team
+Rania Shqerat shqeratra@post.jce.ac.il  Rania-Sh
 - Team lead — Name — email — GitHub  
 - Members — Name — role — GitHub  
 Include student IDs if required.
