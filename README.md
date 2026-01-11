@@ -16,9 +16,9 @@ Briefly describe what the project does, who it serves, and the main value (1–2
 
 ## Team
 Rania Shqerat shqeratra@post.jce.ac.il  Rania-Sh
-Mahmoud Masri mahmoudmr@post.jce.ac.il
 - Team lead — Name — email — GitHub  
-- Members — Name — role — GitHub  
+- Members — Name — role — GitHub
+- Mahmoud Masri mahmoudmr@post.jce.ac.il 
 Include student IDs if required.
 
 ## Quick start (local)
