@@ -1,13 +1,18 @@
 # JerusalemYouthCenter
 
 
-One-line description (e.g., "Volunteer scheduling app for [Non‑Profit Name]")
+A dedicated application for managing students, events, attendance, and communication in a youth center.
+
 
 ## Contents
 - [Overview](#overview) • [Non‑Profit](#non-profit) • [Team](#team) • [Quick start](#quick-start) • [Handover](#handover) • [Privacy](#privacy) • [Contacts](#contacts)
 
 ## Overview
-Briefly describe what the project does, who it serves, and the main value (1–2 sentences).
+
+The Jerusalem Youth Center is an organization that works with youth through music-based educational programs.
+This project aims to develop a dedicated application for the center, designed for managers and registered students.
+The system will support attendance tracking, event management, communication, and monitoring student progress.
+
 
 ## Non‑Profit
 - Organization: [Non‑Profit Name]  
