@@ -57,7 +57,10 @@ Briefly list major limitations or missing features and any workarounds.
 
 ## Contacts
 - Project lead: Name — email  
-- Non‑profit contact: Name — email  
+- Non‑profit contact: Name — email
+  ---
+Workshop requirement: documentation initialized via feature branch.
+
 - Instructor / TA: Name — email
 
 ## License
