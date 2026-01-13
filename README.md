@@ -22,7 +22,6 @@ The system will support attendance tracking, event management, communication, an
 ## Team
 
 - Team lead — Rania Shqerat -shqeratra@post.jce.ac.il -Rania-Sh  
-- Members — Name — role — GitHub
 - Mahmoud Masri_mahmoud-masrii
 - georgeabusaid-georgeas03
 - afnan rabieh- Afnanrabieh
@@ -56,7 +55,7 @@ List data collected (names, emails), storage location, and retention policy. Nev
 Briefly list major limitations or missing features and any workarounds.
 
 ## Contacts
-- Project lead: Name — email  
+- Project lead: Rania Sh shqeratra@post.jce.ac.il
 - Non‑profit contact: Name — email  
 - Instructor / TA: Name — email
 
