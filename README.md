@@ -66,3 +66,7 @@ Workshop requirement: documentation initialized via feature branch.
 
 ## License
 Specify license (e.g., MIT) and any IP/ownership notes relevant to the non‑profit.
+
+## Project Wiki
+See the GitHub Wiki for project documentation and team workflow.
+
