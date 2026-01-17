@@ -1,11 +1,18 @@
-# Project Title
-One-line description (e.g., "Volunteer scheduling app for [Non‑Profit Name]")
+# JerusalemYouthCenter
+
+
+A dedicated application for managing students, events, attendance, and communication in a youth center.
+
 
 ## Contents
 - [Overview](#overview) • [Non‑Profit](#non-profit) • [Team](#team) • [Quick start](#quick-start) • [Handover](#handover) • [Privacy](#privacy) • [Contacts](#contacts)
 
 ## Overview
-Briefly describe what the project does, who it serves, and the main value (1–2 sentences).
+
+The Jerusalem Youth Center is an organization that works with youth through music-based educational programs.
+This project aims to develop a dedicated application for the center, designed for managers and registered students.
+The system will support attendance tracking, event management, communication, and monitoring student progress.
+
 
 ## Non‑Profit
 - Organization: [Non‑Profit Name]  
@@ -13,9 +20,14 @@ Briefly describe what the project does, who it serves, and the main value (1–2
 - Key deliverable for them: e.g., "Simple roster export and sign-up form."
 
 ## Team
-- Team lead — Name — email — GitHub  
-- Members — Name — role — GitHub  
-Include student IDs if required.
+
+- Team lead — Rania Shqerat -shqeratra@post.jce.ac.il -Rania-Sh  
+- Mahmoud Masri_mahmoud-masrii
+- georgeabusaid-georgeas03
+- afnan rabieh- Afnanrabieh
+- Hadeel Shehadeh-HadeelShehadeh26
+
+  Include student IDs if required.
 
 ## Quick start (local)
 1. git clone https://github.com/<org>/<repo>.git
@@ -43,9 +55,18 @@ List data collected (names, emails), storage location, and retention policy. Nev
 Briefly list major limitations or missing features and any workarounds.
 
 ## Contacts
-- Project lead: Name — email  
+- Project lead: Rania Sh shqeratra@post.jce.ac.il
 - Non‑profit contact: Name — email  
+- Project lead: Name — email  
+- Non‑profit contact: Name — email
+  ---
+Workshop requirement: documentation initialized via feature branch.
+
 - Instructor / TA: Name — email
 
 ## License
 Specify license (e.g., MIT) and any IP/ownership notes relevant to the non‑profit.
+
+## Project Wiki
+See the GitHub Wiki for project documentation and team workflow.
+
