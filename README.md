@@ -22,7 +22,7 @@ The system will support attendance tracking, event management, communication, an
 ## Team
 
 - Team lead — Rania Shqerat -shqeratra@post.jce.ac.il -Rania-Sh  
-- Mahmoud Masri_mahmoud-masrii
+- Mahmoud Masri _ mahmoud-masrii
 - georgeabusaid-georgeas03
 - afnan rabieh- Afnanrabieh
 - Hadeel Shehadeh-HadeelShehadeh26
