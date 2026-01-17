@@ -69,4 +69,5 @@ Specify license (e.g., MIT) and any IP/ownership notes relevant to the non‑pro
 
 ## Project Wiki
 See the GitHub Wiki for project documentation and team workflow.
+Consider adding a direct link to the Wiki page here so readers can easily access the documentation and workflow without searching.
 
