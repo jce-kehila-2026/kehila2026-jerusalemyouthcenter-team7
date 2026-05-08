@@ -1,17 +1,16 @@
-// src/screens/AttendanceScreen.js
+// app/attendance.js
 
-import { useLocalSearchParams, useRouter } from "expo-router"; // ← FIX
-import React, { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState } from "react";
 import {
-  FlatList,
-  Pressable,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  View,
+    FlatList,
+    Pressable,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    View
 } from "react-native";
 
-// ─── Brand Colors ──────────────────────────────────────────────────────────
 const C = {
   teal: "#039899",
   red: "#c56451",
@@ -21,7 +20,6 @@ const C = {
   black: "#000000",
 };
 
-// ─── 5 statuses — text only, no emoji ─────────────────────────────────────
 const STATUSES = [
   { key: "on_time", label: "On Time", color: C.teal },
   { key: "late", label: "Late", color: C.yellow },
@@ -30,7 +28,6 @@ const STATUSES = [
   { key: "sick", label: "Sick", color: "#888888" },
 ];
 
-// ─── Mock students – replace with Firebase ────────────────────────────────
 const MOCK_STUDENTS = [
   { id: "s1", name: "Yael Cohen", year: "Year 1" },
   { id: "s2", name: "Noa Levi", year: "Year 1" },
@@ -40,14 +37,9 @@ const MOCK_STUDENTS = [
   { id: "s6", name: "Maya Shapiro", year: "Year 3" },
 ];
 
-export default function AttendanceScreen({ route }) {
-  // ── FIX: useRouter instead of navigation prop ──────────────────────────
+export default function AttendancePage() {
+  const { eventId, eventTitle } = useLocalSearchParams();
   const router = useRouter();
-
-  // Support both Expo Router params and React Navigation route.params
-  const localParams = useLocalSearchParams();
-  const eventTitle =
-    localParams?.eventTitle || route?.params?.eventTitle || "Attendance";
 
   const [attendance, setAttendance] = useState(
     Object.fromEntries(MOCK_STUDENTS.map((s) => [s.id, null])),
@@ -64,21 +56,17 @@ export default function AttendanceScreen({ route }) {
     setSaved(true);
   };
 
-  // ── Stats ────────────────────────────────────────────────────────────────
   const counts = STATUSES.map((s) => ({
     ...s,
     count: Object.values(attendance).filter((v) => v === s.key).length,
   }));
   const unmarked = Object.values(attendance).filter((v) => v === null).length;
 
-  // ── Student row ──────────────────────────────────────────────────────────
   const renderStudent = ({ item }) => {
     const current = attendance[item.id];
-    const currentStatus = STATUSES.find((st) => st.key === current);
-
     return (
       <View style={s.studentCard}>
-        {/* Student info row */}
+        {/* Student info */}
         <View style={s.studentInfo}>
           <View style={s.avatar}>
             <Text style={s.avatarText}>
@@ -88,28 +76,34 @@ export default function AttendanceScreen({ route }) {
                 .join("")}
             </Text>
           </View>
-          <View style={{ flex: 1 }}>
+          <View>
             <Text style={s.studentName}>{item.name}</Text>
             <Text style={s.studentYear}>{item.year}</Text>
           </View>
-          {/* Current status badge */}
-          {currentStatus && (
+          {/* Show current status label on the right */}
+          {current && (
             <View
               style={[
                 s.currentBadge,
-                { backgroundColor: currentStatus.color + "30" },
+                {
+                  backgroundColor:
+                    STATUSES.find((st) => st.key === current)?.color + "30",
+                },
               ]}
             >
               <Text
-                style={[s.currentBadgeText, { color: currentStatus.color }]}
+                style={[
+                  s.currentBadgeText,
+                  { color: STATUSES.find((st) => st.key === current)?.color },
+                ]}
               >
-                {currentStatus.label}
+                {STATUSES.find((st) => st.key === current)?.label}
               </Text>
             </View>
           )}
         </View>
 
-        {/* 5 status buttons — TEXT only, no emoji, dark text on active */}
+        {/* 5 status buttons — text only, no emoji */}
         <View style={s.statusRow}>
           {STATUSES.map((st) => {
             const isActive = current === st.key;
@@ -143,12 +137,11 @@ export default function AttendanceScreen({ route }) {
     <SafeAreaView style={s.safe}>
       {/* Header */}
       <View style={s.header}>
-        {/* ← FIX: router.back() instead of navigation.goBack() */}
         <Pressable onPress={() => router.back()} style={s.backBtn}>
           <Text style={s.backText}>← Back</Text>
         </Pressable>
         <Text style={s.eventName} numberOfLines={1}>
-          {eventTitle}
+          {eventTitle || "Attendance"}
         </Text>
       </View>
 
@@ -243,15 +236,15 @@ const s = StyleSheet.create({
   avatarText: { color: C.teal, fontWeight: "700", fontSize: 14 },
   studentName: { color: C.white, fontWeight: "600", fontSize: 15 },
   studentYear: { color: "#888", fontSize: 12, marginTop: 1 },
-
   currentBadge: {
+    marginLeft: "auto",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
   },
   currentBadgeText: { fontSize: 11, fontWeight: "700" },
 
-  // ── Status buttons: text only, readable ──────────────────────────────
+  // 5 status buttons in a row — text only
   statusRow: { flexDirection: "row", gap: 6 },
   statusBtn: {
     flex: 1,
@@ -260,14 +253,8 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 42,
   },
-  statusBtnText: {
-    fontSize: 11,
-    fontWeight: "700",
-    textAlign: "center",
-    lineHeight: 14,
-  },
+  statusBtnText: { fontSize: 11, fontWeight: "700", textAlign: "center" },
 
   footer: { padding: 16 },
   saveBtn: {
