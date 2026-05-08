@@ -14,7 +14,6 @@ function TabIcon({ name, color, size }: { name: IoniconsName; color: string; siz
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
-
   return (
     <Tabs
       screenOptions={{
@@ -28,41 +27,11 @@ export default function TabLayout() {
         headerShown: false,
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => <TabIcon name="grid-outline" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="students"
-        options={{
-          title: 'Students',
-          tabBarIcon: ({ color, size }) => <TabIcon name="people-outline" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="events"
-        options={{
-          title: 'Events',
-          tabBarIcon: ({ color, size }) => <TabIcon name="calendar-outline" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="forms"
-        options={{
-          title: 'Forms',
-          tabBarIcon: ({ color, size }) => <TabIcon name="document-text-outline" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="messages"
-        options={{
-          title: 'Messages',
-          tabBarIcon: ({ color, size }) => <TabIcon name="chatbubbles-outline" color={color} size={size} />,
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: 'Dashboard', tabBarIcon: ({ color, size }) => <TabIcon name="grid-outline" color={color} size={size} /> }} />
+      <Tabs.Screen name="students" options={{ title: 'Students', tabBarIcon: ({ color, size }) => <TabIcon name="people-outline" color={color} size={size} /> }} />
+      <Tabs.Screen name="events" options={{ title: 'Events', tabBarIcon: ({ color, size }) => <TabIcon name="calendar-outline" color={color} size={size} /> }} />
+      <Tabs.Screen name="forms" options={{ title: 'Forms', tabBarIcon: ({ color, size }) => <TabIcon name="document-text-outline" color={color} size={size} /> }} />
+      <Tabs.Screen name="messages" options={{ title: 'Messages', tabBarIcon: ({ color, size }) => <TabIcon name="chatbubbles-outline" color={color} size={size} /> }} />
       <Tabs.Screen name="explore" options={{ href: null }} />
     </Tabs>
   );
