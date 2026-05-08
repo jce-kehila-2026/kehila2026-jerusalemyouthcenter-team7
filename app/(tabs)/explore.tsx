@@ -1,16 +1,4 @@
-import { useRouter } from "expo-router";
-import CalendarScreen from "../../src/screens/CalendarScreen";
-
-export default function ExploreScreen() {
-  const router = useRouter();
-  return (
-    <CalendarScreen
-      onEventPress={(event) =>
-        router.push({
-          pathname: "/event-detail",
-          params: { event: JSON.stringify(event) },
-        })
-      }
-    />
-  );
+import { Redirect } from 'expo-router';
+export default function ExploreRedirect() {
+  return <Redirect href="/(tabs)" />;
 }
