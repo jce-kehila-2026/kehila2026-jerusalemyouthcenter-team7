@@ -1,10 +1,11 @@
 import { useRouter } from "expo-router";
-import CalendarScreen from "../../src/screens/CalendarScreen";
-
-export default function ExploreScreen() {
+import StudentCalendarScreen from "../../src/screens/Studentcalenderscreen";
+export default function StudentCalendarPage() {
   const router = useRouter();
   return (
-    <CalendarScreen
+    <StudentCalendarScreen
+      studentYear={1}
+      studentName="Ali"
       onEventPress={(event) =>
         router.push({
           pathname: "/event-detail",
