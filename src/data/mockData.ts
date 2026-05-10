@@ -1,3 +1,12 @@
+export const COLORS = {
+  teal:        "#039899",
+  red:         "#c56451",
+  yellow:      "#cfad5d",
+  black:       "#000000",
+  charcoal:    "#353535",
+  white:       "#ffffff",
+  bluishWhite: "#f5fafe",
+};
 export type User = {
   id: number;
   full_name: string;
