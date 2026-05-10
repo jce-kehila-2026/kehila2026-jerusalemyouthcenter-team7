@@ -1,266 +1,828 @@
-// src/screens/EventsScreen.js
-
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    FlatList,
-    SafeAreaView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  FlatList,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
-import { COLORS, events } from "../data/mockData";
 
-export default function EventsScreen({ onEventPress }) {
-  const [selectedGroup, setSelectedGroup] = useState("All");
+// ─── Brand Colors ──────────────────────────────────────────────────────────
+const C = {
+  teal: "#039899",
+  red: "#c56451",
+  yellow: "#cfad5d",
+  white: "#f5fafe",
+  charcoal: "#353535",
+  black: "#000000",
+  border: "#2a2a2a",
+  muted: "#888888",
+  error: "#e05555",
+};
 
-  const groups = ["All", "All Groups", "Year 1", "Year 2", "Year 3"];
+const BADGE = {
+  all: { bg: C.teal + "25", text: C.teal },
+  year1: { bg: C.yellow + "30", text: C.yellow },
+  year2: { bg: C.red + "25", text: C.red },
+  year3: { bg: C.muted + "30", text: "#aaa" },
+};
 
-  const filteredEvents =
-    selectedGroup === "All"
+const FILTERS = [
+  { key: "all_events", label: "All" },
+  { key: "year1", label: "Year 1" },
+  { key: "year2", label: "Year 2" },
+  { key: "year3", label: "Year 3" },
+  { key: "all", label: "All Groups" },
+];
+
+const MOCK_EVENTS = [
+  {
+    id: "1",
+    title: "Community Shabbat Dinner",
+    description:
+      "Join us for our weekly Shabbat dinner gathering. All groups welcome.",
+    date: "2026-05-09",
+    time: "18:00",
+    location: "Community Center Hall",
+    group: "all",
+    groupLabel: "All Groups",
+  },
+  {
+    id: "2",
+    title: "Leadership Workshop",
+    description:
+      "An intensive workshop focused on developing leadership skills.",
+    date: "2026-05-12",
+    time: "10:00",
+    location: "Room 201",
+    group: "year1",
+    groupLabel: "Year 1",
+  },
+  {
+    id: "3",
+    title: "Jerusalem Heritage Walk",
+    description: "Guided tour through the historic quarters of Jerusalem.",
+    date: "2026-05-15",
+    time: "09:00",
+    location: "Jaffa Gate Meeting Point",
+    group: "all",
+    groupLabel: "All Groups",
+  },
+  {
+    id: "4",
+    title: "Music Theory Class",
+    description: "Advanced harmony and ear training session.",
+    date: "2026-05-20",
+    time: "14:00",
+    location: "Music Room 3",
+    group: "year2",
+    groupLabel: "Year 2",
+  },
+  {
+    id: "5",
+    title: "End-of-Year Concert",
+    description: "Annual showcase for all years. Parents invited!",
+    date: "2026-06-01",
+    time: "19:00",
+    location: "Jerusalem Theater",
+    group: "year3",
+    groupLabel: "Year 3",
+  },
+];
+
+const emptyForm = {
+  title: "",
+  description: "",
+  date: "",
+  time: "",
+  location: "",
+  group: "all",
+  groupLabel: "All Groups",
+};
+const emptyErrors = {
+  title: "",
+  date: "",
+  time: "",
+  location: "",
+};
+
+const STATUSBAR_H =
+  Platform.OS === "android"
+    ? (StatusBar.currentHeight ?? 24)
+    : Platform.OS === "ios"
+      ? 44
+      : 0;
+
+// ─── Israeli cities / keywords for location validation ────────────────────
+const ISRAEL_KEYWORDS = [
+  "jerusalem",
+  "tel aviv",
+  "haifa",
+  "beer sheva",
+  "netanya",
+  "rishon",
+  "petah tikva",
+  "ashdod",
+  "ashkelon",
+  "rehovot",
+  "holon",
+  "bnei brak",
+  "ramat gan",
+  "bat yam",
+  "herzliya",
+  "kfar saba",
+  "modiin",
+  "nazareth",
+  "eilat",
+  "tiberias",
+  "acre",
+  "akko",
+  "lod",
+  "ramla",
+  "nahariya",
+  "community center",
+  "room",
+  "hall",
+  "theater",
+  "auditorium",
+  "school",
+  "synagogue",
+  "בית",
+  "אולם",
+  "חדר",
+  "בית ספר",
+  "ירושלים",
+  "תל אביב",
+  "חיפה",
+  "באר שבע",
+  "נתניה",
+  "אשדוד",
+  "אשקלון",
+  "רחובות",
+  "הרצליה",
+  "jaffa",
+  "yafo",
+  "yaffo",
+  "givat",
+  "ramat",
+  "kiryat",
+  "kfar",
+  "moshav",
+  "kibbutz",
+  "emek",
+  "valley",
+  "mount",
+  "har",
+  "gate",
+  "plaza",
+  "park",
+];
+
+// ─── Validation helpers ───────────────────────────────────────────────────
+const validateForm = (values) => {
+  const errors = { title: "", date: "", time: "", location: "" };
+  let valid = true;
+
+  // Title
+  if (!values.title.trim()) {
+    errors.title = "Title is required.";
+    valid = false;
+  }
+
+  // Date — must match YYYY-MM-DD and be a real date
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!values.date.trim()) {
+    errors.date = "Date is required.";
+    valid = false;
+  } else if (!dateRegex.test(values.date)) {
+    errors.date = "Date must be in format YYYY-MM-DD (e.g. 2026-05-15)";
+    valid = false;
+  } else {
+    const d = new Date(values.date);
+    if (isNaN(d.getTime())) {
+      errors.date = "This is not a valid date.";
+      valid = false;
+    }
+  }
+
+  // Time — must match HH:MM (00:00–23:59)
+  const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+  if (!values.time.trim()) {
+    errors.time = "Time is required.";
+    valid = false;
+  } else if (!timeRegex.test(values.time)) {
+    errors.time = "Time must be in format HH:MM (e.g. 18:00)";
+    valid = false;
+  }
+
+  // Location — must not be empty and must contain an Israeli keyword
+  if (!values.location.trim()) {
+    errors.location = "Location is required.";
+    valid = false;
+  } else {
+    const loc = values.location.toLowerCase();
+    const isIsrael = ISRAEL_KEYWORDS.some((k) => loc.includes(k));
+    if (!isIsrael) {
+      errors.location =
+        "Location must be inside Israel. Please enter a valid Israeli location.";
+      valid = false;
+    }
+  }
+
+  return { errors, valid };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+export default function EventsScreen() {
+  const router = useRouter();
+
+  const [events, setEvents] = useState(MOCK_EVENTS);
+  const [activeFilter, setFilter] = useState("all_events");
+  const [editVisible, setEditVisible] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const [formErrors, setFormErrors] = useState(emptyErrors);
+  const [addVisible, setAddVisible] = useState(false);
+  const [newForm, setNewForm] = useState(emptyForm);
+  const [newErrors, setNewErrors] = useState(emptyErrors);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const filtered =
+    activeFilter === "all_events"
       ? events
-      : events.filter((e) => e.group_name === selectedGroup);
+      : events.filter((e) => e.group === activeFilter);
 
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-GB", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
+  // ── Delete ─────────────────────────────────────────────────────────────
+  const doDelete = () => {
+    setEvents((p) => p.filter((e) => e.id !== deleteTarget.id));
+    setDeleteTarget(null);
+  };
+
+  // ── Edit ───────────────────────────────────────────────────────────────
+  const openEdit = (item) => {
+    setEditTarget(item);
+    setForm({
+      title: item.title,
+      description: item.description,
+      date: item.date,
+      time: item.time || "",
+      location: item.location,
+      group: item.group,
+      groupLabel: item.groupLabel,
+    });
+    setFormErrors(emptyErrors);
+    setEditVisible(true);
+  };
+
+  const saveEdit = () => {
+    const { errors, valid } = validateForm(form);
+    setFormErrors(errors);
+    if (!valid) return;
+    setEvents((p) =>
+      p.map((e) => (e.id === editTarget.id ? { ...e, ...form } : e)),
+    );
+    setEditVisible(false);
+  };
+
+  // ── Add ────────────────────────────────────────────────────────────────
+  const saveNew = () => {
+    const { errors, valid } = validateForm(newForm);
+    setNewErrors(errors);
+    if (!valid) return;
+    setEvents((p) => [
+      {
+        ...newForm,
+        id: Date.now().toString(),
+        groupLabel:
+          FILTERS.find((f) => f.key === newForm.group)?.label || "All Groups",
+      },
+      ...p,
+    ]);
+    setAddVisible(false);
+    setNewForm(emptyForm);
+    setNewErrors(emptyErrors);
+  };
+
+  // ── Navigation ─────────────────────────────────────────────────────────
+  const goToDetail = (item) => {
+    router.push({
+      pathname: "/event-detail",
+      params: {
+        eventId: item.id,
+        title: item.title,
+        description: item.description,
+        date: item.date,
+        time: item.time || "",
+        location: item.location,
+        group: item.groupLabel,
+      },
     });
   };
 
-  const getGroupColor = (groupName) => {
-    if (groupName === "All Groups") return COLORS.teal;
-    if (groupName === "Year 1") return COLORS.yellow;
-    if (groupName === "Year 2") return COLORS.red;
-    if (groupName === "Year 3") return "#8b5cf6";
-    return COLORS.charcoal;
+  const goToAttendance = (item) => {
+    router.push({
+      pathname: "/attendance",
+      params: { eventId: item.id, eventTitle: item.title },
+    });
   };
 
-  const renderEvent = ({ item }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => onEventPress && onEventPress(item)}
-      activeOpacity={0.85}
-    >
-      <View
-        style={[
-          styles.cardAccent,
-          { backgroundColor: getGroupColor(item.group_name) },
-        ]}
-      />
-      <View style={styles.cardContent}>
-        <View style={styles.cardHeader}>
-          <View
-            style={[
-              styles.groupBadge,
-              { backgroundColor: getGroupColor(item.group_name) },
-            ]}
-          >
-            <Text style={styles.groupBadgeText}>{item.group_name}</Text>
-          </View>
-          <Text style={styles.cardTime}>{item.time}</Text>
-        </View>
-        <Text style={styles.cardTitle}>{item.title}</Text>
-        <Text style={styles.cardDescription} numberOfLines={2}>
-          {item.description}
-        </Text>
-        <View style={styles.cardFooter}>
-          <Text style={styles.cardIcon}>📅</Text>
-          <Text style={styles.cardDate}>{formatDate(item.date)}</Text>
-          <Text style={styles.cardIcon}> 📍</Text>
-          <Text style={styles.cardLocation} numberOfLines={1}>
-            {item.location}
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
-
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerSub}>Jerusalem Youth Chorus</Text>
-        <Text style={styles.headerTitle}>Events</Text>
+  // ── Form fields with validation errors ────────────────────────────────
+  const FormFields = ({ values, setValues, errors }) => (
+    <ScrollView keyboardShouldPersistTaps="handled">
+      {/* Title */}
+      <View style={{ marginBottom: 14 }}>
+        <Text style={s.label}>Title</Text>
+        <TextInput
+          style={[s.input, errors.title && s.inputError]}
+          value={values.title}
+          onChangeText={(v) => setValues((p) => ({ ...p, title: v }))}
+          placeholder="Enter title"
+          placeholderTextColor="#555"
+        />
+        {errors.title ? <Text style={s.errorText}>{errors.title}</Text> : null}
       </View>
 
-      {/* Filter Tabs */}
-      <View style={styles.filterContainer}>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={groups}
-          keyExtractor={(item) => item}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[
-                styles.filterTab,
-                selectedGroup === item && styles.filterTabActive,
-              ]}
-              onPress={() => setSelectedGroup(item)}
-            >
-              <Text
-                style={[
-                  styles.filterTabText,
-                  selectedGroup === item && styles.filterTabTextActive,
-                ]}
-              >
-                {item}
-              </Text>
-            </TouchableOpacity>
-          )}
-          contentContainerStyle={styles.filterList}
+      {/* Description */}
+      <View style={{ marginBottom: 14 }}>
+        <Text style={s.label}>Description</Text>
+        <TextInput
+          style={[s.input, { height: 72, textAlignVertical: "top" }]}
+          value={values.description}
+          onChangeText={(v) => setValues((p) => ({ ...p, description: v }))}
+          placeholder="Enter description"
+          placeholderTextColor="#555"
+          multiline
         />
       </View>
 
-      {/* Events Count */}
-      <Text style={styles.eventsCount}>
-        {filteredEvents.length} upcoming event
-        {filteredEvents.length !== 1 ? "s" : ""}
-      </Text>
+      {/* Location */}
+      <View style={{ marginBottom: 14 }}>
+        <Text style={s.label}>Location</Text>
+        <TextInput
+          style={[s.input, errors.location && s.inputError]}
+          value={values.location}
+          onChangeText={(v) => setValues((p) => ({ ...p, location: v }))}
+          placeholder="Enter location in Israel"
+          placeholderTextColor="#555"
+        />
+        {errors.location ? (
+          <Text style={s.errorText}>{errors.location}</Text>
+        ) : (
+          <Text style={s.hintText}>Must be a location inside Israel</Text>
+        )}
+      </View>
 
-      {/* Events List */}
-      <FlatList
-        data={filteredEvents}
-        keyExtractor={(item) => item.event_id.toString()}
-        renderItem={renderEvent}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
-    </SafeAreaView>
+      {/* Date */}
+      <View style={{ marginBottom: 14 }}>
+        <Text style={s.label}>Date</Text>
+        <TextInput
+          style={[s.input, errors.date && s.inputError]}
+          value={values.date}
+          onChangeText={(v) => setValues((p) => ({ ...p, date: v }))}
+          placeholder="YYYY-MM-DD"
+          placeholderTextColor="#555"
+        />
+        {errors.date ? (
+          <Text style={s.errorText}>{errors.date}</Text>
+        ) : (
+          <Text style={s.hintText}>Format: YYYY-MM-DD — e.g. 2026-05-15</Text>
+        )}
+      </View>
+
+      {/* Time */}
+      <View style={{ marginBottom: 14 }}>
+        <Text style={s.label}>Time</Text>
+        <TextInput
+          style={[s.input, errors.time && s.inputError]}
+          value={values.time}
+          onChangeText={(v) => setValues((p) => ({ ...p, time: v }))}
+          placeholder="HH:MM"
+          placeholderTextColor="#555"
+        />
+        {errors.time ? (
+          <Text style={s.errorText}>{errors.time}</Text>
+        ) : (
+          <Text style={s.hintText}>Format: HH:MM — e.g. 18:00 (24h)</Text>
+        )}
+      </View>
+
+      {/* Group */}
+      <Text style={s.label}>Group</Text>
+      <View style={s.groupRow}>
+        {FILTERS.slice(1).map((f) => (
+          <Pressable
+            key={f.key}
+            style={[s.groupPill, values.group === f.key && s.groupPillActive]}
+            onPress={() =>
+              setValues((p) => ({ ...p, group: f.key, groupLabel: f.label }))
+            }
+          >
+            <Text
+              style={[
+                s.groupPillText,
+                values.group === f.key && { color: C.black },
+              ]}
+            >
+              {f.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </ScrollView>
+  );
+
+  // ── Event card ─────────────────────────────────────────────────────────
+  const renderEvent = ({ item }) => {
+    const badge = BADGE[item.group] || BADGE.all;
+    return (
+      <View style={s.card}>
+        <View style={s.cardTop}>
+          <View style={[s.badge, { backgroundColor: badge.bg }]}>
+            <Text style={[s.badgeText, { color: badge.text }]}>
+              {item.groupLabel}
+            </Text>
+          </View>
+          <Text style={s.dateText}>
+            📅 {item.date} {item.time}
+          </Text>
+        </View>
+        <Pressable onPress={() => goToDetail(item)}>
+          <Text style={s.cardTitle}>{item.title}</Text>
+          <Text style={s.cardDesc} numberOfLines={2}>
+            {item.description}
+          </Text>
+          <Text style={s.cardLoc}>📍 {item.location}</Text>
+        </Pressable>
+        <View style={s.btnRow}>
+          <Pressable
+            style={({ pressed }) => [
+              s.btn,
+              { backgroundColor: pressed ? "#027b7c" : C.teal },
+            ]}
+            onPress={() => openEdit(item)}
+          >
+            <Text style={s.btnDark}>Edit</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              s.btn,
+              { backgroundColor: pressed ? "#b8943f" : C.yellow },
+            ]}
+            onPress={() => goToAttendance(item)}
+          >
+            <Text style={s.btnDark}>Attendance</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              s.btn,
+              { backgroundColor: pressed ? "#a34e3e" : C.red },
+            ]}
+            onPress={() => setDeleteTarget(item)}
+          >
+            <Text style={s.btnLight}>Delete</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <View style={s.safe}>
+      <StatusBar barStyle="light-content" backgroundColor={C.black} />
+
+      <View style={s.header}>
+        <Text style={s.orgName}>Jerusalem Youth Chorus</Text>
+        <Text style={s.pageTitle}>Events</Text>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={s.filtersWrap}
+        contentContainerStyle={s.filtersContent}
+      >
+        {FILTERS.map((f) => (
+          <Pressable
+            key={f.key}
+            style={[s.filterBtn, activeFilter === f.key && s.filterBtnActive]}
+            onPress={() => setFilter(f.key)}
+          >
+            <Text
+              style={[
+                s.filterText,
+                activeFilter === f.key && s.filterTextActive,
+              ]}
+            >
+              {f.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      {filtered.length === 0 ? (
+        <View style={s.empty}>
+          <Text style={s.emptyText}>No events found</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(i) => i.id}
+          renderItem={renderEvent}
+          contentContainerStyle={{ padding: 16, paddingBottom: 100, gap: 12 }}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+
+      <Pressable
+        style={s.fab}
+        onPress={() => {
+          setNewForm(emptyForm);
+          setNewErrors(emptyErrors);
+          setAddVisible(true);
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 28,
+            color: C.black,
+            lineHeight: 32,
+            fontWeight: "300",
+          }}
+        >
+          +
+        </Text>
+      </Pressable>
+
+      {/* ── DELETE MODAL ──────────────────────────────────────────────── */}
+      <Modal
+        visible={!!deleteTarget}
+        animationType="fade"
+        transparent
+        statusBarTranslucent
+      >
+        <View style={s.overlayCenter}>
+          <View style={s.confirmBox}>
+            <Text style={s.confirmTitle}>Delete Event</Text>
+            <Text style={s.confirmMsg}>
+              Are you sure you want to delete{"\n"}
+              <Text style={{ color: C.white, fontWeight: "700" }}>
+                "{deleteTarget?.title}"
+              </Text>
+              ?
+            </Text>
+            <View style={s.btnRow}>
+              <Pressable
+                style={[s.btn, { flex: 1, backgroundColor: C.charcoal }]}
+                onPress={() => setDeleteTarget(null)}
+              >
+                <Text style={s.btnLight}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[s.btn, { flex: 1, backgroundColor: C.red }]}
+                onPress={doDelete}
+              >
+                <Text style={s.btnLight}>Delete</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── EDIT MODAL ────────────────────────────────────────────────── */}
+      <Modal
+        visible={editVisible}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+      >
+        <View style={s.overlayBottom}>
+          <View style={s.modal}>
+            <Text style={s.modalTitle}>Edit Event</Text>
+            <Pressable
+              style={s.modalClose}
+              onPress={() => setEditVisible(false)}
+            >
+              <Text style={{ color: C.muted, fontSize: 22 }}>✕</Text>
+            </Pressable>
+            <FormFields values={form} setValues={setForm} errors={formErrors} />
+            <View style={[s.btnRow, { marginTop: 16 }]}>
+              <Pressable
+                style={[s.btn, { flex: 1, backgroundColor: C.teal }]}
+                onPress={saveEdit}
+              >
+                <Text style={s.btnDark}>Save Changes</Text>
+              </Pressable>
+              <Pressable
+                style={[s.btn, { flex: 1, backgroundColor: C.charcoal }]}
+                onPress={() => setEditVisible(false)}
+              >
+                <Text style={s.btnLight}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── ADD MODAL ─────────────────────────────────────────────────── */}
+      <Modal
+        visible={addVisible}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+      >
+        <View style={s.overlayBottom}>
+          <View style={s.modal}>
+            <Text style={s.modalTitle}>New Event</Text>
+            <Pressable
+              style={s.modalClose}
+              onPress={() => setAddVisible(false)}
+            >
+              <Text style={{ color: C.muted, fontSize: 22 }}>✕</Text>
+            </Pressable>
+            <FormFields
+              values={newForm}
+              setValues={setNewForm}
+              errors={newErrors}
+            />
+            <View style={[s.btnRow, { marginTop: 16 }]}>
+              <Pressable
+                style={[s.btn, { flex: 1, backgroundColor: C.teal }]}
+                onPress={saveNew}
+              >
+                <Text style={s.btnDark}>Create Event</Text>
+              </Pressable>
+              <Pressable
+                style={[s.btn, { flex: 1, backgroundColor: C.charcoal }]}
+                onPress={() => setAddVisible(false)}
+              >
+                <Text style={s.btnLight}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.black,
-  },
+// ─── Styles ────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.black },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
-  },
-  headerSub: {
-    color: COLORS.teal,
-    fontSize: 12,
-    letterSpacing: 2,
-    textTransform: "uppercase",
-    fontWeight: "600",
-  },
-  headerTitle: {
-    color: COLORS.white,
-    fontSize: 32,
-    fontWeight: "800",
-    marginTop: 2,
-  },
-  filterContainer: {
-    marginBottom: 8,
-  },
-  filterList: {
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  filterTab: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.charcoal,
-    marginRight: 8,
+    paddingTop: STATUSBAR_H + 16,
+    paddingBottom: 8,
   },
-  filterTabActive: {
-    backgroundColor: COLORS.teal,
-    borderColor: COLORS.teal,
-  },
-  filterTabText: {
-    color: "#999",
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  filterTabTextActive: {
-    color: COLORS.white,
-    fontWeight: "700",
-  },
-  eventsCount: {
-    color: "#666",
-    fontSize: 13,
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-  },
-  card: {
-    backgroundColor: COLORS.charcoal,
-    borderRadius: 16,
-    marginBottom: 14,
+  orgName: { color: C.teal, fontSize: 13, fontWeight: "600" },
+  pageTitle: { fontSize: 28, fontWeight: "800", color: C.white, marginTop: 2 },
+
+  filtersWrap: { height: 56 },
+  filtersContent: {
+    paddingHorizontal: 16,
+    alignItems: "center",
+    gap: 8,
     flexDirection: "row",
-    overflow: "hidden",
   },
-  cardAccent: {
-    width: 4,
+  filterBtn: {
+    borderWidth: 1.5,
+    borderColor: C.charcoal,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
   },
-  cardContent: {
-    flex: 1,
-    padding: 14,
+  filterBtnActive: { backgroundColor: C.teal, borderColor: C.teal },
+  filterText: { color: "#ccc", fontSize: 14 },
+  filterTextActive: { color: C.black, fontWeight: "700" },
+
+  card: {
+    backgroundColor: "#111",
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: C.border,
   },
-  cardHeader: {
+  cardTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
-  },
-  groupBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  groupBadgeText: {
-    color: COLORS.white,
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  cardTime: {
-    color: "#aaa",
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  cardTitle: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 6,
-  },
-  cardDescription: {
-    color: "#aaa",
-    fontSize: 13,
-    lineHeight: 19,
     marginBottom: 10,
   },
-  cardFooter: {
-    flexDirection: "row",
-    alignItems: "center",
+  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  badgeText: { fontSize: 11, fontWeight: "700" },
+  dateText: { fontSize: 12, color: C.muted },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: C.white,
+    marginBottom: 4,
   },
-  cardIcon: {
-    fontSize: 12,
-  },
-  cardDate: {
-    color: COLORS.teal,
-    fontSize: 12,
-    fontWeight: "600",
-    marginLeft: 4,
-  },
-  cardLocation: {
-    color: "#888",
-    fontSize: 12,
-    marginLeft: 4,
+  cardDesc: { fontSize: 13, color: "#aaa", lineHeight: 19, marginBottom: 8 },
+  cardLoc: { fontSize: 13, color: C.teal, marginBottom: 14 },
+
+  btnRow: { flexDirection: "row", gap: 8 },
+  btn: {
     flex: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
+  btnDark: { color: C.black, fontWeight: "700", fontSize: 13 },
+  btnLight: { color: C.white, fontWeight: "700", fontSize: 13 },
+
+  empty: { flex: 1, alignItems: "center", justifyContent: "center" },
+  emptyText: { color: C.muted, fontSize: 16 },
+
+  fab: {
+    position: "absolute",
+    bottom: 24,
+    right: 20,
+    backgroundColor: C.teal,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 6,
+  },
+
+  overlayCenter: {
+    flex: 1,
+    backgroundColor: "#000c",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  confirmBox: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 16,
+    padding: 24,
+    width: "100%",
+    maxWidth: 340,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  confirmTitle: {
+    color: C.white,
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  confirmMsg: { color: "#aaa", fontSize: 15, lineHeight: 22, marginBottom: 24 },
+
+  overlayBottom: {
+    flex: 1,
+    backgroundColor: "#000c",
+    justifyContent: "flex-end",
+  },
+  modal: {
+    backgroundColor: "#111",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    maxHeight: "90%",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: C.white,
+    marginBottom: 16,
+  },
+  modalClose: { position: "absolute", top: 24, right: 24 },
+
+  label: { color: "#aaa", fontSize: 13, marginBottom: 4 },
+  input: {
+    backgroundColor: C.charcoal,
+    borderRadius: 8,
+    padding: 12,
+    color: C.white,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: "#444",
+  },
+  inputError: { borderColor: C.error, borderWidth: 1.5 }, // ← border אדום
+  errorText: { color: C.error, fontSize: 12, marginTop: 4 }, // ← הודעת שגיאה
+  hintText: { color: "#555", fontSize: 11, marginTop: 4 }, // ← רמז אפור
+
+  groupRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  groupPill: {
+    borderWidth: 1.5,
+    borderColor: C.charcoal,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  groupPillActive: { backgroundColor: C.teal, borderColor: C.teal },
+  groupPillText: { color: "#ccc", fontSize: 13 },
 });
