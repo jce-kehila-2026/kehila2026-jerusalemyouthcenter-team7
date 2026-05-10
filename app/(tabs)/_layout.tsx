@@ -4,7 +4,7 @@ import React from 'react';
 import { AppColors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
-import { EventsProvider } from '../../src/context/EventsContext'; 
+import { EventsProvider } from '../../src/context/EventsContext';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 function TabIcon({ name, color, size }: { name: IoniconsName; color: string; size: number }) {
@@ -15,7 +15,7 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   return (
-    <EventsProvider>  {}
+    <EventsProvider>
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: AppColors.primary,
@@ -35,6 +35,6 @@ export default function TabLayout() {
         <Tabs.Screen name="messages" options={{ title: 'Messages', tabBarIcon: ({ color, size }) => <TabIcon name="chatbubbles-outline" color={color} size={size} /> }} />
         <Tabs.Screen name="explore" options={{ href: null }} />
       </Tabs>
-    </EventsProvider>  {}
+    </EventsProvider>
   );
 }
