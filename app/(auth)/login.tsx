@@ -131,7 +131,9 @@ export default function LoginScreen() {
 
     if (success) {
       // Route to role-specific tab stack
-      router.replace((role === 'admin' ? '/(admin-tabs)' : '/(tabs)') as any);
+      router.replace(
+        (role === 'admin' ? '/(admin-tabs)' : '/(tabs)') as any
+      );
     } else {
       setError(
         `No ${role} account found with these credentials.\nPlease check your role selection.`
@@ -237,7 +239,7 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don&apos;t have an account? </Text>
+            <Text style={styles.footerText}>Don't have an account? </Text>
             <Link href="/(auth)/signup" style={[styles.link, { color: accent }]}>Sign up</Link>
           </View>
         </View>

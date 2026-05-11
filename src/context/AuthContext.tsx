@@ -9,42 +9,55 @@ import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { auth, db } from "../firebase/firebase";
 
-type UserType = {
+// ── Types ─────────────────────────────────────────────────────────────────────
+export type UserRole = "student" | "admin";
+
+export type UserType = {
   uid: string;
   email: string | null;
   name?: string | null;
   phone?: string | null;
+  role: UserRole;
 };
 
 type AuthContextType = {
   user: UserType | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string, role: UserRole) => Promise<boolean>;
   signup: (payload: {
     name: string;
     email: string;
     phone?: string;
     password: string;
+    role: UserRole;
   }) => Promise<boolean>;
   logout: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// ── Provider ──────────────────────────────────────────────────────────────────
 export function AuthProvider({ children }: React.PropsWithChildren) {
   const [user, setUser] = useState<UserType | null>(null);
-  const [isLoading, setIsLoading] = useState(true); // true until Firebase resolves auth state
+  const [isLoading, setIsLoading] = useState(true);
 
-  // ─── Listen to Firebase auth state changes ───────────────────────────────
+  // Restore session on app restart — check both collections
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
       auth,
       async (firebaseUser: User | null) => {
         if (firebaseUser) {
-          // Try to enrich user object with Firestore profile data
           try {
-            const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+            // Try students first, then admins
+            let userDoc = await getDoc(doc(db, "students", firebaseUser.uid));
+            let role: UserRole = "student";
+
+            if (!userDoc.exists()) {
+              userDoc = await getDoc(doc(db, "admins", firebaseUser.uid));
+              role = "admin";
+            }
+
             if (userDoc.exists()) {
               const data = userDoc.data();
               setUser({
@@ -52,14 +65,16 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
                 email: firebaseUser.email,
                 name: data.name ?? null,
                 phone: data.phone ?? null,
+                role,
               });
             } else {
-              // Firestore doc missing (e.g. old account) — fall back to Auth data
-              setUser({ uid: firebaseUser.uid, email: firebaseUser.email });
+              // Not found in either collection — force sign out
+              await signOut(auth);
+              setUser(null);
             }
           } catch (err) {
             console.log("Firestore read error:", err);
-            setUser({ uid: firebaseUser.uid, email: firebaseUser.email });
+            setUser(null);
           }
         } else {
           setUser(null);
@@ -68,14 +83,37 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
       },
     );
 
-    return () => unsubscribe(); // cleanup on unmount
+    return () => unsubscribe();
   }, []);
 
-  // ─── Login ────────────────────────────────────────────────────────────────
-  const login = async (email: string, password: string): Promise<boolean> => {
+  // ── Login ─────────────────────────────────────────────────────────────────
+  // Role is passed from the UI — we verify the user exists in that collection
+  // so a student cannot log in using the admin toggle (and vice-versa).
+  const login = async (
+    email: string,
+    password: string,
+    role: UserRole,
+  ): Promise<boolean> => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // onAuthStateChanged above will update the user state automatically
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      const uid = result.user.uid;
+      const collection = role === "admin" ? "admins" : "students";
+
+      const userDoc = await getDoc(doc(db, collection, uid));
+      if (!userDoc.exists()) {
+        await signOut(auth);
+        return false; // wrong role selected
+      }
+
+      const data = userDoc.data();
+      setUser({
+        uid,
+        email: result.user.email,
+        name: data.name ?? null,
+        phone: data.phone ?? null,
+        role,
+      });
+
       return true;
     } catch (error: any) {
       console.log("LOGIN ERROR:", error.message);
@@ -83,20 +121,21 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
     }
   };
 
-  // ─── Signup ───────────────────────────────────────────────────────────────
+  // ── Signup ────────────────────────────────────────────────────────────────
   const signup = async ({
     name,
     email,
     phone,
     password,
+    role,
   }: {
     name: string;
     email: string;
     phone?: string;
     password: string;
+    role: UserRole;
   }): Promise<boolean> => {
     try {
-      // 1. Create the user in Firebase Auth
       const result = await createUserWithEmailAndPassword(
         auth,
         email,
@@ -104,22 +143,23 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
       );
       const firebaseUser = result.user;
 
-      // 2. Save profile data to Firestore — this is the critical DB write
-      await setDoc(doc(db, "users", firebaseUser.uid), {
+      // Write to role-specific Firestore collection
+      const collection = role === "admin" ? "admins" : "students";
+      await setDoc(doc(db, collection, firebaseUser.uid), {
         uid: firebaseUser.uid,
         name: name.trim(),
         email: firebaseUser.email,
         phone: phone?.trim() || null,
+        role,
         createdAt: serverTimestamp(),
       });
 
-      // 3. onAuthStateChanged will fire and set the user state automatically,
-      //    but we proactively set it here too so the UI updates immediately
       setUser({
         uid: firebaseUser.uid,
         email: firebaseUser.email,
         name: name.trim(),
         phone: phone?.trim() || null,
+        role,
       });
 
       return true;
@@ -129,10 +169,10 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
     }
   };
 
-  // ─── Logout ───────────────────────────────────────────────────────────────
+  // ── Logout ────────────────────────────────────────────────────────────────
   const logout = async () => {
     await signOut(auth);
-    // onAuthStateChanged will set user to null automatically
+    // onAuthStateChanged will set user → null
   };
 
   return (
@@ -153,8 +193,6 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
   return context;
 };
