@@ -1,7 +1,7 @@
 // src/screens/AttendanceScreen.js
 
 import { useLocalSearchParams, useRouter } from "expo-router"; // ← FIX
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   FlatList,
   Pressable,
@@ -10,22 +10,13 @@ import {
   Text,
   View,
 } from "react-native";
-
-// ─── Brand Colors ──────────────────────────────────────────────────────────
-const C = {
-  teal: "#039899",
-  red: "#c56451",
-  yellow: "#cfad5d",
-  white: "#f5fafe",
-  charcoal: "#353535",
-  black: "#000000",
-};
+import { COLORS } from "../../src/data/mockData";
 
 // ─── 5 statuses — text only, no emoji ─────────────────────────────────────
 const STATUSES = [
-  { key: "on_time", label: "On Time", color: C.teal },
-  { key: "late", label: "Late", color: C.yellow },
-  { key: "absent", label: "Absent", color: C.red },
+  { key: "on_time", label: "On Time", color: COLORS.teal },
+  { key: "late", label: "Late", color: COLORS.yellow },
+  { key: "absent", label: "Absent", color: COLORS.red },
   { key: "school_trip", label: "School Trip", color: "#8b5cf6" },
   { key: "sick", label: "Sick", color: "#888888" },
 ];
@@ -126,7 +117,7 @@ export default function AttendanceScreen({ route }) {
                 <Text
                   style={[
                     s.statusBtnText,
-                    { color: isActive ? C.black : st.color },
+                    { color: isActive ? COLORS.black : st.color },
                   ]}
                 >
                   {st.label}
@@ -194,11 +185,11 @@ export default function AttendanceScreen({ route }) {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.black },
+  safe: { flex: 1, backgroundColor: COLORS.black },
   header: { flexDirection: "row", alignItems: "center", padding: 16, gap: 12 },
   backBtn: { padding: 4 },
-  backText: { color: C.teal, fontSize: 15, fontWeight: "600" },
-  eventName: { flex: 1, fontSize: 17, fontWeight: "700", color: C.white },
+  backText: { color: COLORS.teal, fontSize: 15, fontWeight: "600" },
+  eventName: { flex: 1, fontSize: 17, fontWeight: "700", color: COLORS.white },
 
   statsRow: {
     flexDirection: "row",
@@ -236,12 +227,12 @@ const s = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: C.teal + "20",
+    backgroundColor: COLORS.teal + "20",
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { color: C.teal, fontWeight: "700", fontSize: 14 },
-  studentName: { color: C.white, fontWeight: "600", fontSize: 15 },
+  avatarText: { color: COLORS.teal, fontWeight: "700", fontSize: 14 },
+  studentName: { color: COLORS.white, fontWeight: "600", fontSize: 15 },
   studentYear: { color: "#888", fontSize: 12, marginTop: 1 },
 
   currentBadge: {
@@ -271,11 +262,11 @@ const s = StyleSheet.create({
 
   footer: { padding: 16 },
   saveBtn: {
-    backgroundColor: C.teal,
+    backgroundColor: COLORS.teal,
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
   },
   saveBtnDone: { backgroundColor: "#025f5f" },
-  saveBtnText: { color: C.black, fontWeight: "800", fontSize: 16 },
+  saveBtnText: { color: COLORS.black, fontWeight: "800", fontSize: 16 },
 });
