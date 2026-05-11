@@ -7,15 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { groups } from "../data/mockData";
-
-const COLORS = {
-  teal: "#039899",
-  red: "#c56451",
-  charcoal: "#353535",
-  white: "#ffffff",
-  black: "#000000",
-};
+import { COLORS, groups } from "../data/mockData";
 
 export default function EventDetailScreen({ route, navigation }) {
   // תיקון: חילוץ האירוע מפרמטרי הניווט

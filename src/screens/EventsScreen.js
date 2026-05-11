@@ -1,5 +1,7 @@
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useState } from "react";
+import { COLORS } from "../../src/data/mockData";
+
 import {
   FlatList,
   Modal,
@@ -13,24 +15,11 @@ import {
   View,
 } from "react-native";
 
-// ─── Brand Colors ──────────────────────────────────────────────────────────
-const C = {
-  teal: "#039899",
-  red: "#c56451",
-  yellow: "#cfad5d",
-  white: "#f5fafe",
-  charcoal: "#353535",
-  black: "#000000",
-  border: "#2a2a2a",
-  muted: "#888888",
-  error: "#e05555",
-};
-
 const BADGE = {
-  all: { bg: C.teal + "25", text: C.teal },
-  year1: { bg: C.yellow + "30", text: C.yellow },
-  year2: { bg: C.red + "25", text: C.red },
-  year3: { bg: C.muted + "30", text: "#aaa" },
+  all: { bg: COLORS.teal + "25", text: COLORS.teal },
+  year1: { bg: COLORS.yellow + "30", text: COLORS.yellow },
+  year2: { bg: COLORS.red + "25", text: COLORS.red },
+  year3: { bg: COLORS.muted + "30", text: "#aaa" },
 };
 
 const FILTERS = [
@@ -426,7 +415,7 @@ export default function EventsScreen() {
             <Text
               style={[
                 s.groupPillText,
-                values.group === f.key && { color: C.black },
+                values.group === f.key && { color: COLORS.black },
               ]}
             >
               {f.label}
@@ -463,7 +452,7 @@ export default function EventsScreen() {
           <Pressable
             style={({ pressed }) => [
               s.btn,
-              { backgroundColor: pressed ? "#027b7c" : C.teal },
+              { backgroundColor: pressed ? "#027b7c" : COLORS.teal },
             ]}
             onPress={() => openEdit(item)}
           >
@@ -472,7 +461,7 @@ export default function EventsScreen() {
           <Pressable
             style={({ pressed }) => [
               s.btn,
-              { backgroundColor: pressed ? "#b8943f" : C.yellow },
+              { backgroundColor: pressed ? "#b8943f" : COLORS.yellow },
             ]}
             onPress={() => goToAttendance(item)}
           >
@@ -481,7 +470,7 @@ export default function EventsScreen() {
           <Pressable
             style={({ pressed }) => [
               s.btn,
-              { backgroundColor: pressed ? "#a34e3e" : C.red },
+              { backgroundColor: pressed ? "#a34e3e" : COLORS.red },
             ]}
             onPress={() => setDeleteTarget(item)}
           >
@@ -494,7 +483,7 @@ export default function EventsScreen() {
 
   return (
     <View style={s.safe}>
-      <StatusBar barStyle="light-content" backgroundColor={C.black} />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
 
       <View style={s.header}>
         <Text style={s.orgName}>Jerusalem Youth Chorus</Text>
@@ -550,7 +539,7 @@ export default function EventsScreen() {
         <Text
           style={{
             fontSize: 28,
-            color: C.black,
+            color: COLORS.black,
             lineHeight: 32,
             fontWeight: "300",
           }}
@@ -571,20 +560,20 @@ export default function EventsScreen() {
             <Text style={s.confirmTitle}>Delete Event</Text>
             <Text style={s.confirmMsg}>
               Are you sure you want to delete{"\n"}
-              <Text style={{ color: C.white, fontWeight: "700" }}>
-                "{deleteTarget?.title}"
+              <Text style={{ color: COLORS.white, fontWeight: "700" }}>
+                &quot;{deleteTarget?.title}&quot;
               </Text>
               ?
             </Text>
             <View style={s.btnRow}>
               <Pressable
-                style={[s.btn, { flex: 1, backgroundColor: C.charcoal }]}
+                style={[s.btn, { flex: 1, backgroundColor: COLORS.charcoal }]}
                 onPress={() => setDeleteTarget(null)}
               >
                 <Text style={s.btnLight}>Cancel</Text>
               </Pressable>
               <Pressable
-                style={[s.btn, { flex: 1, backgroundColor: C.red }]}
+                style={[s.btn, { flex: 1, backgroundColor: COLORS.red }]}
                 onPress={doDelete}
               >
                 <Text style={s.btnLight}>Delete</Text>
@@ -608,18 +597,18 @@ export default function EventsScreen() {
               style={s.modalClose}
               onPress={() => setEditVisible(false)}
             >
-              <Text style={{ color: C.muted, fontSize: 22 }}>✕</Text>
+              <Text style={{ color: COLORS.muted, fontSize: 22 }}>✕</Text>
             </Pressable>
             <FormFields values={form} setValues={setForm} errors={formErrors} />
             <View style={[s.btnRow, { marginTop: 16 }]}>
               <Pressable
-                style={[s.btn, { flex: 1, backgroundColor: C.teal }]}
+                style={[s.btn, { flex: 1, backgroundColor: COLORS.teal }]}
                 onPress={saveEdit}
               >
                 <Text style={s.btnDark}>Save Changes</Text>
               </Pressable>
               <Pressable
-                style={[s.btn, { flex: 1, backgroundColor: C.charcoal }]}
+                style={[s.btn, { flex: 1, backgroundColor: COLORS.charcoal }]}
                 onPress={() => setEditVisible(false)}
               >
                 <Text style={s.btnLight}>Cancel</Text>
@@ -643,7 +632,7 @@ export default function EventsScreen() {
               style={s.modalClose}
               onPress={() => setAddVisible(false)}
             >
-              <Text style={{ color: C.muted, fontSize: 22 }}>✕</Text>
+              <Text style={{ color: COLORS.muted, fontSize: 22 }}>✕</Text>
             </Pressable>
             <FormFields
               values={newForm}
@@ -652,13 +641,13 @@ export default function EventsScreen() {
             />
             <View style={[s.btnRow, { marginTop: 16 }]}>
               <Pressable
-                style={[s.btn, { flex: 1, backgroundColor: C.teal }]}
+                style={[s.btn, { flex: 1, backgroundColor: COLORS.teal }]}
                 onPress={saveNew}
               >
                 <Text style={s.btnDark}>Create Event</Text>
               </Pressable>
               <Pressable
-                style={[s.btn, { flex: 1, backgroundColor: C.charcoal }]}
+                style={[s.btn, { flex: 1, backgroundColor: COLORS.charcoal }]}
                 onPress={() => setAddVisible(false)}
               >
                 <Text style={s.btnLight}>Cancel</Text>
@@ -673,14 +662,19 @@ export default function EventsScreen() {
 
 // ─── Styles ────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.black },
+  safe: { flex: 1, backgroundColor: COLORS.black },
   header: {
     paddingHorizontal: 16,
     paddingTop: STATUSBAR_H + 16,
     paddingBottom: 8,
   },
-  orgName: { color: C.teal, fontSize: 13, fontWeight: "600" },
-  pageTitle: { fontSize: 28, fontWeight: "800", color: C.white, marginTop: 2 },
+  orgName: { color: COLORS.teal, fontSize: 13, fontWeight: "600" },
+  pageTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: COLORS.white,
+    marginTop: 2,
+  },
 
   filtersWrap: { height: 56 },
   filtersContent: {
@@ -691,21 +685,21 @@ const s = StyleSheet.create({
   },
   filterBtn: {
     borderWidth: 1.5,
-    borderColor: C.charcoal,
+    borderColor: COLORS.charcoal,
     borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 7,
   },
-  filterBtnActive: { backgroundColor: C.teal, borderColor: C.teal },
+  filterBtnActive: { backgroundColor: COLORS.teal, borderColor: COLORS.teal },
   filterText: { color: "#ccc", fontSize: 14 },
-  filterTextActive: { color: C.black, fontWeight: "700" },
+  filterTextActive: { color: COLORS.black, fontWeight: "700" },
 
   card: {
     backgroundColor: "#111",
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: COLORS.border,
   },
   cardTop: {
     flexDirection: "row",
@@ -715,15 +709,15 @@ const s = StyleSheet.create({
   },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   badgeText: { fontSize: 11, fontWeight: "700" },
-  dateText: { fontSize: 12, color: C.muted },
+  dateText: { fontSize: 12, color: COLORS.muted },
   cardTitle: {
     fontSize: 17,
     fontWeight: "700",
-    color: C.white,
+    color: COLORS.white,
     marginBottom: 4,
   },
   cardDesc: { fontSize: 13, color: "#aaa", lineHeight: 19, marginBottom: 8 },
-  cardLoc: { fontSize: 13, color: C.teal, marginBottom: 14 },
+  cardLoc: { fontSize: 13, color: COLORS.teal, marginBottom: 14 },
 
   btnRow: { flexDirection: "row", gap: 8 },
   btn: {
@@ -733,17 +727,17 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  btnDark: { color: C.black, fontWeight: "700", fontSize: 13 },
-  btnLight: { color: C.white, fontWeight: "700", fontSize: 13 },
+  btnDark: { color: COLORS.black, fontWeight: "700", fontSize: 13 },
+  btnLight: { color: COLORS.white, fontWeight: "700", fontSize: 13 },
 
   empty: { flex: 1, alignItems: "center", justifyContent: "center" },
-  emptyText: { color: C.muted, fontSize: 16 },
+  emptyText: { color: COLORS.muted, fontSize: 16 },
 
   fab: {
     position: "absolute",
     bottom: 24,
     right: 20,
-    backgroundColor: C.teal,
+    backgroundColor: COLORS.teal,
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -766,10 +760,10 @@ const s = StyleSheet.create({
     width: "100%",
     maxWidth: 340,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: COLORS.border,
   },
   confirmTitle: {
-    color: C.white,
+    color: COLORS.white,
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 10,
@@ -791,23 +785,23 @@ const s = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: C.white,
+    color: COLORS.white,
     marginBottom: 16,
   },
   modalClose: { position: "absolute", top: 24, right: 24 },
 
   label: { color: "#aaa", fontSize: 13, marginBottom: 4 },
   input: {
-    backgroundColor: C.charcoal,
+    backgroundColor: COLORS.charcoal,
     borderRadius: 8,
     padding: 12,
-    color: C.white,
+    color: COLORS.white,
     fontSize: 15,
     borderWidth: 1,
     borderColor: "#444",
   },
-  inputError: { borderColor: C.error, borderWidth: 1.5 }, // ← border אדום
-  errorText: { color: C.error, fontSize: 12, marginTop: 4 }, // ← הודעת שגיאה
+  inputError: { borderColor: COLORS.error, borderWidth: 1.5 }, // ← border אדום
+  errorText: { color: COLORS.error, fontSize: 12, marginTop: 4 }, // ← הודעת שגיאה
   hintText: { color: "#555", fontSize: 11, marginTop: 4 }, // ← רמז אפור
 
   groupRow: {
@@ -818,11 +812,11 @@ const s = StyleSheet.create({
   },
   groupPill: {
     borderWidth: 1.5,
-    borderColor: C.charcoal,
+    borderColor: COLORS.charcoal,
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 6,
   },
-  groupPillActive: { backgroundColor: C.teal, borderColor: C.teal },
+  groupPillActive: { backgroundColor: COLORS.teal, borderColor: COLORS.teal },
   groupPillText: { color: "#ccc", fontSize: 13 },
 });
