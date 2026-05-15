@@ -361,4 +361,5 @@ export const COLORS = {
   gray: "#687076",
   grayLight: "#f4f6f7",
   border: "#d8e0e0",
+  success: "#22c55e",
 };

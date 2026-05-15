@@ -14,157 +14,203 @@ export type UserRole = "student" | "admin";
 
 export type UserType = {
   uid: string;
-  email: string | null;
-  name?: string | null;
-  phone?: string | null;
   role: UserRole;
+  full_name: string;
+  email?: string | null;
+  phone?: string | null;
+  school_name?: string | null;
+  voice_type?: string | null;
+};
+
+// All fields collected during student signup
+export type StudentSignupPayload = {
+  full_name: string;
+  email?: string;
+  phone: string;
+  birth_date: string;
+  address: string;
+  neighborhood: string;
+  gender: "male" | "female";
+  nationality: string;
+  age: number;
+  school_name: string;
+  shirt_size: "S" | "M" | "L" | "XL";
+  voice_type: "bass" | "tenor" | "alto" | "soprano";
+  year_joined: number;
+  food_notes: "vegetarian" | "vegan" | "halal" | "kosher" | string;
+  parent_relation: "father" | "mother";
+  parent_name: string;
+  parent_phone: string;
+  medical_situation: string;
+  password: string;
 };
 
 type AuthContextType = {
   user: UserType | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string, role: UserRole) => Promise<boolean>;
-  signup: (payload: {
-    name: string;
-    email: string;
-    phone?: string;
-    password: string;
-    role: UserRole;
-  }) => Promise<boolean>;
+  // Students login with phone, admins with email
+  login: (
+    identifier: string,
+    password: string,
+    role: UserRole,
+  ) => Promise<boolean>;
+  // Only students self-register; admins are added manually in Firebase
+  signupStudent: (payload: StudentSignupPayload) => Promise<boolean>;
   logout: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Students auth email is derived from their phone number
+const phoneToEmail = (phone: string) =>
+  `${phone.replace(/\D/g, "")}@kehila.app`;
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 export function AuthProvider({ children }: React.PropsWithChildren) {
   const [user, setUser] = useState<UserType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore session on app restart — check both collections
+  // Restore session on app restart
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      async (firebaseUser: User | null) => {
-        if (firebaseUser) {
-          try {
-            // Try students first, then admins
-            let userDoc = await getDoc(doc(db, "students", firebaseUser.uid));
-            let role: UserRole = "student";
-
-            if (!userDoc.exists()) {
-              userDoc = await getDoc(doc(db, "admins", firebaseUser.uid));
-              role = "admin";
-            }
-
-            if (userDoc.exists()) {
-              const data = userDoc.data();
+    const unsubscribe = onAuthStateChanged(auth, async (fb: User | null) => {
+      if (fb) {
+        try {
+          // Check students collection first
+          let snap = await getDoc(doc(db, "students", fb.uid));
+          if (snap.exists()) {
+            const d = snap.data();
+            setUser({
+              uid: fb.uid,
+              role: "student",
+              full_name: d.full_name,
+              email: d.email ?? null,
+              phone: d.phone ?? null,
+              school_name: d.school_name ?? null,
+              voice_type: d.voice_type ?? null,
+            });
+          } else {
+            // Check admins collection
+            snap = await getDoc(doc(db, "admins", fb.uid));
+            if (snap.exists()) {
+              const d = snap.data();
               setUser({
-                uid: firebaseUser.uid,
-                email: firebaseUser.email,
-                name: data.name ?? null,
-                phone: data.phone ?? null,
-                role,
+                uid: fb.uid,
+                role: "admin",
+                full_name: d.full_name,
+                email: d.email ?? null,
+                phone: d.phone ?? null,
               });
             } else {
-              // Not found in either collection — force sign out
+              // UID in Auth but no Firestore doc — sign out for safety
               await signOut(auth);
               setUser(null);
             }
-          } catch (err) {
-            console.log("Firestore read error:", err);
-            setUser(null);
           }
-        } else {
+        } catch (e) {
+          console.log("Auth restore error:", e);
           setUser(null);
         }
-        setIsLoading(false);
-      },
-    );
-
+      } else {
+        setUser(null);
+      }
+      setIsLoading(false);
+    });
     return () => unsubscribe();
   }, []);
 
   // ── Login ─────────────────────────────────────────────────────────────────
-  // Role is passed from the UI — we verify the user exists in that collection
-  // so a student cannot log in using the admin toggle (and vice-versa).
   const login = async (
-    email: string,
+    identifier: string,
     password: string,
     role: UserRole,
   ): Promise<boolean> => {
     try {
-      const result = await signInWithEmailAndPassword(auth, email, password);
+      // Students use phone→email, admins use their real email
+      const firebaseEmail =
+        role === "student" ? phoneToEmail(identifier) : identifier.trim();
+
+      const result = await signInWithEmailAndPassword(
+        auth,
+        firebaseEmail,
+        password,
+      );
       const uid = result.user.uid;
       const collection = role === "admin" ? "admins" : "students";
 
-      const userDoc = await getDoc(doc(db, collection, uid));
-      if (!userDoc.exists()) {
+      const snap = await getDoc(doc(db, collection, uid));
+      if (!snap.exists()) {
+        // Valid Firebase credentials but wrong role selected
         await signOut(auth);
-        return false; // wrong role selected
+        return false;
       }
 
-      const data = userDoc.data();
+      const d = snap.data();
       setUser({
         uid,
-        email: result.user.email,
-        name: data.name ?? null,
-        phone: data.phone ?? null,
         role,
+        full_name: d.full_name,
+        email: d.email ?? null,
+        phone: d.phone ?? null,
+        school_name: d.school_name ?? null,
+        voice_type: d.voice_type ?? null,
       });
-
       return true;
-    } catch (error: any) {
-      console.log("LOGIN ERROR:", error.message);
+    } catch (e: any) {
+      console.log("LOGIN ERROR:", e.message);
       return false;
     }
   };
 
-  // ── Signup ────────────────────────────────────────────────────────────────
-  const signup = async ({
-    name,
-    email,
-    phone,
-    password,
-    role,
-  }: {
-    name: string;
-    email: string;
-    phone?: string;
-    password: string;
-    role: UserRole;
-  }): Promise<boolean> => {
+  // ── Student signup ────────────────────────────────────────────────────────
+  const signupStudent = async (
+    payload: StudentSignupPayload,
+  ): Promise<boolean> => {
     try {
+      const { password, ...fields } = payload;
+
       const result = await createUserWithEmailAndPassword(
         auth,
-        email,
+        phoneToEmail(fields.phone),
         password,
       );
-      const firebaseUser = result.user;
+      const uid = result.user.uid;
 
-      // Write to role-specific Firestore collection
-      const collection = role === "admin" ? "admins" : "students";
-      await setDoc(doc(db, collection, firebaseUser.uid), {
-        uid: firebaseUser.uid,
-        name: name.trim(),
-        email: firebaseUser.email,
-        phone: phone?.trim() || null,
-        role,
+      await setDoc(doc(db, "students", uid), {
+        uid,
+        role: "student",
+        full_name: fields.full_name.trim(),
+        email: fields.email?.trim() || null,
+        phone: fields.phone.trim(),
+        birth_date: fields.birth_date.trim(),
+        address: fields.address.trim(),
+        neighborhood: fields.neighborhood.trim(),
+        gender: fields.gender,
+        nationality: fields.nationality.trim(),
+        age: fields.age,
+        school_name: fields.school_name.trim(),
+        shirt_size: fields.shirt_size,
+        voice_type: fields.voice_type,
+        year_joined: fields.year_joined,
+        food_notes: fields.food_notes.trim(),
+        parent_relation: fields.parent_relation,
+        parent_phone: fields.parent_phone.trim(),
         createdAt: serverTimestamp(),
       });
 
       setUser({
-        uid: firebaseUser.uid,
-        email: firebaseUser.email,
-        name: name.trim(),
-        phone: phone?.trim() || null,
-        role,
+        uid,
+        role: "student",
+        full_name: fields.full_name.trim(),
+        email: fields.email?.trim() || null,
+        phone: fields.phone.trim(),
+        school_name: fields.school_name.trim(),
+        voice_type: fields.voice_type,
       });
 
       return true;
-    } catch (error: any) {
-      console.log("SIGNUP ERROR:", error.message);
+    } catch (e: any) {
+      console.log("SIGNUP ERROR:", e.message);
       return false;
     }
   };
@@ -172,7 +218,6 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
   // ── Logout ────────────────────────────────────────────────────────────────
   const logout = async () => {
     await signOut(auth);
-    // onAuthStateChanged will set user → null
   };
 
   return (
@@ -182,7 +227,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         isAuthenticated: !!user,
         isLoading,
         login,
-        signup,
+        signupStudent,
         logout,
       }}
     >
@@ -192,7 +237,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
 }
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within AuthProvider");
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
 };
