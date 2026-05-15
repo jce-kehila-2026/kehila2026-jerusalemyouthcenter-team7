@@ -1,5 +1,5 @@
 export type User = {
-  id: number;
+  id: string;
   full_name: string;
   email: string;
   phone: string;
@@ -7,17 +7,17 @@ export type User = {
 };
 
 export type Student = {
-  id: number;
+  id: string; // Changed from number to string to match Firestore doc.id
   full_name: string;
   email: string;
   phone: string;
-  group_id: number;
+  group_id: string;
   year_id: number;
   program_id: number;
 };
 
 export type Group = {
-  id: number;
+  id: string; // Changed from number to string to match Firestore doc.id
   name: string;
   year_id: number;
   program_id: number;
@@ -29,7 +29,7 @@ export type Event = {
   description: string;
   date: string;
   location: string;
-  group_ids: number[];
+  group_ids: string[];
   capacity: number;
   registered: number;
 };
@@ -75,7 +75,7 @@ export type Notification = {
 };
 
 export const currentUser: User = {
-  id: 1,
+  id: "1",
   full_name: "Admin User",
   email: "admin@kehila.org",
   phone: "+972-50-000-0001",
@@ -83,81 +83,81 @@ export const currentUser: User = {
 };
 
 export const groups: Group[] = [
-  { id: 1, name: "Alpha", year_id: 1, program_id: 1 },
-  { id: 2, name: "Beta", year_id: 1, program_id: 2 },
-  { id: 3, name: "Gamma", year_id: 2, program_id: 1 },
+  { id: "1", name: "Alpha", year_id: 1, program_id: 1 },
+  { id: "2", name: "Beta", year_id: 1, program_id: 2 },
+  { id: "3", name: "Gamma", year_id: 2, program_id: 1 },
 ];
 
 export const students: Student[] = [
   {
-    id: 1,
+    id: "1",
     full_name: "Ali Ahmad",
     email: "ali@student.com",
     phone: "+972-50-111-0001",
-    group_id: 1,
+    group_id: "1",
     year_id: 1,
     program_id: 1,
   },
   {
-    id: 2,
+    id: "2",
     full_name: "Sara Cohen",
     email: "sara@student.com",
     phone: "+972-50-111-0002",
-    group_id: 1,
+    group_id: "1",
     year_id: 1,
     program_id: 1,
   },
   {
-    id: 3,
+    id: "3",
     full_name: "Omar Nasser",
     email: "omar@student.com",
     phone: "+972-50-111-0003",
-    group_id: 2,
+    group_id: "2",
     year_id: 1,
     program_id: 2,
   },
   {
-    id: 4,
+    id: "4",
     full_name: "Maya Levi",
     email: "maya@student.com",
     phone: "+972-50-111-0004",
-    group_id: 2,
+    group_id: "2",
     year_id: 1,
     program_id: 2,
   },
   {
-    id: 5,
+    id: "5",
     full_name: "Yusuf Khalil",
     email: "yusuf@student.com",
     phone: "+972-50-111-0005",
-    group_id: 3,
+    group_id: "3",
     year_id: 2,
     program_id: 1,
   },
   {
-    id: 6,
+    id: "6",
     full_name: "Noa Ben-David",
     email: "noa@student.com",
     phone: "+972-50-111-0006",
-    group_id: 3,
+    group_id: "3",
     year_id: 2,
     program_id: 1,
   },
   {
-    id: 7,
+    id: "7",
     full_name: "Kareem Hassan",
     email: "kareem@student.com",
     phone: "+972-50-111-0007",
-    group_id: 1,
+    group_id: "1",
     year_id: 1,
     program_id: 1,
   },
   {
-    id: 8,
+    id: "8",
     full_name: "Tamar Shapiro",
     email: "tamar@student.com",
     phone: "+972-50-111-0008",
-    group_id: 2,
+    group_id: "2",
     year_id: 1,
     program_id: 2,
   },
@@ -171,7 +171,7 @@ export const events: Event[] = [
       "Join us for our weekly Shabbat dinner gathering. All groups welcome. Bring family and friends for an evening of community and food.",
     date: "2026-05-09T18:00:00",
     location: "Community Center Hall",
-    group_ids: [1, 2, 3],
+    group_ids: ["1", "2", "3"],
     capacity: 100,
     registered: 42,
   },
@@ -182,7 +182,7 @@ export const events: Event[] = [
       "An intensive workshop focused on developing leadership skills for young community members.",
     date: "2026-05-12T10:00:00",
     location: "Room 201",
-    group_ids: [1, 2],
+    group_ids: ["1", "2"],
     capacity: 30,
     registered: 18,
   },
@@ -193,7 +193,7 @@ export const events: Event[] = [
       "Guided tour through the historic quarters of Jerusalem. Learn about the rich history of our city.",
     date: "2026-05-15T09:00:00",
     location: "Jaffa Gate Meeting Point",
-    group_ids: [1, 2, 3],
+    group_ids: ["1", "2", "3"],
     capacity: 50,
     registered: 35,
   },
@@ -204,7 +204,7 @@ export const events: Event[] = [
       "Showcase your talents — music, poetry, visual arts. An evening celebrating community creativity.",
     date: "2026-05-20T17:00:00",
     location: "Main Hall",
-    group_ids: [3],
+    group_ids: ["3"],
     capacity: 60,
     registered: 22,
   },
