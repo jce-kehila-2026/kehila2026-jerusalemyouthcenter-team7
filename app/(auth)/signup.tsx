@@ -1,5 +1,6 @@
-import { useAuth, UserRole } from "@/src/context/AuthContext";
-import { Href, Link, useRouter } from "expo-router";
+import { StudentSignupPayload, useAuth } from "@/src/context/AuthContext";
+import { COLORS } from "@/src/data/mockData";
+import { Link, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -21,403 +22,764 @@ import Svg, {
   Stop,
 } from "react-native-svg";
 
-// ── Brand tokens ──────────────────────────────────────────────────────────────
-const C = {
-  teal: "#039899",
-  tealLight: "#e0f5f5",
-  tealDark: "#027273",
-  red: "#c56451",
-  redLight: "#faeae6",
-  yellow: "#cfad5d",
-  black: "#0a0f0f",
-  white: "#ffffff",
-  gray: "#687076",
-  grayLight: "#f4f6f7",
-  border: "#d8e0e0",
-};
-
-// ── Bird SVG logo ─────────────────────────────────────────────────────────────
-function BirdLogo({ size = 80 }: { size?: number }) {
+// ── Bird logo ─────────────────────────────────────────────────────────────────
+function BirdLogo({ size = 56 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
       <Defs>
-        <RadialGradient id="bodyGrad" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor={C.teal} stopOpacity="1" />
-          <Stop offset="100%" stopColor={C.tealDark} stopOpacity="1" />
+        <RadialGradient id="birdGradS" cx="50%" cy="50%" r="50%">
+          <Stop offset="0%" stopColor={COLORS.teal} stopOpacity="1" />
+          <Stop offset="100%" stopColor={COLORS.tealDark} stopOpacity="1" />
         </RadialGradient>
       </Defs>
       <Path
         d="M18 38 Q10 20 28 14 Q38 10 45 22 Q35 26 30 35 Z"
-        fill={C.teal}
+        fill={COLORS.teal}
         opacity={0.9}
       />
       <Path
         d="M22 52 Q12 48 14 36 Q22 28 34 38 Q28 44 26 54 Z"
-        fill={C.teal}
+        fill={COLORS.teal}
         opacity={0.75}
       />
       <Path
         d="M30 70 Q18 72 16 60 Q20 52 32 56 Q30 62 30 70 Z"
-        fill={C.teal}
+        fill={COLORS.teal}
         opacity={0.65}
       />
-      <Ellipse cx="52" cy="50" rx="16" ry="20" fill="url(#bodyGrad)" />
-      <Circle cx="58" cy="34" r="10" fill={C.teal} />
-      <Path d="M67 33 L76 31 L68 36 Z" fill={C.yellow} />
-      <Circle cx="61" cy="32" r="2" fill={C.black} />
-      <Circle cx="62" cy="31" r="0.7" fill={C.white} />
+      <Ellipse cx="52" cy="50" rx="16" ry="20" fill="url(#birdGradS)" />
+      <Circle cx="58" cy="34" r="10" fill={COLORS.teal} />
+      <Path d="M67 33 L76 31 L68 36 Z" fill={COLORS.yellow} />
+      <Circle cx="61" cy="32" r="2" fill={COLORS.black} />
+      <Circle cx="62" cy="31" r="0.7" fill={COLORS.white} />
       <Path
         d="M44 58 Q40 68 46 76 Q52 80 56 72 Q50 68 48 58 Z"
-        fill={C.red}
+        fill={COLORS.red}
         opacity={0.85}
       />
-      <Path d="M50 60 Q48 72 54 78 Q58 74 56 64 Z" fill={C.red} opacity={0.6} />
       <Path
         d="M62 46 Q78 38 84 50 Q80 60 68 58"
         fill="none"
-        stroke={C.yellow}
+        stroke={COLORS.yellow}
         strokeWidth="2.5"
         strokeLinecap="round"
       />
-      <Path
-        d="M64 52 Q82 50 86 62 Q80 70 70 64"
-        fill="none"
-        stroke={C.yellow}
-        strokeWidth="2"
-        strokeLinecap="round"
-        opacity={0.7}
-      />
-      <Circle cx="78" cy="22" r="1.5" fill={C.teal} opacity={0.7} />
-      <Circle cx="84" cy="18" r="1" fill={C.teal} opacity={0.5} />
-      <Circle cx="82" cy="26" r="1" fill={C.yellow} opacity={0.6} />
-      <Circle cx="88" cy="24" r="0.8" fill={C.red} opacity={0.5} />
-      <Path
-        d="M46 76 Q40 86 48 90 Q54 86 52 76 Z"
-        fill={C.teal}
-        opacity={0.7}
-      />
-      <Path d="M50 78 Q50 90 56 88 Q60 82 56 74 Z" fill={C.red} opacity={0.5} />
     </Svg>
   );
 }
 
-// ── Role toggle pill ──────────────────────────────────────────────────────────
-function RoleToggle({
-  role,
-  onChange,
+// ── Reusable label ────────────────────────────────────────────────────────────
+function FL({
+  text,
+  req,
+  opt,
 }: {
-  role: UserRole;
-  onChange: (r: UserRole) => void;
+  text: string;
+  req?: boolean;
+  opt?: boolean;
 }) {
   return (
-    <View style={rt.wrapper}>
-      <Pressable
-        style={[rt.pill, role === "student" && rt.pillActive]}
-        onPress={() => onChange("student")}
-      >
-        <Text style={[rt.pillIcon]}>🎓</Text>
-        <Text style={[rt.pillText, role === "student" && rt.pillTextActive]}>
-          Student
+    <Text style={f.label}>
+      {text}
+      {req && <Text style={{ color: COLORS.red }}> *</Text>}
+      {opt && (
+        <Text
+          style={{
+            color: COLORS.gray,
+            fontWeight: "400",
+            textTransform: "none",
+          }}
+        >
+          {" "}
+          (optional)
         </Text>
-      </Pressable>
-      <Pressable
-        style={[rt.pill, role === "admin" && rt.pillActiveAdmin]}
-        onPress={() => onChange("admin")}
-      >
-        <Text style={[rt.pillIcon]}>🛡️</Text>
-        <Text style={[rt.pillText, role === "admin" && rt.pillTextActive]}>
-          Admin
-        </Text>
-      </Pressable>
+      )}
+    </Text>
+  );
+}
+
+// ── Pill picker ───────────────────────────────────────────────────────────────
+function Pills<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { label: string; value: T }[];
+  value: T | "";
+  onChange: (v: T) => void;
+}) {
+  return (
+    <View style={f.row}>
+      {options.map((o) => (
+        <Pressable
+          key={o.value}
+          style={[
+            f.pill,
+            value === o.value && {
+              backgroundColor: COLORS.teal,
+              borderColor: COLORS.teal,
+            },
+          ]}
+          onPress={() => onChange(o.value)}
+        >
+          <Text
+            style={[
+              f.pillTxt,
+              value === o.value && { color: COLORS.white, fontWeight: "700" },
+            ]}
+          >
+            {o.label}
+          </Text>
+        </Pressable>
+      ))}
     </View>
   );
 }
 
-const rt = StyleSheet.create({
-  wrapper: {
-    flexDirection: "row",
-    backgroundColor: C.grayLight,
-    borderRadius: 14,
-    padding: 4,
-    marginBottom: 20,
+const f = StyleSheet.create({
+  label: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#334",
+    marginBottom: 6,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
+  row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
   pill: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    borderRadius: 11,
-    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.grayLight,
   },
-  pillActive: { backgroundColor: C.teal },
-  pillActiveAdmin: { backgroundColor: C.red },
-  pillIcon: { fontSize: 15 },
-  pillText: { fontSize: 14, fontWeight: "600", color: C.gray },
-  pillTextActive: { color: C.white },
+  pillTxt: { fontSize: 13, color: COLORS.gray },
 });
 
+// ── Step bar ──────────────────────────────────────────────────────────────────
+function StepBar({ current, total }: { current: number; total: number }) {
+  return (
+    <View style={{ marginBottom: 20 }}>
+      <View style={{ flexDirection: "row", gap: 6 }}>
+        {Array.from({ length: total }).map((_, i) => (
+          <View
+            key={i}
+            style={{
+              flex: 1,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: i < current ? COLORS.teal : COLORS.border,
+            }}
+          />
+        ))}
+      </View>
+      <Text
+        style={{
+          fontSize: 11,
+          color: COLORS.gray,
+          marginTop: 6,
+          textAlign: "right",
+        }}
+      >
+        Step {current} of {total}
+      </Text>
+    </View>
+  );
+}
+
+// ── Form state ────────────────────────────────────────────────────────────────
+type FormState = {
+  full_name: string;
+  email: string;
+  phone: string;
+  birth_date: string;
+  address: string;
+  neighborhood: string;
+  gender: "male" | "female" | "";
+  nationality: string;
+  age: string;
+  school_name: string;
+  shirt_size: "S" | "M" | "L" | "XL" | "";
+  voice_type: "bass" | "tenor" | "alto" | "soprano" | "";
+  year_joined: string;
+  food_notes: "vegetarian" | "vegan" | "halal" | "kosher" | string;
+  parent_relation: "father" | "mother" | "";
+  parent_name: string;
+  parent_phone: string;
+  medical_situation: string;
+  password: string;
+  confirm: string;
+};
+
+const EMPTY: FormState = {
+  full_name: "",
+  email: "",
+  phone: "",
+  birth_date: "",
+  address: "",
+  neighborhood: "",
+  gender: "",
+  nationality: "",
+  age: "",
+  school_name: "",
+  shirt_size: "",
+  voice_type: "",
+  year_joined: String(new Date().getFullYear()),
+  food_notes: "",
+  parent_relation: "",
+  parent_name: "",
+  parent_phone: "",
+  medical_situation: "",
+  password: "",
+  confirm: "",
+};
+
 // ── Screen ────────────────────────────────────────────────────────────────────
-export default function LoginScreen() {
-  const { login } = useAuth();
+export default function SignupScreen() {
+  const { signupStudent } = useAuth();
   const router = useRouter();
 
-  const [role, setRole] = useState<UserRole>("student");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState<FormState>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
 
-  // Active accent color driven by role
-  const accent = role === "admin" ? C.red : C.teal;
+  const set = (k: keyof FormState) => (v: string) =>
+    setForm((p) => ({ ...p, [k]: v }));
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      setError("Please fill in all fields");
+  const inp = (k: string) => [
+    s.input,
+    focused === k && {
+      borderColor: COLORS.teal,
+      backgroundColor: COLORS.white,
+    },
+  ];
+
+  const fld = (k: keyof FormState) => ({
+    value: form[k] as string,
+    onChangeText: set(k),
+    onFocus: () => setFocused(k),
+    onBlur: () => setFocused(null),
+  });
+
+  // ── Validation per step ───────────────────────────────────────────────────
+  const validate = (): string | null => {
+    if (step === 1) {
+      if (!form.full_name.trim()) return "Full name is required";
+      if (!form.phone.trim()) return "Phone number is required";
+      if (!form.birth_date.trim()) return "Date of birth is required";
+      if (!form.gender) return "Please select your gender";
+      if (!form.nationality.trim()) return "Nationality is required";
+      if (!form.age.trim()) return "Age is required";
+      if (isNaN(Number(form.age))) return "Age must be a number";
+      if (!form.address.trim()) return "Address is required";
+      if (!form.neighborhood.trim()) return "Neighborhood is required";
+    }
+    if (step === 2) {
+      if (!form.school_name.trim()) return "School name is required";
+      if (!form.shirt_size) return "Please select your shirt size";
+      if (!form.voice_type) return "Please select your voice type";
+      if (!form.year_joined.trim()) return "Year joined is required";
+      if (isNaN(Number(form.year_joined))) return "Year must be a valid number";
+    }
+    if (step === 3) {
+      if (!form.parent_relation) return "Please select parent / guardian";
+      if (!form.parent_phone.trim()) return "Parent phone number is required";
+      if (!form.parent_name.trim()) return "Parent name is required";
+      if (!form.medical_situation.trim())
+        return "Medical situation is required";
+      if (!form.password) return "Password is required";
+      if (form.password.length < 6)
+        return "Password must be at least 6 characters";
+      if (form.password !== form.confirm) return "Passwords do not match";
+    }
+    return null;
+  };
+
+  const next = () => {
+    const err = validate();
+    if (err) {
+      setError(err);
+      return;
+    }
+    setError("");
+    setStep((p) => p + 1);
+  };
+
+  const back = () => {
+    setError("");
+    setStep((p) => p - 1);
+  };
+
+  // ── Submit ────────────────────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    const err = validate();
+    if (err) {
+      setError(err);
       return;
     }
     setError("");
     setLoading(true);
-    const success = await login(email, password, role);
+
+    const payload: StudentSignupPayload = {
+      full_name: form.full_name.trim(),
+      email: form.email.trim() || undefined,
+      phone: form.phone.trim(),
+      birth_date: form.birth_date.trim(),
+      address: form.address.trim(),
+      neighborhood: form.neighborhood.trim(),
+      gender: form.gender as "male" | "female",
+      nationality: form.nationality.trim(),
+      age: parseInt(form.age, 10),
+      school_name: form.school_name.trim(),
+      shirt_size: form.shirt_size as "S" | "M" | "L" | "XL",
+      voice_type: form.voice_type as "bass" | "tenor" | "alto" | "soprano",
+      year_joined: parseInt(form.year_joined, 10),
+      food_notes: form.food_notes as
+        | "vegetarian"
+        | "vegan"
+        | "halal"
+        | "kosher"
+        | string,
+      parent_relation: form.parent_relation as "father" | "mother",
+      parent_name: form.parent_name.trim(),
+      parent_phone: form.parent_phone.trim(),
+      medical_situation: form.medical_situation.trim(),
+      password: form.password,
+    };
+
+    const ok = await signupStudent(payload);
     setLoading(false);
 
-    if (success) {
-      // Route to role-specific tab stack
-      router.replace(
-        role === "admin" ? ("/(admin-tabs)" as Href) : ("/(tabs)" as Href),
-      );
+    if (ok) {
+      router.replace("/(tabs)" as any);
     } else {
       setError(
-        `No ${role} account found with these credentials.\nPlease check your role selection.`,
+        "Could not create account. This phone number may already be registered.",
       );
     }
   };
 
-  const inputStyle = (field: string) => [
-    styles.input,
-    focused === field && { borderColor: accent, backgroundColor: C.white },
-  ];
+  // ── Step content ──────────────────────────────────────────────────────────
+  const renderStep = () => {
+    if (step === 1)
+      return (
+        <>
+          <Text style={s.stepTitle}>👤 Personal Information</Text>
 
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Hero */}
-        <View style={styles.hero}>
-          <View style={[styles.ring, { shadowColor: accent }]}>
-            <BirdLogo size={88} />
-          </View>
-          <Text style={[styles.appName, { color: accent }]}>Kehila</Text>
-          <Text style={styles.tagline}>Jerusalem Youth Center</Text>
-          <View style={styles.accentBar}>
-            <View style={[styles.accentSegment, { backgroundColor: C.teal }]} />
-            <View style={[styles.accentSegment, { backgroundColor: C.red }]} />
-            <View
-              style={[styles.accentSegment, { backgroundColor: C.yellow }]}
-            />
-          </View>
-        </View>
-
-        {/* Card */}
-        <View style={styles.card}>
-          <Text style={styles.title}>Welcome back</Text>
-          <Text style={styles.subtitle}>Who are you signing in as?</Text>
-
-          {/* ── Role selector ── */}
-          <RoleToggle
-            role={role}
-            onChange={(r) => {
-              setRole(r);
-              setError("");
-            }}
+          <FL text="Full Name" req />
+          <TextInput
+            style={inp("full_name")}
+            {...fld("full_name")}
+            placeholder="Your full name"
+            placeholderTextColor="#aab"
           />
 
-          {/* Role context badge */}
-          <View
-            style={[
-              styles.badge,
-              { backgroundColor: role === "admin" ? "#faeae6" : C.tealLight },
-            ]}
-          >
-            <Text style={[styles.badgeText, { color: accent }]}>
-              {role === "admin"
-                ? "🛡️  Signing in as Administrator"
-                : "🎓  Signing in as Student"}
-            </Text>
-          </View>
-
-          {error ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>⚠ {error}</Text>
-            </View>
-          ) : null}
-
-          <Text style={styles.label}>Email</Text>
+          <FL text="Phone Number" req />
+          <Text style={s.hint}>This is your login identifier</Text>
           <TextInput
-            style={inputStyle("email")}
-            value={email}
-            onChangeText={setEmail}
+            style={inp("phone")}
+            {...fld("phone")}
+            placeholder="+972-50-000-0000"
+            placeholderTextColor="#aab"
+            keyboardType="phone-pad"
+          />
+
+          <FL text="Email" opt />
+          <TextInput
+            style={inp("email")}
+            {...fld("email")}
             placeholder="you@example.com"
             placeholderTextColor="#aab"
             keyboardType="email-address"
             autoCapitalize="none"
-            autoComplete="email"
-            onFocus={() => setFocused("email")}
-            onBlur={() => setFocused(null)}
           />
 
-          <Text style={styles.label}>Password</Text>
+          <FL text="Date of Birth" req />
           <TextInput
-            style={inputStyle("password")}
-            value={password}
-            onChangeText={setPassword}
+            style={inp("birth_date")}
+            {...fld("birth_date")}
+            placeholder="DD/MM/YYYY"
+            placeholderTextColor="#aab"
+          />
+
+          <FL text="Age" req />
+          <TextInput
+            style={inp("age")}
+            {...fld("age")}
+            placeholder="e.g. 15"
+            placeholderTextColor="#aab"
+            keyboardType="number-pad"
+          />
+
+          <FL text="Gender" req />
+          <Pills
+            options={[
+              { label: "👦 Male", value: "male" },
+              { label: "👧 Female", value: "female" },
+            ]}
+            value={form.gender}
+            onChange={(v) => setForm((p) => ({ ...p, gender: v }))}
+          />
+
+          <FL text="Nationality" req />
+          <TextInput
+            style={inp("nationality")}
+            {...fld("nationality")}
+            placeholder="e.g. Israeli"
+            placeholderTextColor="#aab"
+          />
+
+          <FL text="Address" req />
+          <TextInput
+            style={inp("address")}
+            {...fld("address")}
+            placeholder="Street & number"
+            placeholderTextColor="#aab"
+          />
+
+          <FL text="Neighborhood" req />
+          <TextInput
+            style={inp("neighborhood")}
+            {...fld("neighborhood")}
+            placeholder="e.g. Katamon"
+            placeholderTextColor="#aab"
+          />
+        </>
+      );
+
+    if (step === 2)
+      return (
+        <>
+          <Text style={s.stepTitle}>🎓 School & Preferences</Text>
+
+          <FL text="School Name" req />
+          <TextInput
+            style={inp("school_name")}
+            {...fld("school_name")}
+            placeholder="Your school name"
+            placeholderTextColor="#aab"
+          />
+
+          <FL text="Year Joined Kehila" req />
+          <TextInput
+            style={inp("year_joined")}
+            {...fld("year_joined")}
+            placeholder="e.g. 2024"
+            placeholderTextColor="#aab"
+            keyboardType="number-pad"
+          />
+
+          <FL text="Shirt Size" req />
+          <Pills
+            options={[
+              { label: "S", value: "S" },
+              { label: "M", value: "M" },
+              { label: "L", value: "L" },
+              { label: "XL", value: "XL" },
+            ]}
+            value={form.shirt_size}
+            onChange={(v) => setForm((p) => ({ ...p, shirt_size: v }))}
+          />
+
+          <FL text="Voice Type" req />
+          <Pills
+            options={[
+              { label: "🎵 Bass", value: "bass" },
+              { label: "🎵 Tenor", value: "tenor" },
+              { label: "🎵 Alto", value: "alto" },
+              { label: "🎵 Soprano", value: "soprano" },
+            ]}
+            value={form.voice_type}
+            onChange={(v) => setForm((p) => ({ ...p, voice_type: v }))}
+          />
+
+          <FL text="Food / Allergies" opt />
+          <Text style={s.hint}>Vegetarian, allergies, dietary notes</Text>
+          <TextInput
+            style={[
+              inp("food_notes"),
+              { height: 80, textAlignVertical: "top" },
+            ]}
+            {...fld("food_notes")}
+            placeholder="e.g. Vegetarian, nut allergy…"
+            placeholderTextColor="#aab"
+            multiline
+            numberOfLines={3}
+          />
+        </>
+      );
+
+    if (step === 3)
+      return (
+        <>
+          <Text style={s.stepTitle}>👨‍👩‍👧 Parent Contact & Password</Text>
+
+          <FL text="Parent / Guardian" req />
+          <Pills
+            options={[
+              { label: "👨 Father", value: "father" },
+              { label: "👩 Mother", value: "mother" },
+            ]}
+            value={form.parent_relation}
+            onChange={(v) => setForm((p) => ({ ...p, parent_relation: v }))}
+          />
+
+          <FL text="Parent Phone Number" req />
+          <TextInput
+            style={inp("parent_phone")}
+            {...fld("parent_phone")}
+            placeholder="+972-50-000-0000"
+            placeholderTextColor="#aab"
+            keyboardType="phone-pad"
+          />
+
+          <View style={s.sep} />
+          <Text style={s.sectionTitle}>🔐 Set Your Password</Text>
+
+          <FL text="Password" req />
+          <TextInput
+            style={inp("password")}
+            {...fld("password")}
+            placeholder="Minimum 6 characters"
+            placeholderTextColor="#aab"
+            secureTextEntry
+          />
+
+          <FL text="Confirm Password" req />
+          <TextInput
+            style={[
+              inp("confirm"),
+              form.confirm && form.password !== form.confirm
+                ? s.inputErr
+                : null,
+              form.confirm && form.password === form.confirm ? s.inputOk : null,
+            ].filter(Boolean)}
+            {...fld("confirm")}
             placeholder="••••••••"
             placeholderTextColor="#aab"
             secureTextEntry
-            onFocus={() => setFocused("password")}
-            onBlur={() => setFocused(null)}
           />
+          {form.confirm && form.password === form.confirm ? (
+            <Text style={s.matchTxt}>✓ Passwords match</Text>
+          ) : null}
+        </>
+      );
+  };
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.button,
-              { backgroundColor: accent, shadowColor: accent },
-              pressed && { opacity: 0.85 },
-              loading && { opacity: 0.55 },
-            ]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={C.white} />
+  return (
+    <KeyboardAvoidingView
+      style={s.container}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Header */}
+        <View style={s.hero}>
+          <View style={s.ring}>
+            <BirdLogo size={56} />
+          </View>
+          <View>
+            <Text style={s.appName}>Kehila</Text>
+            <Text style={s.tagline}>Student Registration</Text>
+          </View>
+        </View>
+
+        <View style={s.badge}>
+          <Text style={s.badgeText}>🎓 Student Sign Up</Text>
+        </View>
+
+        <StepBar current={step} total={3} />
+
+        {/* Form card */}
+        <View style={s.card}>
+          {error ? (
+            <View style={s.errBox}>
+              <Text style={s.errText}>⚠ {error}</Text>
+            </View>
+          ) : null}
+
+          {renderStep()}
+
+          {/* Navigation */}
+          <View style={s.navRow}>
+            {step > 1 ? (
+              <Pressable style={s.backBtn} onPress={back}>
+                <Text style={s.backTxt}>← Back</Text>
+              </Pressable>
             ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
+              <View style={{ flex: 1 }} />
             )}
-          </Pressable>
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
+            <Pressable
+              style={({ pressed }) => [
+                s.nextBtn,
+                pressed && { opacity: 0.85 },
+                loading && { opacity: 0.55 },
+              ]}
+              onPress={step === 3 ? handleSubmit : next}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color={COLORS.white} />
+              ) : (
+                <Text style={s.nextTxt}>
+                  {step === 3 ? "Create Account ✓" : "Next →"}
+                </Text>
+              )}
+            </Pressable>
           </View>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
-            <Link
-              href="/(auth)/signup"
-              style={[styles.link, { color: accent }]}
-            >
-              Sign up
+          <View style={s.footer}>
+            <Text style={s.footerTxt}>Already have an account? </Text>
+            <Link href={"/(auth)/login" as any} style={s.link}>
+              Sign in
             </Link>
           </View>
+        </View>
+
+        <View style={s.dots}>
+          {[COLORS.teal, COLORS.red, COLORS.yellow].map((c) => (
+            <View key={c} style={[s.dot, { backgroundColor: c }]} />
+          ))}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f0fafa" },
-  scroll: { flexGrow: 1, padding: 24, paddingTop: 48 },
+  scroll: { flexGrow: 1, padding: 24, paddingTop: 48, paddingBottom: 40 },
 
-  hero: { alignItems: "center", marginBottom: 28 },
+  hero: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginBottom: 16,
+  },
   ring: {
-    width: 108,
-    height: 108,
-    borderRadius: 54,
-    backgroundColor: C.black,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: COLORS.black,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 14,
-    shadowOffset: { width: 0, height: 6 },
+    shadowColor: COLORS.teal,
+    shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.4,
-    shadowRadius: 16,
+    shadowRadius: 12,
     elevation: 10,
   },
-  appName: { fontSize: 32, fontWeight: "800", letterSpacing: 1.5 },
-  tagline: { fontSize: 13, color: C.gray, marginTop: 4, letterSpacing: 0.5 },
-  accentBar: { flexDirection: "row", marginTop: 14 },
-  accentSegment: { width: 32, height: 4, marginHorizontal: 2, borderRadius: 2 },
+  appName: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: COLORS.teal,
+    letterSpacing: 1.5,
+  },
+  tagline: { fontSize: 12, color: COLORS.gray, marginTop: 2 },
+
+  badge: {
+    backgroundColor: COLORS.tealLight,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    alignSelf: "flex-start",
+    marginBottom: 16,
+  },
+  badgeText: { fontSize: 13, fontWeight: "700", color: COLORS.teal },
 
   card: {
-    backgroundColor: C.white,
+    backgroundColor: COLORS.white,
     borderRadius: 20,
-    padding: 26,
+    padding: 24,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 20,
     elevation: 6,
   },
-  title: { fontSize: 22, fontWeight: "700", color: "#0d1717", marginBottom: 4 },
-  subtitle: { fontSize: 14, color: C.gray, marginBottom: 16 },
-
-  badge: {
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginBottom: 16,
-    alignItems: "center",
+  stepTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#0d1717",
+    marginBottom: 18,
   },
-  badgeText: { fontSize: 13, fontWeight: "600" },
-
-  errorBox: {
-    backgroundColor: C.redLight,
-    borderLeftWidth: 3,
-    borderLeftColor: C.red,
-    borderRadius: 8,
-    padding: 10,
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0d1717",
     marginBottom: 14,
   },
-  errorText: { color: C.red, fontSize: 13, fontWeight: "500" },
+  hint: { fontSize: 11, color: COLORS.gray, marginTop: -4, marginBottom: 8 },
 
-  label: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#334",
-    marginBottom: 6,
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
+  errBox: {
+    backgroundColor: COLORS.redLight,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.red,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 16,
   },
+  errText: { color: COLORS.red, fontSize: 13, fontWeight: "500" },
+
   input: {
     borderWidth: 1.5,
-    borderColor: C.border,
+    borderColor: COLORS.border,
     borderRadius: 12,
     padding: 13,
     fontSize: 15,
     color: "#0d1717",
-    marginBottom: 16,
-    backgroundColor: C.grayLight,
+    marginBottom: 14,
+    backgroundColor: COLORS.grayLight,
   },
+  inputErr: { borderColor: COLORS.red, backgroundColor: COLORS.redLight },
+  inputOk: { borderColor: COLORS.success, backgroundColor: "#f0fff5" },
+  matchTxt: {
+    fontSize: 12,
+    color: COLORS.success,
+    marginTop: -10,
+    marginBottom: 12,
+    fontWeight: "600",
+  },
+  sep: { height: 1, backgroundColor: COLORS.border, marginVertical: 18 },
 
-  button: {
+  navRow: { flexDirection: "row", gap: 12, marginTop: 8 },
+  backBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: COLORS.teal,
     borderRadius: 12,
-    padding: 15,
+    padding: 14,
     alignItems: "center",
-    marginTop: 4,
+  },
+  backTxt: { fontSize: 15, fontWeight: "600", color: COLORS.teal },
+  nextBtn: {
+    flex: 2,
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
+    backgroundColor: COLORS.teal,
+    shadowColor: COLORS.teal,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
     elevation: 5,
   },
-  buttonText: {
-    color: C.white,
-    fontSize: 16,
-    fontWeight: "700",
-    letterSpacing: 0.5,
+  nextTxt: { color: COLORS.white, fontSize: 15, fontWeight: "700" },
+
+  footer: { flexDirection: "row", justifyContent: "center", marginTop: 20 },
+  footerTxt: { color: COLORS.gray, fontSize: 14 },
+  link: { fontSize: 14, fontWeight: "700", color: COLORS.teal },
+
+  dots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 24,
+    gap: 8,
   },
-
-  divider: { flexDirection: "row", alignItems: "center", marginVertical: 18 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: C.border },
-  dividerText: { marginHorizontal: 10, color: C.gray, fontSize: 12 },
-
-  footer: { flexDirection: "row", justifyContent: "center" },
-  footerText: { color: C.gray, fontSize: 14 },
-  link: { fontSize: 14, fontWeight: "700" },
+  dot: { width: 8, height: 8, borderRadius: 4 },
 });
