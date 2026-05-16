@@ -1,8 +1,7 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
-import { COLORS } from "../../src/data/mockData";
-
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Modal,
   Platform,
@@ -14,12 +13,19 @@ import {
   TextInput,
   View,
 } from "react-native";
+import {
+  addEvent,
+  deleteEvent,
+  getEvents,
+  updateEvent,
+} from "../../backend/eventsService";
+import { COLORS } from "../../src/data/mockData";
 
 const BADGE = {
   all: { bg: COLORS.teal + "25", text: COLORS.teal },
   year1: { bg: COLORS.yellow + "30", text: COLORS.yellow },
   year2: { bg: COLORS.red + "25", text: COLORS.red },
-  year3: { bg: COLORS.muted + "30", text: "#aaa" },
+  year3: { bg: "#88888830", text: "#aaa" },
 };
 
 const FILTERS = [
@@ -28,61 +34,6 @@ const FILTERS = [
   { key: "year2", label: "Year 2" },
   { key: "year3", label: "Year 3" },
   { key: "all", label: "All Groups" },
-];
-
-const MOCK_EVENTS = [
-  {
-    id: "1",
-    title: "Community Shabbat Dinner",
-    description:
-      "Join us for our weekly Shabbat dinner gathering. All groups welcome.",
-    date: "2026-05-09",
-    time: "18:00",
-    location: "Community Center Hall",
-    group: "all",
-    groupLabel: "All Groups",
-  },
-  {
-    id: "2",
-    title: "Leadership Workshop",
-    description:
-      "An intensive workshop focused on developing leadership skills.",
-    date: "2026-05-12",
-    time: "10:00",
-    location: "Room 201",
-    group: "year1",
-    groupLabel: "Year 1",
-  },
-  {
-    id: "3",
-    title: "Jerusalem Heritage Walk",
-    description: "Guided tour through the historic quarters of Jerusalem.",
-    date: "2026-05-15",
-    time: "09:00",
-    location: "Jaffa Gate Meeting Point",
-    group: "all",
-    groupLabel: "All Groups",
-  },
-  {
-    id: "4",
-    title: "Music Theory Class",
-    description: "Advanced harmony and ear training session.",
-    date: "2026-05-20",
-    time: "14:00",
-    location: "Music Room 3",
-    group: "year2",
-    groupLabel: "Year 2",
-  },
-  {
-    id: "5",
-    title: "End-of-Year Concert",
-    description: "Annual showcase for all years. Parents invited!",
-    date: "2026-06-01",
-    time: "19:00",
-    location: "Jerusalem Theater",
-    group: "year3",
-    groupLabel: "Year 3",
-  },
 ];
 
 const emptyForm = {
@@ -94,12 +45,7 @@ const emptyForm = {
   group: "all",
   groupLabel: "All Groups",
 };
-const emptyErrors = {
-  title: "",
-  date: "",
-  time: "",
-  location: "",
-};
+const emptyErrors = { title: "", date: "", time: "", location: "" };
 
 const STATUSBAR_H =
   Platform.OS === "android"
@@ -108,7 +54,6 @@ const STATUSBAR_H =
       ? 44
       : 0;
 
-// ─── Israeli cities / keywords for location validation ────────────────────
 const ISRAEL_KEYWORDS = [
   "jerusalem",
   "tel aviv",
@@ -173,18 +118,15 @@ const ISRAEL_KEYWORDS = [
   "park",
 ];
 
-// ─── Validation helpers ───────────────────────────────────────────────────
 const validateForm = (values) => {
   const errors = { title: "", date: "", time: "", location: "" };
   let valid = true;
 
-  // Title
   if (!values.title.trim()) {
     errors.title = "Title is required.";
     valid = false;
   }
 
-  // Date — must match YYYY-MM-DD and be a real date
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
   if (!values.date.trim()) {
     errors.date = "Date is required.";
@@ -200,7 +142,6 @@ const validateForm = (values) => {
     }
   }
 
-  // Time — must match HH:MM (00:00–23:59)
   const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
   if (!values.time.trim()) {
     errors.time = "Time is required.";
@@ -210,7 +151,6 @@ const validateForm = (values) => {
     valid = false;
   }
 
-  // Location — must not be empty and must contain an Israeli keyword
   if (!values.location.trim()) {
     errors.location = "Location is required.";
     valid = false;
@@ -218,8 +158,7 @@ const validateForm = (values) => {
     const loc = values.location.toLowerCase();
     const isIsrael = ISRAEL_KEYWORDS.some((k) => loc.includes(k));
     if (!isIsrael) {
-      errors.location =
-        "Location must be inside Israel. Please enter a valid Israeli location.";
+      errors.location = "Location must be inside Israel.";
       valid = false;
     }
   }
@@ -227,11 +166,11 @@ const validateForm = (values) => {
   return { errors, valid };
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 export default function EventsScreen() {
   const router = useRouter();
 
-  const [events, setEvents] = useState(MOCK_EVENTS);
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeFilter, setFilter] = useState("all_events");
   const [editVisible, setEditVisible] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
@@ -242,14 +181,34 @@ export default function EventsScreen() {
   const [newErrors, setNewErrors] = useState(emptyErrors);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
+  // ── טעינת אירועים מ-Firebase ──────────────────────────────────────────
+  useEffect(() => {
+    const loadEvents = async () => {
+      try {
+        const data = await getEvents();
+        setEvents(data);
+      } catch (error) {
+        console.error("Error loading events:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadEvents();
+  }, []);
+
   const filtered =
     activeFilter === "all_events"
       ? events
       : events.filter((e) => e.group === activeFilter);
 
   // ── Delete ─────────────────────────────────────────────────────────────
-  const doDelete = () => {
-    setEvents((p) => p.filter((e) => e.id !== deleteTarget.id));
+  const doDelete = async () => {
+    try {
+      await deleteEvent(deleteTarget.id);
+      setEvents((p) => p.filter((e) => e.id !== deleteTarget.id));
+    } catch (error) {
+      console.error("Error deleting:", error);
+    }
     setDeleteTarget(null);
   };
 
@@ -269,30 +228,36 @@ export default function EventsScreen() {
     setEditVisible(true);
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     const { errors, valid } = validateForm(form);
     setFormErrors(errors);
     if (!valid) return;
-    setEvents((p) =>
-      p.map((e) => (e.id === editTarget.id ? { ...e, ...form } : e)),
-    );
+    try {
+      await updateEvent(editTarget.id, form);
+      setEvents((p) =>
+        p.map((e) => (e.id === editTarget.id ? { ...e, ...form } : e)),
+      );
+    } catch (error) {
+      console.error("Error updating:", error);
+    }
     setEditVisible(false);
   };
 
   // ── Add ────────────────────────────────────────────────────────────────
-  const saveNew = () => {
+  const saveNew = async () => {
     const { errors, valid } = validateForm(newForm);
     setNewErrors(errors);
     if (!valid) return;
-    setEvents((p) => [
-      {
+    try {
+      const newEvent = await addEvent({
         ...newForm,
-        id: Date.now().toString(),
         groupLabel:
           FILTERS.find((f) => f.key === newForm.group)?.label || "All Groups",
-      },
-      ...p,
-    ]);
+      });
+      if (newEvent) setEvents((p) => [newEvent, ...p]);
+    } catch (error) {
+      console.error("Error adding:", error);
+    }
     setAddVisible(false);
     setNewForm(emptyForm);
     setNewErrors(emptyErrors);
@@ -321,10 +286,9 @@ export default function EventsScreen() {
     });
   };
 
-  // ── Form fields with validation errors ────────────────────────────────
+  // ── Form fields ────────────────────────────────────────────────────────
   const FormFields = ({ values, setValues, errors }) => (
     <ScrollView keyboardShouldPersistTaps="handled">
-      {/* Title */}
       <View style={{ marginBottom: 14 }}>
         <Text style={s.label}>Title</Text>
         <TextInput
@@ -337,7 +301,6 @@ export default function EventsScreen() {
         {errors.title ? <Text style={s.errorText}>{errors.title}</Text> : null}
       </View>
 
-      {/* Description */}
       <View style={{ marginBottom: 14 }}>
         <Text style={s.label}>Description</Text>
         <TextInput
@@ -350,7 +313,6 @@ export default function EventsScreen() {
         />
       </View>
 
-      {/* Location */}
       <View style={{ marginBottom: 14 }}>
         <Text style={s.label}>Location</Text>
         <TextInput
@@ -367,7 +329,6 @@ export default function EventsScreen() {
         )}
       </View>
 
-      {/* Date */}
       <View style={{ marginBottom: 14 }}>
         <Text style={s.label}>Date</Text>
         <TextInput
@@ -384,7 +345,6 @@ export default function EventsScreen() {
         )}
       </View>
 
-      {/* Time */}
       <View style={{ marginBottom: 14 }}>
         <Text style={s.label}>Time</Text>
         <TextInput
@@ -401,7 +361,6 @@ export default function EventsScreen() {
         )}
       </View>
 
-      {/* Group */}
       <Text style={s.label}>Group</Text>
       <View style={s.groupRow}>
         {FILTERS.slice(1).map((f) => (
@@ -514,7 +473,14 @@ export default function EventsScreen() {
         ))}
       </ScrollView>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <View style={s.empty}>
+          <ActivityIndicator color={COLORS.teal} size="large" />
+          <Text style={[s.emptyText, { marginTop: 12 }]}>
+            Loading events...
+          </Text>
+        </View>
+      ) : filtered.length === 0 ? (
         <View style={s.empty}>
           <Text style={s.emptyText}>No events found</Text>
         </View>
@@ -548,7 +514,7 @@ export default function EventsScreen() {
         </Text>
       </Pressable>
 
-      {/* ── DELETE MODAL ──────────────────────────────────────────────── */}
+      {/* DELETE MODAL */}
       <Modal
         visible={!!deleteTarget}
         animationType="fade"
@@ -561,7 +527,7 @@ export default function EventsScreen() {
             <Text style={s.confirmMsg}>
               Are you sure you want to delete{"\n"}
               <Text style={{ color: COLORS.white, fontWeight: "700" }}>
-                &quot;{deleteTarget?.title}&quot;
+                "{deleteTarget?.title}"
               </Text>
               ?
             </Text>
@@ -583,7 +549,7 @@ export default function EventsScreen() {
         </View>
       </Modal>
 
-      {/* ── EDIT MODAL ────────────────────────────────────────────────── */}
+      {/* EDIT MODAL */}
       <Modal
         visible={editVisible}
         animationType="slide"
@@ -597,7 +563,7 @@ export default function EventsScreen() {
               style={s.modalClose}
               onPress={() => setEditVisible(false)}
             >
-              <Text style={{ color: COLORS.muted, fontSize: 22 }}>✕</Text>
+              <Text style={{ color: "#888", fontSize: 22 }}>✕</Text>
             </Pressable>
             <FormFields values={form} setValues={setForm} errors={formErrors} />
             <View style={[s.btnRow, { marginTop: 16 }]}>
@@ -618,7 +584,7 @@ export default function EventsScreen() {
         </View>
       </Modal>
 
-      {/* ── ADD MODAL ─────────────────────────────────────────────────── */}
+      {/* ADD MODAL */}
       <Modal
         visible={addVisible}
         animationType="slide"
@@ -632,7 +598,7 @@ export default function EventsScreen() {
               style={s.modalClose}
               onPress={() => setAddVisible(false)}
             >
-              <Text style={{ color: COLORS.muted, fontSize: 22 }}>✕</Text>
+              <Text style={{ color: "#888", fontSize: 22 }}>✕</Text>
             </Pressable>
             <FormFields
               values={newForm}
@@ -660,7 +626,6 @@ export default function EventsScreen() {
   );
 }
 
-// ─── Styles ────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.black },
   header: {
@@ -675,7 +640,6 @@ const s = StyleSheet.create({
     color: COLORS.white,
     marginTop: 2,
   },
-
   filtersWrap: { height: 56 },
   filtersContent: {
     paddingHorizontal: 16,
@@ -693,7 +657,6 @@ const s = StyleSheet.create({
   filterBtnActive: { backgroundColor: COLORS.teal, borderColor: COLORS.teal },
   filterText: { color: "#ccc", fontSize: 14 },
   filterTextActive: { color: COLORS.black, fontWeight: "700" },
-
   card: {
     backgroundColor: "#111",
     borderRadius: 14,
@@ -718,7 +681,6 @@ const s = StyleSheet.create({
   },
   cardDesc: { fontSize: 13, color: "#aaa", lineHeight: 19, marginBottom: 8 },
   cardLoc: { fontSize: 13, color: COLORS.teal, marginBottom: 14 },
-
   btnRow: { flexDirection: "row", gap: 8 },
   btn: {
     flex: 1,
@@ -729,10 +691,8 @@ const s = StyleSheet.create({
   },
   btnDark: { color: COLORS.black, fontWeight: "700", fontSize: 13 },
   btnLight: { color: COLORS.white, fontWeight: "700", fontSize: 13 },
-
   empty: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyText: { color: COLORS.muted, fontSize: 16 },
-
   fab: {
     position: "absolute",
     bottom: 24,
@@ -745,7 +705,6 @@ const s = StyleSheet.create({
     justifyContent: "center",
     elevation: 6,
   },
-
   overlayCenter: {
     flex: 1,
     backgroundColor: "#000c",
@@ -769,7 +728,6 @@ const s = StyleSheet.create({
     marginBottom: 10,
   },
   confirmMsg: { color: "#aaa", fontSize: 15, lineHeight: 22, marginBottom: 24 },
-
   overlayBottom: {
     flex: 1,
     backgroundColor: "#000c",
@@ -789,7 +747,6 @@ const s = StyleSheet.create({
     marginBottom: 16,
   },
   modalClose: { position: "absolute", top: 24, right: 24 },
-
   label: { color: "#aaa", fontSize: 13, marginBottom: 4 },
   input: {
     backgroundColor: COLORS.charcoal,
@@ -800,10 +757,9 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#444",
   },
-  inputError: { borderColor: COLORS.error, borderWidth: 1.5 }, // ← border אדום
-  errorText: { color: COLORS.error, fontSize: 12, marginTop: 4 }, // ← הודעת שגיאה
-  hintText: { color: "#555", fontSize: 11, marginTop: 4 }, // ← רמז אפור
-
+  inputError: { borderColor: "#e05555", borderWidth: 1.5 },
+  errorText: { color: "#e05555", fontSize: 12, marginTop: 4 },
+  hintText: { color: "#555", fontSize: 11, marginTop: 4 },
   groupRow: {
     flexDirection: "row",
     flexWrap: "wrap",

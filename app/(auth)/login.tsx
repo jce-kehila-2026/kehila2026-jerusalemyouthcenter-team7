@@ -180,7 +180,7 @@ export default function LoginScreen() {
     if (ok) {
       // Each role goes to its own tab stack
       router.replace(
-        role === "admin" ? ("/(admin-tabs)" as any) : ("/(tabs)" as any),
+        role === "admin" ? ("/(tabs)" as any) : ("/(tabs)" as any),
       );
     } else {
       setError(

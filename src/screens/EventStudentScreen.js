@@ -290,7 +290,7 @@ export default function EventStudentScreen({
         ) : (
           <FlatList
             data={myEvents}
-            keyExtractor={(item) => item.event_id.toString()}
+            keyExtractor={(item) => String(item.id ?? item.event_id)}
             renderItem={renderEvent}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}

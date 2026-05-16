@@ -1,57 +1,29 @@
 // src/screens/CalendarScreen.js
-
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-    FlatList,
-    SafeAreaView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  FlatList,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
-import { COLORS, events } from "../data/mockData";
+import { getEvents } from "../../backend/eventsService";
+import { COLORS } from "../data/mockData.js";
 
 export default function CalendarScreen({ onEventPress }) {
   const [selectedDate, setSelectedDate] = useState(null);
+  const [events, setEvents] = useState([]);
 
-  // בנה את האירועים המסומנים לקלנדר
-  const markedDates = {};
-  events.forEach((event) => {
-    const color =
-      event.group_name === "All Groups"
-        ? COLORS.teal
-        : event.group_name === "Year 1"
-          ? COLORS.yellow
-          : event.group_name === "Year 2"
-            ? COLORS.red
-            : "#8b5cf6";
-
-    if (markedDates[event.date]) {
-      markedDates[event.date].dots.push({ color });
-    } else {
-      markedDates[event.date] = {
-        dots: [{ color }],
-        selected: selectedDate === event.date,
-        selectedColor: COLORS.teal,
-      };
-    }
-  });
-
-  // הוסף selected לתאריך שנבחר
-  if (selectedDate) {
-    markedDates[selectedDate] = {
-      ...(markedDates[selectedDate] || {}),
-      selected: true,
-      selectedColor: COLORS.teal,
+  useEffect(() => {
+    const load = async () => {
+      const data = await getEvents();
+      setEvents(data);
     };
-  }
-
-  // אירועים של התאריך שנבחר
-  const selectedEvents = selectedDate
-    ? events.filter((e) => e.date === selectedDate)
-    : events;
+    load();
+  }, []);
 
   const getGroupColor = (groupName) => {
     if (groupName === "All Groups") return COLORS.teal;
@@ -60,6 +32,36 @@ export default function CalendarScreen({ onEventPress }) {
     if (groupName === "Year 3") return "#8b5cf6";
     return COLORS.charcoal;
   };
+
+  //  :
+  const markedDates = {};
+  events.forEach((event) => {
+    const date = event.date.split("T")[0]; //
+    const color = getGroupColor(event.group_name);
+
+    if (markedDates[date]) {
+      markedDates[date].dots.push({ color });
+    } else {
+      markedDates[date] = {
+        dots: [{ color }],
+        selected: selectedDate === date,
+        selectedColor: COLORS.teal,
+      };
+    }
+  });
+
+  if (selectedDate) {
+    markedDates[selectedDate] = {
+      ...(markedDates[selectedDate] || {}),
+      selected: true,
+      selectedColor: COLORS.teal,
+    };
+  }
+
+  //  :
+  const selectedEvents = selectedDate
+    ? events.filter((e) => e.date.split("T")[0] === selectedDate)
+    : events;
 
   const renderEvent = ({ item }) => (
     <TouchableOpacity
@@ -86,7 +88,7 @@ export default function CalendarScreen({ onEventPress }) {
           <Text style={styles.cardTime}>{item.time}</Text>
         </View>
         <Text style={styles.cardTitle}>{item.title}</Text>
-        <Text style={styles.cardLocation}>📍 {item.location}</Text>
+        <Text style={styles.cardLocation}> {item.location}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -95,13 +97,11 @@ export default function CalendarScreen({ onEventPress }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
 
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerSub}>Jerusalem Youth Chorus</Text>
         <Text style={styles.headerTitle}>Calendar</Text>
       </View>
 
-      {/* Calendar */}
       <Calendar
         markingType="multi-dot"
         markedDates={markedDates}
@@ -129,7 +129,6 @@ export default function CalendarScreen({ onEventPress }) {
         style={styles.calendar}
       />
 
-      {/* Legend */}
       <View style={styles.legend}>
         {[
           { label: "All Groups", color: COLORS.teal },
@@ -144,7 +143,6 @@ export default function CalendarScreen({ onEventPress }) {
         ))}
       </View>
 
-      {/* Events */}
       <Text style={styles.sectionTitle}>
         {selectedDate ? `Events on ${selectedDate}` : "All Upcoming Events"}
       </Text>
@@ -154,7 +152,7 @@ export default function CalendarScreen({ onEventPress }) {
       ) : (
         <FlatList
           data={selectedEvents}
-          keyExtractor={(item) => item.event_id.toString()}
+          keyExtractor={(item) => String(item.id ?? item.event_id)}
           renderItem={renderEvent}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -165,15 +163,8 @@ export default function CalendarScreen({ onEventPress }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.black,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
+  container: { flex: 1, backgroundColor: COLORS.black },
+  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
   headerSub: {
     color: COLORS.teal,
     fontSize: 12,
@@ -181,17 +172,8 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     fontWeight: "600",
   },
-  headerTitle: {
-    color: "#fff",
-    fontSize: 32,
-    fontWeight: "800",
-    marginTop: 2,
-  },
-  calendar: {
-    marginHorizontal: 12,
-    borderRadius: 16,
-    overflow: "hidden",
-  },
+  headerTitle: { color: "#fff", fontSize: 32, fontWeight: "800", marginTop: 2 },
+  calendar: { marginHorizontal: 12, borderRadius: 16, overflow: "hidden" },
   legend: {
     flexDirection: "row",
     justifyContent: "center",
@@ -199,20 +181,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     flexWrap: "wrap",
   },
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  legendText: {
-    color: "#aaa",
-    fontSize: 12,
-  },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendText: { color: "#aaa", fontSize: 12 },
   sectionTitle: {
     color: COLORS.teal,
     fontSize: 13,
@@ -222,16 +193,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 10,
   },
-  noEvents: {
-    color: "#666",
-    textAlign: "center",
-    marginTop: 20,
-    fontSize: 14,
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-  },
+  noEvents: { color: "#666", textAlign: "center", marginTop: 20, fontSize: 14 },
+  listContent: { paddingHorizontal: 20, paddingBottom: 30 },
   card: {
     backgroundColor: COLORS.charcoal,
     borderRadius: 14,
@@ -239,41 +202,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     overflow: "hidden",
   },
-  cardAccent: {
-    width: 4,
-  },
-  cardContent: {
-    flex: 1,
-    padding: 12,
-  },
+  cardAccent: { width: 4 },
+  cardContent: { flex: 1, padding: 12 },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 6,
   },
-  groupBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  groupBadgeText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  cardTime: {
-    color: "#aaa",
-    fontSize: 13,
-  },
+  groupBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
+  groupBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  cardTime: { color: "#aaa", fontSize: 13 },
   cardTitle: {
     color: "#fff",
     fontSize: 15,
     fontWeight: "700",
     marginBottom: 4,
   },
-  cardLocation: {
-    color: "#888",
-    fontSize: 12,
-  },
+  cardLocation: { color: "#888", fontSize: 12 },
 });

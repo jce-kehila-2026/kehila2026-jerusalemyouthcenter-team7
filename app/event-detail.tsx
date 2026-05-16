@@ -1,10 +1,10 @@
 import { useLocalSearchParams } from "expo-router";
 import {
-    SafeAreaView,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View,
+  SafeAreaView,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const COLORS = {
@@ -115,7 +115,6 @@ export default function EventDetail() {
             {description}
           </Text>
         </View>
-
         {/* Buttons */}
         <View
           style={{
@@ -125,9 +124,7 @@ export default function EventDetail() {
           }}
         >
           <TouchableOpacity
-            onPress={() => alert("Joined Event")}
-            onPress={() => alert("Event Saved")}
-            onPress={() => alert("Event Deleted")}
+            onPress={() => alert("Joined Event!")}
             style={{
               flex: 1,
               backgroundColor: COLORS.teal,
@@ -138,17 +135,14 @@ export default function EventDetail() {
             }}
           >
             <Text
-              style={{
-                color: COLORS.white,
-                fontWeight: "bold",
-                fontSize: 16,
-              }}
+              style={{ color: COLORS.white, fontWeight: "bold", fontSize: 16 }}
             >
               Join Event
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
+            onPress={() => alert("Event Saved!")}
             style={{
               flex: 1,
               backgroundColor: COLORS.red,
@@ -159,11 +153,7 @@ export default function EventDetail() {
             }}
           >
             <Text
-              style={{
-                color: COLORS.white,
-                fontWeight: "bold",
-                fontSize: 16,
-              }}
+              style={{ color: COLORS.white, fontWeight: "bold", fontSize: 16 }}
             >
               Save Event
             </Text>

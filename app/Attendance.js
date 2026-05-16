@@ -1,15 +1,19 @@
 // app/attendance.js
-
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-    FlatList,
-    Pressable,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    View
+  FlatList,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
+import {
+  getAttendance,
+  saveAttendance as saveToFirebase,
+} from "../backend/attendanceService";
+import { getStudents } from "../backend/eventsService";
 
 const C = {
   teal: "#039899",
@@ -28,32 +32,43 @@ const STATUSES = [
   { key: "sick", label: "Sick", color: "#888888" },
 ];
 
-const MOCK_STUDENTS = [
-  { id: "s1", name: "Yael Cohen", year: "Year 1" },
-  { id: "s2", name: "Noa Levi", year: "Year 1" },
-  { id: "s3", name: "David Mizrahi", year: "Year 2" },
-  { id: "s4", name: "Tamar Katz", year: "Year 2" },
-  { id: "s5", name: "Eli Ben-David", year: "Year 3" },
-  { id: "s6", name: "Maya Shapiro", year: "Year 3" },
-];
-
 export default function AttendancePage() {
   const { eventId, eventTitle } = useLocalSearchParams();
   const router = useRouter();
 
-  const [attendance, setAttendance] = useState(
-    Object.fromEntries(MOCK_STUDENTS.map((s) => [s.id, null])),
-  );
+  const [students, setStudents] = useState([]);
+  const [attendance, setAttendance] = useState({});
   const [saved, setSaved] = useState(false);
+
+  // ── טעינת סטודנטים ונוכחות מ-Firebase ──────────────────────────────
+  useEffect(() => {
+    const load = async () => {
+      // טעינת סטודנטים
+      const studentsData = await getStudents();
+      setStudents(studentsData);
+
+      // אתחול נוכחות לכל סטודנט
+      const initial = Object.fromEntries(studentsData.map((s) => [s.id, null]));
+
+      // טעינת נוכחות קיימת
+      const existing = await getAttendance(eventId);
+      if (existing && Object.keys(existing).length > 0) {
+        setAttendance({ ...initial, ...existing });
+      } else {
+        setAttendance(initial);
+      }
+    };
+    load();
+  }, [eventId]);
 
   const setStatus = (studentId, statusKey) => {
     setSaved(false);
     setAttendance((prev) => ({ ...prev, [studentId]: statusKey }));
   };
 
-  const saveAttendance = () => {
-    // TODO: Firebase → setDoc(doc(db, 'attendance', eventId), attendance)
-    setSaved(true);
+  const saveAttendance = async () => {
+    const ok = await saveToFirebase(eventId, attendance);
+    if (ok) setSaved(true);
   };
 
   const counts = STATUSES.map((s) => ({
@@ -64,23 +79,25 @@ export default function AttendancePage() {
 
   const renderStudent = ({ item }) => {
     const current = attendance[item.id];
+    // תמיכה בשדות שונים מ-Firestore
+    const name = item.full_name ?? item.name ?? "Unknown";
+    const year = item.year_id ? `Year ${item.year_id}` : (item.year ?? "");
+
     return (
       <View style={s.studentCard}>
-        {/* Student info */}
         <View style={s.studentInfo}>
           <View style={s.avatar}>
             <Text style={s.avatarText}>
-              {item.name
+              {name
                 .split(" ")
                 .map((n) => n[0])
                 .join("")}
             </Text>
           </View>
           <View>
-            <Text style={s.studentName}>{item.name}</Text>
-            <Text style={s.studentYear}>{item.year}</Text>
+            <Text style={s.studentName}>{name}</Text>
+            <Text style={s.studentYear}>{year}</Text>
           </View>
-          {/* Show current status label on the right */}
           {current && (
             <View
               style={[
@@ -94,7 +111,9 @@ export default function AttendancePage() {
               <Text
                 style={[
                   s.currentBadgeText,
-                  { color: STATUSES.find((st) => st.key === current)?.color },
+                  {
+                    color: STATUSES.find((st) => st.key === current)?.color,
+                  },
                 ]}
               >
                 {STATUSES.find((st) => st.key === current)?.label}
@@ -103,7 +122,6 @@ export default function AttendancePage() {
           )}
         </View>
 
-        {/* 5 status buttons — text only, no emoji */}
         <View style={s.statusRow}>
           {STATUSES.map((st) => {
             const isActive = current === st.key;
@@ -135,7 +153,6 @@ export default function AttendancePage() {
 
   return (
     <SafeAreaView style={s.safe}>
-      {/* Header */}
       <View style={s.header}>
         <Pressable onPress={() => router.back()} style={s.backBtn}>
           <Text style={s.backText}>← Back</Text>
@@ -145,7 +162,6 @@ export default function AttendancePage() {
         </Text>
       </View>
 
-      {/* Stats summary */}
       <View style={s.statsRow}>
         {counts.map((st) => (
           <View
@@ -162,16 +178,20 @@ export default function AttendancePage() {
         </View>
       </View>
 
-      {/* Students list */}
-      <FlatList
-        data={MOCK_STUDENTS}
-        keyExtractor={(i) => i.id}
-        renderItem={renderStudent}
-        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
-        showsVerticalScrollIndicator={false}
-      />
+      {students.length === 0 ? (
+        <View style={s.empty}>
+          <Text style={s.emptyText}>Loading students...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={students}
+          keyExtractor={(i) => i.id}
+          renderItem={renderStudent}
+          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
 
-      {/* Save button */}
       <View style={s.footer}>
         <Pressable
           style={[s.saveBtn, saved && s.saveBtnDone]}
@@ -192,7 +212,6 @@ const s = StyleSheet.create({
   backBtn: { padding: 4 },
   backText: { color: C.teal, fontSize: 15, fontWeight: "600" },
   eventName: { flex: 1, fontSize: 17, fontWeight: "700", color: C.white },
-
   statsRow: {
     flexDirection: "row",
     paddingHorizontal: 16,
@@ -211,7 +230,8 @@ const s = StyleSheet.create({
   },
   statNum: { fontSize: 20, fontWeight: "800" },
   statLabel: { fontSize: 9, color: "#888", textAlign: "center", marginTop: 2 },
-
+  empty: { flex: 1, alignItems: "center", justifyContent: "center" },
+  emptyText: { color: "#888", fontSize: 16 },
   studentCard: {
     backgroundColor: "#111",
     borderRadius: 12,
@@ -243,8 +263,6 @@ const s = StyleSheet.create({
     borderRadius: 999,
   },
   currentBadgeText: { fontSize: 11, fontWeight: "700" },
-
-  // 5 status buttons in a row — text only
   statusRow: { flexDirection: "row", gap: 6 },
   statusBtn: {
     flex: 1,
@@ -255,7 +273,6 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   statusBtnText: { fontSize: 11, fontWeight: "700", textAlign: "center" },
-
   footer: { padding: 16 },
   saveBtn: {
     backgroundColor: C.teal,

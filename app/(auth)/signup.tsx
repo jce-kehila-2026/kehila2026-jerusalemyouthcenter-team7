@@ -527,17 +527,16 @@ export default function SignupScreen() {
             onChange={(v) => setForm((p) => ({ ...p, parent_relation: v }))}
           />
 
-          <FL text="Parent Phone Number" req />
+          {/* ← הוסיפי את זה */}
+          <FL text="Parent Name" req />
           <TextInput
-            style={inp("parent_phone")}
-            {...fld("parent_phone")}
-            placeholder="+972-50-000-0000"
+            style={inp("parent_name")}
+            {...fld("parent_name")}
+            placeholder="Parent full name"
             placeholderTextColor="#aab"
-            keyboardType="phone-pad"
           />
 
-          <View style={s.sep} />
-          <Text style={s.sectionTitle}>🔐 Set Your Password</Text>
+          <FL text="Parent Phone Number" req />
 
           <FL text="Password" req />
           <TextInput
@@ -546,6 +545,27 @@ export default function SignupScreen() {
             placeholder="Minimum 6 characters"
             placeholderTextColor="#aab"
             secureTextEntry
+          />
+          <FL text="Parent Phone Number" req />
+          {/* ← הוסיפי את זה */}
+          <TextInput
+            style={inp("parent_phone")}
+            {...fld("parent_phone")}
+            placeholder="+972-50-000-0000"
+            placeholderTextColor="#aab"
+            keyboardType="phone-pad"
+          />
+          <FL text="Medical Situation" req />
+          <TextInput
+            style={[
+              inp("medical_situation"),
+              { height: 80, textAlignVertical: "top" },
+            ]}
+            {...fld("medical_situation")}
+            placeholder="Any medical conditions or allergies..."
+            placeholderTextColor="#aab"
+            multiline
+            numberOfLines={3}
           />
 
           <FL text="Confirm Password" req />
