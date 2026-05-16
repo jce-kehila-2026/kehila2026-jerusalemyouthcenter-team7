@@ -30,15 +30,13 @@ export default function CalendarScreen({ onEventPress }) {
     if (groupName === "Year 1") return COLORS.yellow;
     if (groupName === "Year 2") return COLORS.red;
     if (groupName === "Year 3") return "#8b5cf6";
-    return COLORS.charcoal;
+    return "#888";
   };
 
-  //  :
   const markedDates = {};
   events.forEach((event) => {
-    const date = event.date.split("T")[0]; //
+    const date = event.date.split("T")[0];
     const color = getGroupColor(event.group_name);
-
     if (markedDates[date]) {
       markedDates[date].dots.push({ color });
     } else {
@@ -58,7 +56,6 @@ export default function CalendarScreen({ onEventPress }) {
     };
   }
 
-  //  :
   const selectedEvents = selectedDate
     ? events.filter((e) => e.date.split("T")[0] === selectedDate)
     : events;
@@ -80,22 +77,29 @@ export default function CalendarScreen({ onEventPress }) {
           <View
             style={[
               styles.groupBadge,
-              { backgroundColor: getGroupColor(item.group_name) },
+              { backgroundColor: getGroupColor(item.group_name) + "20" },
             ]}
           >
-            <Text style={styles.groupBadgeText}>{item.group_name}</Text>
+            <Text
+              style={[
+                styles.groupBadgeText,
+                { color: getGroupColor(item.group_name) },
+              ]}
+            >
+              {item.group_name}
+            </Text>
           </View>
           <Text style={styles.cardTime}>{item.time}</Text>
         </View>
         <Text style={styles.cardTitle}>{item.title}</Text>
-        <Text style={styles.cardLocation}> {item.location}</Text>
+        <Text style={styles.cardLocation}>📍 {item.location}</Text>
       </View>
     </TouchableOpacity>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.black} />
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       <View style={styles.header}>
         <Text style={styles.headerSub}>Jerusalem Youth Chorus</Text>
@@ -105,22 +109,22 @@ export default function CalendarScreen({ onEventPress }) {
       <Calendar
         markingType="multi-dot"
         markedDates={markedDates}
-        onDayPress={(day) => {
+        onDayPress={(day) =>
           setSelectedDate(
             selectedDate === day.dateString ? null : day.dateString,
-          );
-        }}
+          )
+        }
         theme={{
-          backgroundColor: COLORS.black,
-          calendarBackground: "#111",
+          backgroundColor: "#fff",
+          calendarBackground: "#fff",
           textSectionTitleColor: COLORS.teal,
           selectedDayBackgroundColor: COLORS.teal,
-          selectedDayTextColor: COLORS.white,
-          todayTextColor: COLORS.yellow,
-          dayTextColor: COLORS.white,
-          textDisabledColor: "#555",
+          selectedDayTextColor: "#fff",
+          todayTextColor: COLORS.teal,
+          dayTextColor: "#111",
+          textDisabledColor: "#ccc",
           dotColor: COLORS.teal,
-          monthTextColor: COLORS.white,
+          monthTextColor: "#111",
           arrowColor: COLORS.teal,
           textMonthFontWeight: "700",
           textDayFontSize: 14,
@@ -163,7 +167,7 @@ export default function CalendarScreen({ onEventPress }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.black },
+  container: { flex: 1, backgroundColor: "#fff" },
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
   headerSub: {
     color: COLORS.teal,
@@ -172,8 +176,14 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     fontWeight: "600",
   },
-  headerTitle: { color: "#fff", fontSize: 32, fontWeight: "800", marginTop: 2 },
-  calendar: { marginHorizontal: 12, borderRadius: 16, overflow: "hidden" },
+  headerTitle: { color: "#111", fontSize: 32, fontWeight: "800", marginTop: 2 },
+  calendar: {
+    marginHorizontal: 12,
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+  },
   legend: {
     flexDirection: "row",
     justifyContent: "center",
@@ -183,7 +193,7 @@ const styles = StyleSheet.create({
   },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendText: { color: "#aaa", fontSize: 12 },
+  legendText: { color: "#666", fontSize: 12 },
   sectionTitle: {
     color: COLORS.teal,
     fontSize: 13,
@@ -193,14 +203,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 10,
   },
-  noEvents: { color: "#666", textAlign: "center", marginTop: 20, fontSize: 14 },
+  noEvents: { color: "#aaa", textAlign: "center", marginTop: 20, fontSize: 14 },
   listContent: { paddingHorizontal: 20, paddingBottom: 30 },
   card: {
-    backgroundColor: COLORS.charcoal,
+    backgroundColor: "#fff",
     borderRadius: 14,
     marginBottom: 12,
     flexDirection: "row",
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#eee",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardAccent: { width: 4 },
   cardContent: { flex: 1, padding: 12 },
@@ -211,13 +228,13 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   groupBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
-  groupBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
-  cardTime: { color: "#aaa", fontSize: 13 },
+  groupBadgeText: { fontSize: 11, fontWeight: "700" },
+  cardTime: { color: "#888", fontSize: 13 },
   cardTitle: {
-    color: "#fff",
+    color: "#111",
     fontSize: 15,
     fontWeight: "700",
     marginBottom: 4,
   },
-  cardLocation: { color: "#888", fontSize: 12 },
+  cardLocation: { color: "#666", fontSize: 12 },
 });
