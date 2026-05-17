@@ -14,6 +14,9 @@ export type Student = {
   group_id: string;
   year_id: number;
   program_id: number;
+  parent_phone?: string;
+  parent_signature?: boolean;
+  allergies?: string;
 };
 
 export type Group = {
@@ -68,7 +71,7 @@ export type Message = {
 export type Notification = {
   id: number;
   title: string;
-  body: string;
+  body: string;ط
   timestamp: string;
   is_read: boolean;
   type: "event" | "message" | "form" | "general";
@@ -275,6 +278,35 @@ export const forms: Form[] = [
         options: ["Leadership", "Heritage Walk", "Art Evening", "Shabbat"],
       },
       { id: 7, form_id: 3, text: "What can we improve?", type: "text" },
+    ],
+  },
+  {
+    id: 4,
+    title: "New Student Registration Form",
+    description:
+      "This form is filled out by the coordinator to add a new student to the chorus.",
+    created_at: "2026-05-10",
+    questions: [
+      { id: 8, form_id: 4, text: "Student's Full Name", type: "text" },
+      {
+        id: 9,
+        form_id: 4,
+        text: "Parents' Phone Number (if the student does not have a phone)",
+        type: "text",
+      },
+      {
+        id: 10,
+        form_id: 4,
+        text: "Does the student have any food allergies? (Visible to staff only)",
+        type: "text",
+        options: ["is_private"],
+      },
+      {
+        id: 11,
+        form_id: 4,
+        text: "Parental Consent and Signature",
+        type: "yes_no",
+      },
     ],
   },
 ];
