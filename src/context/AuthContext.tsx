@@ -20,6 +20,8 @@ export type UserType = {
   phone?: string | null;
   school_name?: string | null;
   voice_type?: string | null;
+  current_year_id?: number | null; // Added for student's current year
+  group_id?: string | null;
 };
 
 // All fields collected during student signup
@@ -87,7 +89,16 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
               email: d.email ?? null,
               phone: d.phone ?? null,
               school_name: d.school_name ?? null,
-              voice_type: d.voice_type ?? null,
+              voice_type: d.voice_type
+                ? String(d.voice_type).trim().toLowerCase()
+                : null,
+              group_id: d.group_id ?? null,
+              current_year_id:
+                d.year_id !== undefined
+                  ? Number(d.year_id)
+                  : d.year !== undefined && d.year !== null // Ensure d.year is not null
+                    ? Number(d.year)
+                    : null, // Default to null if no year is found
             });
           } else {
             // Check admins collection
@@ -119,43 +130,58 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
     return () => unsubscribe();
   }, []);
 
-  // ── Login ─────────────────────────────────────────────────────────────────
+  // ── Login ──────────────────────────────────────────────────────────────────
   const login = async (
     identifier: string,
     password: string,
     role: UserRole,
   ): Promise<boolean> => {
     try {
-      // Students use phone→email, admins use their real email
-      const firebaseEmail =
-        role === "student" ? phoneToEmail(identifier) : identifier.trim();
+      // Students use phone (mapped to email), Admins use direct email
+      const email = role === "student" ? phoneToEmail(identifier) : identifier;
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      const fbUser = result.user;
 
-      const result = await signInWithEmailAndPassword(
-        auth,
-        firebaseEmail,
-        password,
-      );
-      const uid = result.user.uid;
-      const collection = role === "admin" ? "admins" : "students";
+      // Check the appropriate collection based on the intended role
+      const collectionName = role === "student" ? "students" : "admins";
+      const snap = await getDoc(doc(db, collectionName, fbUser.uid));
 
-      const snap = await getDoc(doc(db, collection, uid));
-      if (!snap.exists()) {
-        // Valid Firebase credentials but wrong role selected
+      if (snap.exists()) {
+        const d = snap.data();
+        if (role === "student") {
+          setUser({
+            uid: fbUser.uid,
+            role: "student",
+            full_name: d.full_name,
+            email: d.email ?? null,
+            phone: d.phone ?? null,
+            school_name: d.school_name ?? null,
+            voice_type: d.voice_type
+              ? String(d.voice_type).trim().toLowerCase()
+              : null,
+            group_id: d.group_id ?? null,
+            current_year_id:
+              d.year_id !== undefined
+                ? Number(d.year_id)
+                : d.year !== undefined && d.year !== null
+                  ? Number(d.year)
+                  : null,
+          });
+        } else {
+          setUser({
+            uid: fbUser.uid,
+            role: "admin",
+            full_name: d.full_name,
+            email: d.email ?? null,
+            phone: d.phone ?? null,
+          });
+        }
+        return true;
+      } else {
+        // Profile doesn't exist in the selected role's collection
         await signOut(auth);
         return false;
       }
-
-      const d = snap.data();
-      setUser({
-        uid,
-        role,
-        full_name: d.full_name,
-        email: d.email ?? null,
-        phone: d.phone ?? null,
-        school_name: d.school_name ?? null,
-        voice_type: d.voice_type ?? null,
-      });
-      return true;
     } catch (e: any) {
       console.log("LOGIN ERROR:", e.message);
       return false;
@@ -190,7 +216,10 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         age: fields.age,
         school_name: fields.school_name.trim(),
         shirt_size: fields.shirt_size,
-        voice_type: fields.voice_type,
+        voice_type: fields.voice_type
+          ? String(fields.voice_type).trim().toLowerCase()
+          : null,
+        year_id: 1, // Ensure year_id is saved to Firestore
         year_joined: fields.year_joined,
         food_notes: fields.food_notes.trim(),
         parent_relation: fields.parent_relation,
@@ -205,7 +234,11 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         email: fields.email?.trim() || null,
         phone: fields.phone.trim(),
         school_name: fields.school_name.trim(),
-        voice_type: fields.voice_type,
+        voice_type: fields.voice_type
+          ? String(fields.voice_type).trim().toLowerCase()
+          : null,
+        group_id: null,
+        current_year_id: 1, // Default to Year 1 for new signups
       });
 
       return true;

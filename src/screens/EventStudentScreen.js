@@ -26,6 +26,7 @@ export default function EventStudentScreen({
 }) {
   const [activeTab, setActiveTab] = useState("list");
   const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState(null);
   const { events, addEvent, updateEvent, deleteEvent } = useEvents();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
@@ -45,7 +46,9 @@ export default function EventStudentScreen({
   const groupOptions = ["All Groups", "Year 1", "Year 2", "Year 3"];
 
   const myEvents = isAdmin
-    ? events
+    ? selectedGroupFilter
+      ? events.filter((e) => e.group_name === selectedGroupFilter)
+      : events
     : events.filter(
         (e) =>
           e.group_name === "All Groups" ||
@@ -57,14 +60,12 @@ export default function EventStudentScreen({
     if (groupName === "Year 1") return COLORS.yellow;
     if (groupName === "Year 2") return COLORS.red;
     if (groupName === "Year 3") return "#8b5cf6";
-    return COLORS.charcoal;
+    return COLORS.teal; // Fallback to a visible color
   };
 
   const isValidDate = (dateStr) => {
-    const regex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!regex.test(dateStr)) return false;
-    const date = new Date(dateStr);
-    return date instanceof Date && !isNaN(date);
+    const regex = /^\d{4}-\d{2}-\d{2}/;
+    return regex.test(dateStr);
   };
 
   const isValidTime = (timeStr) => {
@@ -138,20 +139,26 @@ export default function EventStudentScreen({
   };
 
   const handleDelete = (eventId) => {
-    if (window.confirm("Are you sure you want to delete this event?")) {
-      deleteEvent(eventId);
-    }
+    Alert.alert("Delete Event", "Are you sure you want to delete this event?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => deleteEvent(eventId),
+      },
+    ]);
   };
 
   // Calendar marked dates
   const markedDates = {};
   myEvents.forEach((event) => {
-    if (!isValidDate(event.date)) return;
+    const dateKey = event.date.split("T")[0]; // Strip time for calendar comparison
+    if (!isValidDate(dateKey)) return;
     const color = getGroupColor(event.group_name);
-    if (markedDates[event.date]) {
-      markedDates[event.date].dots.push({ color });
+    if (markedDates[dateKey]) {
+      markedDates[dateKey].dots.push({ color });
     } else {
-      markedDates[event.date] = { dots: [{ color }] };
+      markedDates[dateKey] = { dots: [{ color }] };
     }
   });
   if (selectedDate) {
@@ -163,7 +170,7 @@ export default function EventStudentScreen({
   }
 
   const calendarEvents = selectedDate
-    ? myEvents.filter((e) => e.date === selectedDate)
+    ? myEvents.filter((e) => e.date.split("T")[0] === selectedDate)
     : myEvents;
 
   const renderEvent = ({ item }) => (
@@ -208,7 +215,7 @@ export default function EventStudentScreen({
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.deleteBtn}
-              onPress={() => handleDelete(item.event_id)}
+              onPress={() => handleDelete(item.id)}
             >
               <Text style={styles.deleteBtnText}>Delete</Text>
             </TouchableOpacity>
@@ -250,6 +257,20 @@ export default function EventStudentScreen({
         </View>
       )}
 
+      <View style={styles.legend}>
+        {[
+          { label: "All Groups", color: COLORS.teal },
+          { label: "Year 1", color: COLORS.yellow },
+          { label: "Year 2", color: COLORS.red },
+          { label: "Year 3", color: "#8b5cf6" },
+        ].map((item) => (
+          <View key={item.label} style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+            <Text style={styles.legendText}>{item.label}</Text>
+          </View>
+        ))}
+      </View>
+
       <View style={styles.tabRow}>
         <TouchableOpacity
           style={[styles.tabBtn, activeTab === "list" && styles.tabBtnActive]}
@@ -290,7 +311,9 @@ export default function EventStudentScreen({
         ) : (
           <FlatList
             data={myEvents}
-            keyExtractor={(item) => String(item.id ?? item.event_id)}
+            keyExtractor={(item) =>
+              String(item.id || item.event_id || Math.random())
+            }
             renderItem={renderEvent}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -325,22 +348,6 @@ export default function EventStudentScreen({
             style={styles.calendar}
           />
 
-          <View style={styles.legend}>
-            {[
-              { label: "All Groups", color: COLORS.teal },
-              { label: "Year 1", color: COLORS.yellow },
-              { label: "Year 2", color: COLORS.red },
-              { label: "Year 3", color: "#8b5cf6" },
-            ].map((item) => (
-              <View key={item.label} style={styles.legendItem}>
-                <View
-                  style={[styles.legendDot, { backgroundColor: item.color }]}
-                />
-                <Text style={styles.legendText}>{item.label}</Text>
-              </View>
-            ))}
-          </View>
-
           <Text style={styles.sectionTitle}>
             {selectedDate ? `Events on ${selectedDate}` : "All Upcoming Events"}
           </Text>
@@ -349,7 +356,7 @@ export default function EventStudentScreen({
             <Text style={styles.noEvents}>No events on this day</Text>
           ) : (
             calendarEvents.map((item) => (
-              <View key={item.event_id} style={{ paddingHorizontal: 20 }}>
+              <View key={item.id} style={{ paddingHorizontal: 20 }}>
                 {renderEvent({ item })}
               </View>
             ))
@@ -607,14 +614,21 @@ const styles = StyleSheet.create({
   calendar: { marginHorizontal: 12, borderRadius: 16, overflow: "hidden" },
   legend: {
     flexDirection: "row",
-    justifyContent: "center",
-    gap: 16,
-    paddingVertical: 10,
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     flexWrap: "wrap",
   },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
+  legendItemActive: {
+    opacity: 1,
+    backgroundColor: "#222",
+    padding: 4,
+    borderRadius: 6,
+  },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendText: { color: "#aaa", fontSize: 12 },
+  legendText: { color: "#888", fontSize: 12 },
+  legendTextActive: { color: COLORS.white, fontWeight: "700" },
   sectionTitle: {
     color: COLORS.teal,
     fontSize: 13,
