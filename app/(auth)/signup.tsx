@@ -535,18 +535,7 @@ export default function SignupScreen() {
             placeholder="Parent full name"
             placeholderTextColor="#aab"
           />
-
-          <FL text="Parent Phone Number" req />
-
-          <FL text="Password" req />
-          <TextInput
-            style={inp("password")}
-            {...fld("password")}
-            placeholder="Minimum 6 characters"
-            placeholderTextColor="#aab"
-            secureTextEntry
-          />
-          <FL text="Parent Phone Number" req />
+           <FL text="Parent Phone Number" req />
           {/* ← הוסיפי את זה */}
           <TextInput
             style={inp("parent_phone")}
@@ -567,6 +556,17 @@ export default function SignupScreen() {
             multiline
             numberOfLines={3}
           />
+
+
+          <FL text="Password" req />
+          <TextInput
+            style={inp("password")}
+            {...fld("password")}
+            placeholder="Minimum 6 characters"
+            placeholderTextColor="#aab"
+            secureTextEntry
+          />
+
 
           <FL text="Confirm Password" req />
           <TextInput
