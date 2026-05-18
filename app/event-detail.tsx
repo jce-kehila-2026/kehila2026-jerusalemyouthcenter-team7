@@ -8,8 +8,8 @@ import {
 } from "react-native";
 
 const COLORS = {
-  background: "#000000",
-  card: "#2f2f2f",
+  background: "#ffffff",
+  card: "#f5f5f5",
   teal: "#11b5b9",
   red: "#cf6b55",
   white: "#ffffff",
@@ -43,7 +43,7 @@ export default function EventDetail() {
         >
           <Text
             style={{
-              color: COLORS.white,
+              color: "#111",
               fontWeight: "700",
             }}
           >
@@ -64,7 +64,7 @@ export default function EventDetail() {
           {/* Title */}
           <Text
             style={{
-              color: COLORS.white,
+              color: "#111",
               fontSize: 32,
               fontWeight: "bold",
               marginBottom: 18,
@@ -107,7 +107,7 @@ export default function EventDetail() {
           {/* Description */}
           <Text
             style={{
-              color: COLORS.white,
+              color: "#111",
               fontSize: 18,
               lineHeight: 30,
             }}
@@ -135,7 +135,7 @@ export default function EventDetail() {
             }}
           >
             <Text
-              style={{ color: COLORS.white, fontWeight: "bold", fontSize: 16 }}
+              style={{ color: "#111", fontWeight: "bold", fontSize: 16 }}
             >
               Join Event
             </Text>
@@ -153,7 +153,7 @@ export default function EventDetail() {
             }}
           >
             <Text
-              style={{ color: COLORS.white, fontWeight: "bold", fontSize: 16 }}
+              style={{ color: "#111", fontWeight: "bold", fontSize: 16 }}
             >
               Save Event
             </Text>
