@@ -88,12 +88,12 @@ export default function AddStudentScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.black },
+  container: { flex: 1, backgroundColor: COLORS.white },
   content: { padding: 20 },
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    color: COLORS.white,
+    color: COLORS.black,
     marginBottom: 20,
   },
   inputGroup: { marginBottom: 15 },
@@ -104,12 +104,12 @@ const s = StyleSheet.create({
     fontWeight: "600",
   },
   input: {
-    backgroundColor: "#111",
+    backgroundColor: COLORS.grayLight,
     borderRadius: 8,
     padding: 12,
-    color: COLORS.white,
+    color: COLORS.black,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: COLORS.border,
   },
   saveBtn: {
     backgroundColor: COLORS.teal,
@@ -118,5 +118,5 @@ const s = StyleSheet.create({
     alignItems: "center",
     marginTop: 20,
   },
-  saveBtnText: { color: COLORS.black, fontWeight: "bold", fontSize: 16 },
+  saveBtnText: { color: COLORS.white, fontWeight: "bold", fontSize: 16 },
 });

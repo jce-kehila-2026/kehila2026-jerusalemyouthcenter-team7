@@ -3,40 +3,26 @@ export type User = {
   full_name: string;
   email: string;
   phone: string;
-<<<<<<< HEAD
-  role: 'admin' | 'student';
+  role: "admin" | "student";
 };
 
 export type Student = {
   id: string;
-=======
-  role: "admin";
-};
-
-export type Student = {
-  id: string; // Changed from number to string to match Firestore doc.id
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
   full_name: string;
   email: string;
   phone: string;
   group_id: string;
   year_id: number;
   program_id: number;
-<<<<<<< HEAD
-  role: 'student' | 'admin';
-};
-
-export type Group = {
-  id: string;
-=======
+  voice_type?: "bass" | "tenor" | "alto" | "soprano";
+  year_joined?: number;
   parent_phone?: string;
   parent_signature?: boolean;
   allergies?: string;
 };
 
 export type Group = {
-  id: string; // Changed from number to string to match Firestore doc.id
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
+  id: string;
   name: string;
   year_id: number;
   program_id: number;
@@ -49,15 +35,15 @@ export type Event = {
   date: string;
   location: string;
   group_ids: string[];
+  group_name: string; // Added to match screen logic
   capacity: number;
   registered: number;
 };
 
 export type EventAttendance = {
   event_id: number;
-  student_id: number;
-<<<<<<< HEAD
-  status: 'registered' | 'attended' | 'absent';
+  student_id: string;
+  status: "registered" | "attended" | "absent";
 };
 
 export type EventStudent = {
@@ -74,20 +60,13 @@ export type MessageGroup = {
   id: string;
   name: string;
   group_id: string;
-=======
-  status: "registered" | "attended" | "absent";
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
 };
 
 export type Question = {
   id: number;
   form_id: number;
   text: string;
-<<<<<<< HEAD
-  type: 'text' | 'multiple_choice' | 'yes_no';
-=======
   type: "text" | "multiple_choice" | "yes_no";
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
   options?: string[];
 };
 
@@ -111,27 +90,7 @@ export type Message = {
 export type Notification = {
   id: number;
   title: string;
-<<<<<<< HEAD
   body: string;
-  timestamp: string;
-  is_read: boolean;
-  type: 'event' | 'message' | 'form' | 'general';
-};
-
-export const currentUser: User = {
-  id: '1',
-  full_name: 'Admin User',
-  email: 'admin@kehila.org',
-  phone: '+972-50-000-0001',
-  role: 'admin',
-};
-
-export const groups: Group[] = [
-  { id: '1', name: 'Alpha', year_id: 1, program_id: 1 },
-  { id: '2', name: 'Beta', year_id: 1, program_id: 2 },
-  { id: '3', name: 'Gamma', year_id: 2, program_id: 1 },
-=======
-  body: string;ط
   timestamp: string;
   is_read: boolean;
   type: "event" | "message" | "form" | "general";
@@ -146,94 +105,13 @@ export const currentUser: User = {
 };
 
 export const groups: Group[] = [
-  { id: "1", name: "Alpha", year_id: 1, program_id: 1 },
-  { id: "2", name: "Beta", year_id: 1, program_id: 2 },
-  { id: "3", name: "Gamma", year_id: 2, program_id: 1 },
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
+  { id: "1", name: "Year 1", year_id: 1, program_id: 1 },
+  { id: "2", name: "Year 2", year_id: 2, program_id: 2 },
+  { id: "3", name: "Year 3", year_id: 3, program_id: 1 },
 ];
 
 export const students: Student[] = [
   {
-<<<<<<< HEAD
-    id: '1',
-    full_name: 'Ali Ahmad',
-    email: 'ali@student.com',
-    phone: '+972-50-111-0001',
-    group_id: '1',
-    year_id: 1,
-    program_id: 1,
-    role: 'admin',
-  },
-  {
-    id: '2',
-    full_name: 'Sara Cohen',
-    email: 'sara@student.com',
-    phone: '+972-50-111-0002',
-    group_id: '1',
-    year_id: 1,
-    program_id: 1,
-    role: 'student',
-  },
-  {
-    id: '3',
-    full_name: 'Omar Nasser',
-    email: 'omar@student.com',
-    phone: '+972-50-111-0003',
-    group_id: '2',
-    year_id: 1,
-    program_id: 2,
-    role: 'student',
-  },
-  {
-    id: '4',
-    full_name: 'Maya Levi',
-    email: 'maya@student.com',
-    phone: '+972-50-111-0004',
-    group_id: '2',
-    year_id: 1,
-    program_id: 2,
-    role: 'student',
-  },
-  {
-    id: '5',
-    full_name: 'Yusuf Khalil',
-    email: 'yusuf@student.com',
-    phone: '+972-50-111-0005',
-    group_id: '3',
-    year_id: 2,
-    program_id: 1,
-    role: 'student',
-  },
-  {
-    id: '6',
-    full_name: 'Noa Ben-David',
-    email: 'noa@student.com',
-    phone: '+972-50-111-0006',
-    group_id: '3',
-    year_id: 2,
-    program_id: 1,
-    role: 'student',
-  },
-  {
-    id: '7',
-    full_name: 'Kareem Hassan',
-    email: 'kareem@student.com',
-    phone: '+972-50-111-0007',
-    group_id: '1',
-    year_id: 1,
-    program_id: 1,
-    role: 'student',
-  },
-  {
-    id: '8',
-    full_name: 'Tamar Shapiro',
-    email: 'tamar@student.com',
-    phone: '+972-50-111-0008',
-    group_id: '2',
-    year_id: 1,
-    program_id: 2,
-    role: 'student',
-=======
     id: "1",
     full_name: "Ali Ahmad",
     email: "ali@student.com",
@@ -241,6 +119,8 @@ export const students: Student[] = [
     group_id: "1",
     year_id: 1,
     program_id: 1,
+    voice_type: "tenor",
+    year_joined: 2024,
   },
   {
     id: "2",
@@ -249,6 +129,8 @@ export const students: Student[] = [
     phone: "+972-50-111-0002",
     group_id: "1",
     year_id: 1,
+    voice_type: "soprano",
+    year_joined: 2024,
     program_id: 1,
   },
   {
@@ -257,7 +139,9 @@ export const students: Student[] = [
     email: "omar@student.com",
     phone: "+972-50-111-0003",
     group_id: "2",
-    year_id: 1,
+    year_id: 2,
+    voice_type: "bass",
+    year_joined: 2023,
     program_id: 2,
   },
   {
@@ -266,7 +150,9 @@ export const students: Student[] = [
     email: "maya@student.com",
     phone: "+972-50-111-0004",
     group_id: "2",
-    year_id: 1,
+    year_id: 2,
+    voice_type: "alto",
+    year_joined: 2023,
     program_id: 2,
   },
   {
@@ -275,7 +161,9 @@ export const students: Student[] = [
     email: "yusuf@student.com",
     phone: "+972-50-111-0005",
     group_id: "3",
-    year_id: 2,
+    year_id: 3,
+    voice_type: "tenor",
+    year_joined: 2022,
     program_id: 1,
   },
   {
@@ -284,7 +172,9 @@ export const students: Student[] = [
     email: "noa@student.com",
     phone: "+972-50-111-0006",
     group_id: "3",
-    year_id: 2,
+    year_id: 3,
+    voice_type: "soprano",
+    year_joined: 2022,
     program_id: 1,
   },
   {
@@ -294,6 +184,8 @@ export const students: Student[] = [
     phone: "+972-50-111-0007",
     group_id: "1",
     year_id: 1,
+    voice_type: "bass",
+    year_joined: 2024,
     program_id: 1,
   },
   {
@@ -302,166 +194,99 @@ export const students: Student[] = [
     email: "tamar@student.com",
     phone: "+972-50-111-0008",
     group_id: "2",
-    year_id: 1,
+    year_id: 2,
+    voice_type: "alto",
+    year_joined: 2023,
     program_id: 2,
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
   },
 ];
 
 export const events: Event[] = [
   {
     id: 1,
-<<<<<<< HEAD
-    title: 'Community Shabbat Dinner',
-    description:
-      'Join us for our weekly Shabbat dinner gathering. All groups welcome. Bring family and friends for an evening of community and food.',
-    date: '2026-05-09T18:00:00',
-    location: 'Community Center Hall',
-    group_ids: ['1', '2', '3'],
-=======
     title: "Community Shabbat Dinner",
     description:
       "Join us for our weekly Shabbat dinner gathering. All groups welcome. Bring family and friends for an evening of community and food.",
     date: "2026-05-09T18:00:00",
     location: "Community Center Hall",
     group_ids: ["1", "2", "3"],
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
+    group_name: "All Groups",
     capacity: 100,
     registered: 42,
   },
   {
     id: 2,
-<<<<<<< HEAD
-    title: 'Leadership Workshop',
-    description:
-      'An intensive workshop focused on developing leadership skills for young community members.',
-    date: '2026-05-20T10:00:00',
-    location: 'Room 201',
-    group_ids: ['1', '2'],
-=======
     title: "Leadership Workshop",
     description:
       "An intensive workshop focused on developing leadership skills for young community members.",
     date: "2026-05-12T10:00:00",
     location: "Room 201",
     group_ids: ["1", "2"],
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
+    group_name: "Year 1",
     capacity: 30,
     registered: 18,
   },
   {
     id: 3,
-<<<<<<< HEAD
-    title: 'Jerusalem Heritage Walk',
-    description:
-      'Guided tour through the historic quarters of Jerusalem. Learn about the rich history of our city.',
-    date: '2026-05-25T09:00:00',
-    location: 'Jaffa Gate Meeting Point',
-    group_ids: ['1', '2', '3'],
-=======
     title: "Jerusalem Heritage Walk",
     description:
       "Guided tour through the historic quarters of Jerusalem. Learn about the rich history of our city.",
     date: "2026-05-15T09:00:00",
     location: "Jaffa Gate Meeting Point",
     group_ids: ["1", "2", "3"],
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
+    group_name: "All Groups",
     capacity: 50,
     registered: 35,
   },
   {
     id: 4,
-<<<<<<< HEAD
-    title: 'Art & Culture Evening',
-    description:
-      'Showcase your talents — music, poetry, visual arts. An evening celebrating community creativity.',
-    date: '2026-06-05T17:00:00',
-    location: 'Main Hall',
-    group_ids: ['3'],
-=======
     title: "Art & Culture Evening",
     description:
       "Showcase your talents — music, poetry, visual arts. An evening celebrating community creativity.",
     date: "2026-05-20T17:00:00",
     location: "Main Hall",
     group_ids: ["3"],
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
+    group_name: "Year 3",
     capacity: 60,
     registered: 22,
   },
 ];
 
 export const attendance: EventAttendance[] = [
-<<<<<<< HEAD
-  { event_id: 1, student_id: 1, status: 'registered' },
-  { event_id: 1, student_id: 2, status: 'attended' },
-  { event_id: 1, student_id: 3, status: 'attended' },
-  { event_id: 2, student_id: 4, status: 'registered' },
-  { event_id: 2, student_id: 5, status: 'absent' },
-  { event_id: 2, student_id: 6, status: 'attended' },
-  { event_id: 3, student_id: 1, status: 'attended' },
-  { event_id: 3, student_id: 7, status: 'attended' },
-  { event_id: 3, student_id: 8, status: 'absent' },
+  { event_id: 1, student_id: "1", status: "registered" },
+  { event_id: 1, student_id: "2", status: "attended" },
+  { event_id: 1, student_id: "3", status: "attended" },
+  { event_id: 2, student_id: "4", status: "registered" },
+  { event_id: 2, student_id: "5", status: "absent" },
 ];
 
 export const eventStudents: EventStudent[] = [
-  { student_id: '1', event_id: 1 },
-  { student_id: '2', event_id: 1 },
-  { student_id: '3', event_id: 1 },
-  { student_id: '1', event_id: 2 },
-  { student_id: '4', event_id: 2 },
-  { student_id: '5', event_id: 2 },
-  { student_id: '1', event_id: 3 },
-  { student_id: '2', event_id: 3 },
-  { student_id: '6', event_id: 3 },
-  { student_id: '7', event_id: 4 },
-  { student_id: '8', event_id: 4 },
+  { student_id: "1", event_id: 1 },
+  { student_id: "2", event_id: 1 },
+  { student_id: "3", event_id: 1 },
 ];
 
 export const messageStudents: MessageStudent[] = [
-  { student_id: 2, student_name: 'Sara Cohen' },
-  { student_id: 3, student_name: 'Omar Nasser' },
-  { student_id: 5, student_name: 'Yusuf Khalil' },
-  { student_id: 7, student_name: 'Kareem Hassan' },
+  { student_id: 2, student_name: "Sara Cohen" },
+  { student_id: 3, student_name: "Omar Nasser" },
 ];
 
 export const messageGroups: MessageGroup[] = [
-  { id: 'g1', name: 'Alpha Group', group_id: '1' },
-  { id: 'g2', name: 'Beta Group', group_id: '2' },
-  { id: 'g3', name: 'Gamma Group', group_id: '3' },
-=======
-  { event_id: 1, student_id: 1, status: "registered" },
-  { event_id: 1, student_id: 2, status: "attended" },
-  { event_id: 1, student_id: 3, status: "attended" },
-  { event_id: 2, student_id: 4, status: "registered" },
-  { event_id: 2, student_id: 5, status: "absent" },
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
+  { id: "g1", name: "Year 1 Group", group_id: "1" },
+  { id: "g2", name: "Year 2 Group", group_id: "2" },
+  { id: "g3", name: "Year 3 Group", group_id: "3" },
 ];
 
 export const forms: Form[] = [
   {
     id: 1,
-<<<<<<< HEAD
-    title: 'End of Year Survey',
-    description: 'Share your experience with us this year.',
-    created_at: '2026-04-01',
-=======
     title: "End of Year Survey",
     description: "Share your experience with us this year.",
     created_at: "2026-04-01",
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
     questions: [
       {
         id: 1,
         form_id: 1,
-<<<<<<< HEAD
-        text: 'How would you rate your overall experience?',
-        type: 'multiple_choice',
-        options: ['Excellent', 'Good', 'Average', 'Poor'],
-      },
-      { id: 2, form_id: 1, text: 'What was your favorite activity?', type: 'text' },
-      { id: 3, form_id: 1, text: 'Would you recommend the program to a friend?', type: 'yes_no' },
-=======
         text: "How would you rate your overall experience?",
         type: "multiple_choice",
         options: ["Excellent", "Good", "Average", "Poor"],
@@ -478,19 +303,10 @@ export const forms: Form[] = [
         text: "Would you recommend the program to a friend?",
         type: "yes_no",
       },
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
     ],
   },
   {
     id: 2,
-<<<<<<< HEAD
-    title: 'Event Registration: Shabbat Dinner',
-    description: 'Register for the upcoming Shabbat dinner.',
-    created_at: '2026-04-20',
-    questions: [
-      { id: 4, form_id: 2, text: 'Do you have any dietary restrictions?', type: 'text' },
-      { id: 5, form_id: 2, text: 'Will you bring a guest?', type: 'yes_no' },
-=======
     title: "Event Registration: Shabbat Dinner",
     description: "Register for the upcoming Shabbat dinner.",
     created_at: "2026-04-20",
@@ -502,31 +318,17 @@ export const forms: Form[] = [
         type: "text",
       },
       { id: 5, form_id: 2, text: "Will you bring a guest?", type: "yes_no" },
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
     ],
   },
   {
     id: 3,
-<<<<<<< HEAD
-    title: 'Program Feedback - Spring 2026',
-    description: 'Help us improve our programs.',
-    created_at: '2026-04-25',
-=======
     title: "Program Feedback - Spring 2026",
     description: "Help us improve our programs.",
     created_at: "2026-04-25",
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
     questions: [
       {
         id: 6,
         form_id: 3,
-<<<<<<< HEAD
-        text: 'Which sessions did you attend?',
-        type: 'multiple_choice',
-        options: ['Leadership', 'Heritage Walk', 'Art Evening', 'Shabbat'],
-      },
-      { id: 7, form_id: 3, text: 'What can we improve?', type: 'text' },
-=======
         text: "Which sessions did you attend?",
         type: "multiple_choice",
         options: ["Leadership", "Heritage Walk", "Art Evening", "Shabbat"],
@@ -561,7 +363,6 @@ export const forms: Form[] = [
         text: "Parental Consent and Signature",
         type: "yes_no",
       },
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
     ],
   },
 ];
@@ -570,57 +371,33 @@ export const messages: Message[] = [
   {
     id: 1,
     sender_id: 2,
-<<<<<<< HEAD
-    sender_name: 'Sara Cohen',
-    content: 'Hi, I wanted to ask about the upcoming event details.',
-    timestamp: '2026-05-03T09:15:00',
-=======
     sender_name: "Sara Cohen",
     content: "Hi, I wanted to ask about the upcoming event details.",
     timestamp: "2026-05-03T09:15:00",
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
     is_read: false,
   },
   {
     id: 2,
     sender_id: 3,
-<<<<<<< HEAD
-    sender_name: 'Omar Nasser',
-    content: 'Will the workshop include lunch?',
-    timestamp: '2026-05-03T10:30:00',
-=======
     sender_name: "Omar Nasser",
     content: "Will the workshop include lunch?",
     timestamp: "2026-05-03T10:30:00",
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
     is_read: false,
   },
   {
     id: 3,
     sender_id: 5,
-<<<<<<< HEAD
-    sender_name: 'Yusuf Khalil',
-    content: 'Thank you for the great session yesterday!',
-    timestamp: '2026-05-02T16:00:00',
-=======
     sender_name: "Yusuf Khalil",
     content: "Thank you for the great session yesterday!",
     timestamp: "2026-05-02T16:00:00",
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
     is_read: true,
   },
   {
     id: 4,
     sender_id: 7,
-<<<<<<< HEAD
-    sender_name: 'Kareem Hassan',
-    content: 'I registered for the heritage walk.',
-    timestamp: '2026-05-01T12:45:00',
-=======
     sender_name: "Kareem Hassan",
     content: "I registered for the heritage walk.",
     timestamp: "2026-05-01T12:45:00",
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
     is_read: true,
   },
 ];
@@ -628,54 +405,6 @@ export const messages: Message[] = [
 export const notifications: Notification[] = [
   {
     id: 1,
-<<<<<<< HEAD
-    title: 'New Registration',
-    body: 'Sara Cohen registered for Shabbat Dinner',
-    timestamp: '2026-05-03T08:00:00',
-    is_read: false,
-    type: 'event',
-  },
-  {
-    id: 2,
-    title: 'Form Submitted',
-    body: 'Ali Ahmad submitted End of Year Survey',
-    timestamp: '2026-05-02T14:30:00',
-    is_read: false,
-    type: 'form',
-  },
-  {
-    id: 3,
-    title: 'New Message',
-    body: 'Omar Nasser sent you a message',
-    timestamp: '2026-05-02T10:30:00',
-    is_read: true,
-    type: 'message',
-  },
-  {
-    id: 4,
-    title: 'Event Reminder',
-    body: 'Leadership Workshop starts in 3 days',
-    timestamp: '2026-05-01T09:00:00',
-    is_read: true,
-    type: 'event',
-  },
-];
-
-export const COLORS = {
-  teal: '#039899',
-  tealLight: '#e0f5f5',
-  tealDark: '#027273',
-  red: '#c56451',
-  redLight: '#faeae6',
-  yellow: '#cfad5d',
-  yellowLight: '#faf4e1',
-  black: '#0a0f0f',
-  white: '#ffffff',
-  gray: '#687076',
-  grayLight: '#f4f6f7',
-  border: '#d8e0e0',
-  success: '#22c55e',
-=======
     title: "New Registration",
     body: "Sara Cohen registered for Shabbat Dinner",
     timestamp: "2026-05-03T08:00:00",
@@ -707,6 +436,7 @@ export const COLORS = {
     type: "event",
   },
 ];
+
 export const COLORS = {
   teal: "#039899",
   tealLight: "#e0f5f5",
@@ -721,5 +451,4 @@ export const COLORS = {
   grayLight: "#f4f6f7",
   border: "#d8e0e0",
   success: "#22c55e",
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
 };
