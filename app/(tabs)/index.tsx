@@ -151,7 +151,6 @@ export default function DashboardScreen() {
   const theme = Colors[colorScheme ?? "light"];
   const isAdmin = user?.role === "admin";
 
-  // Initialised with mock data so UI renders immediately
   const [loading, setLoading] = useState(true);
   const [studentCount, setStudentCount] = useState((mockStudents || []).length);
   const [eventList, setEventList] = useState<DashEvent[]>(mockEvents || []);
@@ -176,6 +175,9 @@ export default function DashboardScreen() {
   // Derived values
   const now = new Date();
   const unreadNotifications = notifList.filter((n) => !n.is_read).length;
+  const unreadMessages = isAdmin
+    ? messageList.filter((m) => !m.is_read).length
+    : messageList.filter((m) => !m.is_read && (m as any).receiver_id === user?.uid).length;
   const presentCount = attendanceData.filter(
     (a) => a.status === "attended",
   ).length;
@@ -321,12 +323,26 @@ export default function DashboardScreen() {
             </Text>
           </View>
           <View style={styles.headerActions}>
+            {/* Messages button */}
+            <Pressable
+              onPress={() => router.push('/(tabs)/messages' as any)}
+              style={styles.headerIconWrap}
+              hitSlop={8}
+            >
+              <Ionicons name="chatbubbles-outline" size={24} color={theme.icon} />
+              {unreadMessages > 0 && (
+                <View style={styles.headerBadge}>
+                  <Text style={styles.headerBadgeText}>{unreadMessages > 9 ? '9+' : unreadMessages}</Text>
+                </View>
+              )}
+            </Pressable>
+            {/* Notification bell */}
             <NotificationBell
               unreadCount={unreadNotifications}
               color={theme.icon}
               onPress={() => router.push("/(tabs)/notifications" as any)}
             />
-            <Pressable onPress={() => router.push("/profile")}>
+            <Pressable onPress={() => router.push("/profile" as any)}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>
                   {user?.full_name?.charAt(0) ?? "?"}
@@ -421,7 +437,7 @@ export default function DashboardScreen() {
               <Text style={[styles.sectionTitle, { color: theme.text }]}>
                 Recent Messages
               </Text>
-              <Pressable onPress={() => router.push("/(tabs)/messages")}>
+              <Pressable onPress={() => router.push("/(tabs)/messages" as any)}>
                 <Text style={styles.seeAll}>See all</Text>
               </Pressable>
             </View>
@@ -439,7 +455,7 @@ export default function DashboardScreen() {
                     styles.activityRow,
                     { backgroundColor: theme.card, borderColor: theme.border },
                   ]}
-                  onPress={() => router.push("/(tabs)/messages")}
+                  onPress={() => router.push("/(tabs)/messages" as any)}
                 >
                   <View
                     style={[
@@ -739,6 +755,20 @@ const styles = StyleSheet.create({
   greeting: { fontSize: 13 },
   name: { fontSize: 20, fontWeight: "700" },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 12 },
+  headerIconWrap: { position: "relative", padding: 4 },
+  headerBadge: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: AppColors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  headerBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
   avatar: {
     width: 40,
     height: 40,
@@ -762,7 +792,7 @@ const styles = StyleSheet.create({
     marginRight: 20,
   },
   seeAll: { color: AppColors.primary, fontSize: 13, fontWeight: "600" },
-  // Student stats grid
+  // Stats grid
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
