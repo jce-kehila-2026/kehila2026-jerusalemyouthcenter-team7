@@ -156,6 +156,108 @@ const validateForm = (values) => {
   return { errors, valid };
 };
 
+// ─── FormFields OUTSIDE the component — fixes TextInput focus bug ──────────
+function FormFields({ values, setValues, errors }) {
+  return (
+    <ScrollView keyboardShouldPersistTaps="handled">
+      <View style={{ marginBottom: 14 }}>
+        <Text style={s.label}>Title</Text>
+        <TextInput
+          style={[s.input, errors.title && s.inputError]}
+          value={values.title}
+          onChangeText={(v) => setValues((p) => ({ ...p, title: v }))}
+          placeholder="Enter title"
+          placeholderTextColor="#aaa"
+        />
+        {errors.title ? <Text style={s.errorText}>{errors.title}</Text> : null}
+      </View>
+
+      <View style={{ marginBottom: 14 }}>
+        <Text style={s.label}>Description</Text>
+        <TextInput
+          style={[s.input, { height: 72, textAlignVertical: "top" }]}
+          value={values.description}
+          onChangeText={(v) => setValues((p) => ({ ...p, description: v }))}
+          placeholder="Enter description"
+          placeholderTextColor="#aaa"
+          multiline
+        />
+      </View>
+
+      <View style={{ marginBottom: 14 }}>
+        <Text style={s.label}>Location</Text>
+        <TextInput
+          style={[s.input, errors.location && s.inputError]}
+          value={values.location}
+          onChangeText={(v) => setValues((p) => ({ ...p, location: v }))}
+          placeholder="Enter location in Israel"
+          placeholderTextColor="#aaa"
+        />
+        {errors.location ? (
+          <Text style={s.errorText}>{errors.location}</Text>
+        ) : (
+          <Text style={s.hintText}>Must be a location inside Israel</Text>
+        )}
+      </View>
+
+      <View style={{ marginBottom: 14 }}>
+        <Text style={s.label}>Date</Text>
+        <TextInput
+          style={[s.input, errors.date && s.inputError]}
+          value={values.date}
+          onChangeText={(v) => setValues((p) => ({ ...p, date: v }))}
+          placeholder="YYYY-MM-DD"
+          placeholderTextColor="#aaa"
+        />
+        {errors.date ? (
+          <Text style={s.errorText}>{errors.date}</Text>
+        ) : (
+          <Text style={s.hintText}>Format: YYYY-MM-DD — e.g. 2026-05-15</Text>
+        )}
+      </View>
+
+      <View style={{ marginBottom: 14 }}>
+        <Text style={s.label}>Time</Text>
+        <TextInput
+          style={[s.input, errors.time && s.inputError]}
+          value={values.time}
+          onChangeText={(v) => setValues((p) => ({ ...p, time: v }))}
+          placeholder="HH:MM"
+          placeholderTextColor="#aaa"
+        />
+        {errors.time ? (
+          <Text style={s.errorText}>{errors.time}</Text>
+        ) : (
+          <Text style={s.hintText}>Format: HH:MM — e.g. 18:00</Text>
+        )}
+      </View>
+
+      <Text style={s.label}>Group</Text>
+      <View style={s.groupRow}>
+        {FILTERS.slice(1).map((f) => (
+          <Pressable
+            key={f.key}
+            style={[s.groupPill, values.group === f.key && s.groupPillActive]}
+            onPress={() =>
+              setValues((p) => ({ ...p, group: f.key, groupLabel: f.label }))
+            }
+          >
+            <Text
+              style={[
+                s.groupPillText,
+                values.group === f.key && { color: "#fff" },
+              ]}
+            >
+              {f.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default function EventsScreen() {
   const router = useRouter();
   const [events, setEvents] = useState([]);
@@ -187,7 +289,9 @@ export default function EventsScreen() {
   const filtered =
     activeFilter === "all_events"
       ? events
-      : events.filter((e) => e.group === activeFilter);
+      : activeFilter === "all"
+        ? events.filter((e) => e.group === "all")
+        : events.filter((e) => e.group === activeFilter || e.group === "all");
 
   const doDelete = async () => {
     try {
@@ -267,99 +371,6 @@ export default function EventsScreen() {
       params: { eventId: item.id, eventTitle: item.title },
     });
 
-  const FormFields = ({ values, setValues, errors }) => (
-    <ScrollView keyboardShouldPersistTaps="handled">
-      <View style={{ marginBottom: 14 }}>
-        <Text style={s.label}>Title</Text>
-        <TextInput
-          style={[s.input, errors.title && s.inputError]}
-          value={values.title}
-          onChangeText={(v) => setValues((p) => ({ ...p, title: v }))}
-          placeholder="Enter title"
-          placeholderTextColor="#aaa"
-        />
-        {errors.title ? <Text style={s.errorText}>{errors.title}</Text> : null}
-      </View>
-      <View style={{ marginBottom: 14 }}>
-        <Text style={s.label}>Description</Text>
-        <TextInput
-          style={[s.input, { height: 72, textAlignVertical: "top" }]}
-          value={values.description}
-          onChangeText={(v) => setValues((p) => ({ ...p, description: v }))}
-          placeholder="Enter description"
-          placeholderTextColor="#aaa"
-          multiline
-        />
-      </View>
-      <View style={{ marginBottom: 14 }}>
-        <Text style={s.label}>Location</Text>
-        <TextInput
-          style={[s.input, errors.location && s.inputError]}
-          value={values.location}
-          onChangeText={(v) => setValues((p) => ({ ...p, location: v }))}
-          placeholder="Enter location in Israel"
-          placeholderTextColor="#aaa"
-        />
-        {errors.location ? (
-          <Text style={s.errorText}>{errors.location}</Text>
-        ) : (
-          <Text style={s.hintText}>Must be a location inside Israel</Text>
-        )}
-      </View>
-      <View style={{ marginBottom: 14 }}>
-        <Text style={s.label}>Date</Text>
-        <TextInput
-          style={[s.input, errors.date && s.inputError]}
-          value={values.date}
-          onChangeText={(v) => setValues((p) => ({ ...p, date: v }))}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="#aaa"
-        />
-        {errors.date ? (
-          <Text style={s.errorText}>{errors.date}</Text>
-        ) : (
-          <Text style={s.hintText}>Format: YYYY-MM-DD — e.g. 2026-05-15</Text>
-        )}
-      </View>
-      <View style={{ marginBottom: 14 }}>
-        <Text style={s.label}>Time</Text>
-        <TextInput
-          style={[s.input, errors.time && s.inputError]}
-          value={values.time}
-          onChangeText={(v) => setValues((p) => ({ ...p, time: v }))}
-          placeholder="HH:MM"
-          placeholderTextColor="#aaa"
-        />
-        {errors.time ? (
-          <Text style={s.errorText}>{errors.time}</Text>
-        ) : (
-          <Text style={s.hintText}>Format: HH:MM — e.g. 18:00</Text>
-        )}
-      </View>
-      <Text style={s.label}>Group</Text>
-      <View style={s.groupRow}>
-        {FILTERS.slice(1).map((f) => (
-          <Pressable
-            key={f.key}
-            style={[s.groupPill, values.group === f.key && s.groupPillActive]}
-            onPress={() =>
-              setValues((p) => ({ ...p, group: f.key, groupLabel: f.label }))
-            }
-          >
-            <Text
-              style={[
-                s.groupPillText,
-                values.group === f.key && { color: "#fff" },
-              ]}
-            >
-              {f.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-    </ScrollView>
-  );
-
   const renderEvent = ({ item }) => {
     const badge = BADGE[item.group] || BADGE.all;
     return (
@@ -421,6 +432,7 @@ export default function EventsScreen() {
         <Text style={s.orgName}>Jerusalem Youth Chorus</Text>
         <Text style={s.pageTitle}>Events</Text>
       </View>
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}

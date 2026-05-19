@@ -1,6 +1,5 @@
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useAuth } from "@/src/context/AuthContext";
 import { forms } from "@/src/data/mockData";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -8,7 +7,7 @@ import React from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// 1. Official Jerusalem Youth Chorus Colors
+
 const themeColors = {
   teal: "#039899", // Primary
   red: "#c56451", // Errors / Urgent
@@ -26,9 +25,8 @@ const typeIcons: Record<string, React.ComponentProps<typeof Ionicons>["name"]> =
   };
 
 export default function FormsScreen() {
-  const { user } = useAuth();
-  const userRole = user?.role || "admin";
-  const router = useRouter();
+const userRole = "admin";
+ const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
 
@@ -42,24 +40,14 @@ export default function FormsScreen() {
       style={[styles.container, { backgroundColor: themeColors.bluishWhite }]}
     >
       <View style={styles.header}>
-        <View>
-          <Text style={[styles.title, { color: themeColors.charcoal }]}>
-            Forms
-          </Text>
-          <Text style={styles.subtitle}>{visibleForms.length} active</Text>
-        </View>
-        {userRole === "admin" && (
-          <Pressable
-            style={styles.manageButton}
-            onPress={() => router.push("/create-form" as any)}
-          >
-            <Text style={styles.manageButtonText}>Manage Forms</Text>
-          </Pressable>
-        )}
+        <Text style={[styles.title, { color: themeColors.charcoal }]}>
+          النماذج / Forms
+        </Text>
+        <Text style={styles.subtitle}>{forms.length} active / نشط</Text>
       </View>
 
       <FlatList
-        data={visibleForms}
+        data={forms}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
@@ -193,6 +181,7 @@ export default function FormsScreen() {
             </Pressable>
           );
         }}
+
       />
     </SafeAreaView>
   );
