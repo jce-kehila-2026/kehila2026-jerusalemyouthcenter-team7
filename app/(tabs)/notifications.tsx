@@ -1,17 +1,17 @@
+import { AppColors, Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { notifications as initialNotifications, Notification } from '@/src/data/mockData';
 import { notifColor, notifIcon } from '@/src/utils/notifMeta';
 import { timeAgo } from '@/src/utils/timeUtils';
-import { AppColors, Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function NotificationsScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
-  const [items, setItems] = useState<Notification[]>(initialNotifications);
+  const [items, setItems] = useState<Notification[]>(initialNotifications || []);
 
   const unreadCount = items.filter(n => !n.is_read).length;
   const hasUnread = unreadCount > 0;

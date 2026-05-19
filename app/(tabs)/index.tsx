@@ -1,4 +1,8 @@
+import { AppColors, Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { NotificationBell } from '@/src/components/NotificationBell';
 import { useAuth } from '@/src/context/AuthContext';
+import { FirestoreMsg, messageService } from '@/src/data/messageService';
 import {
   attendance as mockAttendance,
   eventStudents as mockEventStudents,
@@ -8,15 +12,12 @@ import {
   notifications as mockNotifications,
   students as mockStudents,
 } from '@/src/data/mockData';
-import { FirestoreMsg, messageService } from '@/src/data/messageService';
 import { db } from '@/src/firebase/firebase';
 import { notifColor, notifIcon } from '@/src/utils/notifMeta';
 import { timeAgo } from '@/src/utils/timeUtils';
-import { NotificationBell } from '@/src/components/NotificationBell';
-import { AppColors, Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, getDocs } from 'firebase/firestore';
 import { useRouter } from 'expo-router';
+import { collection, getDocs } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -27,7 +28,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const DEMO_STUDENT_ID = '1';
 const CHART_H = 130; // pixel height of the bar area
@@ -91,21 +91,6 @@ function StatCard({
   return (
     <View style={[styles.statCard, { borderLeftColor: color }]}>
       <View style={[styles.statIcon, { backgroundColor: color + '22' }]}>
-=======
-import { events, forms, messages, notifications, students } from '@/src/data/mockData';
-import { AppColors, Colors } from '@/constants/theme';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-function StatCard({ label, value, icon, color }: { label: string; value: number | string; icon: React.ComponentProps<typeof Ionicons>['name']; color: string; }) {
-  return (
-    <View style={[styles.statCard, { borderLeftColor: color }]}>
-      <View style={[styles.statIcon, { backgroundColor: color + '20' }]}>
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
         <Ionicons name={icon} size={20} color={color} />
       </View>
       <Text style={styles.statValue}>{value}</Text>
@@ -114,7 +99,6 @@ function StatCard({ label, value, icon, color }: { label: string; value: number 
   );
 }
 
-<<<<<<< HEAD
 // ── Screen ────────────────────────────────────────────────────────────────────
 export default function DashboardScreen() {
   const { user } = useAuth();
@@ -125,16 +109,16 @@ export default function DashboardScreen() {
 
   // Initialised with mock data so UI renders immediately
   const [loading, setLoading] = useState(true);
-  const [studentCount, setStudentCount] = useState(mockStudents.length);
-  const [eventList, setEventList] = useState<DashEvent[]>(mockEvents);
-  const [formCount, setFormCount] = useState(mockForms.length);
-  const [notifList, setNotifList] = useState<DashNotif[]>(mockNotifications);
-  const [attendanceData, setAttendanceData] = useState<DashAttendance[]>(mockAttendance);
+  const [studentCount, setStudentCount] = useState((mockStudents || []).length);
+  const [eventList, setEventList] = useState<DashEvent[]>(mockEvents || []);
+  const [formCount, setFormCount] = useState((mockForms || []).length);
+  const [notifList, setNotifList] = useState<DashNotif[]>(mockNotifications || []);
+  const [attendanceData, setAttendanceData] = useState<DashAttendance[]>(mockAttendance || []);
   const [messageList, setMessageList] = useState<DashMsg[]>(
-    mockMessages.map(m => ({ ...m, id: String(m.id) }))
+    (mockMessages || []).map(m => ({ ...m, id: String(m.id) }))
   );
   const [myRegisteredEventIds, setMyRegisteredEventIds] = useState<(string | number)[]>(
-    mockEventStudents.filter(es => es.student_id === DEMO_STUDENT_ID).map(es => es.event_id)
+    (mockEventStudents || []).filter(es => String(es.student_id) === DEMO_STUDENT_ID).map(es => es.event_id)
   );
 
   // Derived values
@@ -228,30 +212,12 @@ export default function DashboardScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
-=======
-export default function DashboardScreen() {
-  const { user, logout } = useAuth();
-  const router = useRouter();
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
-  const unreadMessages = messages.filter(m => !m.is_read).length;
-  const unreadNotifications = notifications.filter(n => !n.is_read).length;
-  const upcomingEvents = events.filter(e => new Date(e.date) >= new Date()).length;
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  };
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScrollView showsVerticalScrollIndicator={false}>
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
         <View style={styles.header}>
           <View>
             <Text style={[styles.greeting, { color: theme.subtext }]}>Good day,</Text>
             <Text style={[styles.name, { color: theme.text }]}>{user?.full_name}</Text>
           </View>
           <View style={styles.headerActions}>
-<<<<<<< HEAD
             <NotificationBell
               unreadCount={unreadNotifications}
               color={theme.icon}
@@ -260,21 +226,10 @@ export default function DashboardScreen() {
             <Pressable onPress={() => router.push('/profile')}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>{user?.full_name?.charAt(0) ?? '?'}</Text>
-=======
-            {unreadNotifications > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{unreadNotifications}</Text>
-              </View>
-            )}
-            <Pressable onPress={() => router.push('/profile')}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{user?.full_name?.charAt(0)}</Text>
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
               </View>
             </Pressable>
           </View>
         </View>
-<<<<<<< HEAD
 
         {/* ── ADMIN VIEW ── */}
         {isAdmin ? (
@@ -443,10 +398,7 @@ const chartSt = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 12,
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
+    boxShadow: '0px 1px 4px rgba(0, 0, 0, 0.04)',
     elevation: 1,
     position: 'relative',
   },

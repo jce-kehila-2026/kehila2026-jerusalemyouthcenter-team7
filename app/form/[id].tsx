@@ -1,5 +1,3 @@
-import { Colors } from "@/constants/theme";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { forms } from "@/src/data/mockData";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -17,6 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// Official JYC Color Palette
 const themeColors = {
   teal: "#039899",
   red: "#c56451",
@@ -27,14 +26,15 @@ const themeColors = {
 };
 
 export default function FormScreen() {
-  const userRole: string = "student";
+  const userRole = "student";
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? "light"];
 
   const form = forms.find((f) => f.id === Number(id));
+
+  // Dynamic color logic to match the main screen
   const colors = [themeColors.teal, themeColors.red, themeColors.yellow];
+  // Using (id - 1) to align with the array index (0, 1, 2)
   const activeColor = colors[(Number(id) - 1) % 3];
 
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -54,13 +54,9 @@ export default function FormScreen() {
     );
   }
 
-  const visibleQuestions = form.questions.filter((q) => {
-    if (userRole === "admin") return true;
-
-    const isPrivate = q.is_private || q.options?.includes("is_private");
-
-    return !isPrivate;
-  });
+  const visibleQuestions = form.questions.filter(
+    (q) => !(q.options?.includes("is_private") && userRole === "student"),
+  );
 
   const setAnswer = (questionId: number, value: string) =>
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -70,6 +66,7 @@ export default function FormScreen() {
       const answer = answers[q.id];
       if (!answer) return true;
       if (typeof answer === "string" && answer.trim() === "") return true;
+      if (Array.isArray(answer) && answer.length === 0) return true;
       return false;
     });
 
@@ -79,11 +76,8 @@ export default function FormScreen() {
     }
 
     setErrorMessage(null);
-    setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
-      setSubmitted(true);
-    }, 1000);
+    setSubmitting(false);
+    setSubmitted(true);
   };
 
   if (submitted) {
@@ -96,12 +90,10 @@ export default function FormScreen() {
             <Ionicons name="checkmark-circle" size={72} color={activeColor} />
           </View>
           <Text style={[styles.successTitle, { color: themeColors.charcoal }]}>
-            Submitted!
+            Success!
           </Text>
-          <Text style={styles.successSub}>
-            <Text
-              style={styles.successSub}
-            >{`Your answers for "${form.title}" have been saved.`}</Text>
+          <Text style={[styles.successSub, { color: "#666" }]}>
+            {`Your answers for "${form?.title}" have been successfully saved.`}
           </Text>
           <Pressable
             style={[styles.doneBtn, { backgroundColor: activeColor }]}
@@ -127,6 +119,7 @@ export default function FormScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Header color now matches the activeColor */}
           <View style={[styles.formHeader, { backgroundColor: activeColor }]}>
             <Text style={styles.formTitle}>{form.title}</Text>
             <Text style={styles.formDesc}>{form.description}</Text>
@@ -160,20 +153,28 @@ export default function FormScreen() {
                 ]}
               >
                 <View style={styles.questionHeader}>
+                  {/* Circle number color matches activeColor */}
                   <View
                     style={[
                       styles.qNumber,
                       {
                         backgroundColor: answers[q.id]
-                          ? "#4CAF50"
-                          : activeColor,
+                          ? activeColor
+                          : "#e0e0e0",
                       },
                     ]}
                   >
                     {answers[q.id] ? (
                       <Ionicons name="checkmark" size={14} color="#fff" />
                     ) : (
-                      <Text style={styles.qNumberText}>{idx + 1}</Text>
+                      <Text
+                        style={[
+                          styles.qNumberText,
+                          { color: themeColors.charcoal },
+                        ]}
+                      >
+                        {idx + 1}
+                      </Text>
                     )}
                   </View>
                   <Text
@@ -190,68 +191,92 @@ export default function FormScreen() {
                   <TextInput
                     style={[
                       styles.textAnswer,
-                      { color: themeColors.charcoal, borderColor: "#e0e0e0" },
+                      {
+                        color: themeColors.charcoal,
+                        borderColor: "#ccc",
+                        backgroundColor: "#fafafa",
+                      },
                     ]}
                     value={answers[q.id] ?? ""}
                     onChangeText={(v) => setAnswer(q.id, v)}
-                    placeholder="Type your answer..."
+                    placeholder="Write your answer here..."
                     placeholderTextColor="#999"
+                    multiline
+                    numberOfLines={3}
                   />
                 )}
 
-                {(q.type === "multiple_choice" || q.type === "yes_no") && (
-                  <View style={styles.optionsList}>
-                    {q.options?.map((opt) => {
-                      const isSelected = answers[q.id] === opt;
-                      return (
-                        <Pressable
-                          key={opt}
+                {q.type === "yes_no" && (
+                  <View style={styles.yesNoRow}>
+                    {["Yes", "No"].map((opt) => (
+                      <Pressable
+                        key={opt}
+                        style={[
+                          styles.optionBtn,
+                          answers[q.id] === opt && {
+                            backgroundColor: activeColor,
+                            borderColor: activeColor,
+                          },
+                        ]}
+                        onPress={() => setAnswer(q.id, opt)}
+                      >
+                        <Text
                           style={[
-                            styles.optionRow,
-                            isSelected && {
-                              backgroundColor: activeColor + "15",
-                              borderColor: activeColor,
-                            },
+                            styles.optionText,
+                            answers[q.id] === opt && styles.optionTextSelected,
                           ]}
-                          onPress={() => setAnswer(q.id, opt)}
                         >
-                          <Ionicons
-                            name={
-                              isSelected
-                                ? "radio-button-on"
-                                : "radio-button-off"
-                            }
-                            size={20}
-                            color={isSelected ? activeColor : "#999"}
-                          />
-                          <Text
-                            style={[
-                              styles.optionText,
-                              isSelected && {
-                                color: activeColor,
-                                fontWeight: "600",
-                              },
-                            ]}
-                          >
-                            {opt}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
+                          {opt}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+
+                {q.type === "multiple_choice" && q.options && (
+                  <View style={styles.optionsGrid}>
+                    {q.options.map((opt) => (
+                      <Pressable
+                        key={opt}
+                        style={[
+                          styles.optionBtn,
+                          answers[q.id] === opt && {
+                            backgroundColor: activeColor,
+                            borderColor: activeColor,
+                          },
+                        ]}
+                        onPress={() => setAnswer(q.id, opt)}
+                      >
+                        <Text
+                          style={[
+                            styles.optionText,
+                            answers[q.id] === opt && styles.optionTextSelected,
+                          ]}
+                        >
+                          {opt}
+                        </Text>
+                      </Pressable>
+                    ))}
                   </View>
                 )}
               </View>
             ))}
           </View>
+          <View style={{ height: 100 }} />
         </ScrollView>
+
         <View
-          style={[styles.bottomBar, { backgroundColor: themeColors.white }]}
+          style={[
+            styles.submitBar,
+            { backgroundColor: themeColors.white, borderTopColor: "#e0e0e0" },
+          ]}
         >
+          {/* Submit button matches activeColor */}
           <Pressable
             style={[
               styles.submitBtn,
               { backgroundColor: activeColor },
-              submitting && { opacity: 0.7 },
+              submitting && styles.submitBtnDisabled,
             ]}
             onPress={handleSubmit}
             disabled={submitting}
@@ -259,7 +284,10 @@ export default function FormScreen() {
             {submitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitText}>Submit Form</Text>
+              <>
+                <Text style={styles.submitBtnText}>Submit Form</Text>
+                <Ionicons name="send-outline" size={18} color="#fff" />
+              </>
             )}
           </Pressable>
         </View>
@@ -271,101 +299,146 @@ export default function FormScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
-  formHeader: {
-    padding: 24,
-    paddingBottom: 30,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
+  formHeader: { padding: 24, alignItems: "flex-start" },
   formTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "800",
     color: "#fff",
     marginBottom: 6,
+    textAlign: "left",
   },
-  formDesc: { fontSize: 14, color: "rgba(255,255,255,0.8)", marginBottom: 16 },
-  progressRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  formDesc: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.9)",
+    marginBottom: 14,
+    textAlign: "left",
+  },
+  progressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+  },
   progressBg: {
     flex: 1,
     height: 6,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255,255,255,0.3)",
     borderRadius: 3,
+    overflow: "hidden",
   },
-  progressFill: { height: "100%", backgroundColor: "#fff", borderRadius: 3 },
-  progressText: { color: "#fff", fontSize: 12, fontWeight: "600" },
-  questions: { padding: 16, gap: 16, marginTop: -10 },
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 3,
+    position: "absolute",
+    left: 0,
+  },
+  progressText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+
   errorBanner: {
     backgroundColor: "#ffebee",
     padding: 12,
-    borderRadius: 10,
-    marginBottom: 4,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#ffcdd2",
+    flexDirection: "row",
+    alignItems: "center",
   },
-  errorText: { color: "#c56451", fontSize: 13, fontWeight: "500" },
+  errorText: {
+    color: "#c62828",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+
+  questions: { padding: 16, gap: 12 },
   questionCard: {
-    borderRadius: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
     padding: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    elevation: 1,
   },
-  questionHeader: { flexDirection: "row", gap: 12, marginBottom: 16 },
+  questionHeader: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+    alignItems: "flex-start",
+  },
   qNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
+    marginTop: 1,
   },
-  qNumberText: { color: "#fff", fontSize: 13, fontWeight: "700" },
-  questionText: { flex: 1, fontSize: 15, fontWeight: "600", lineHeight: 22 },
+  qNumberText: { fontSize: 12, fontWeight: "800" },
+  questionText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 22,
+    textAlign: "left",
+  },
+
   textAnswer: {
     borderWidth: 1,
     borderRadius: 10,
     padding: 12,
-    fontSize: 15,
-    minHeight: 100,
+    fontSize: 14,
+    minHeight: 80,
     textAlignVertical: "top",
+    textAlign: "left",
   },
-  optionsList: { gap: 8 },
-  optionRow: {
+
+  yesNoRow: { flexDirection: "row", gap: 10 },
+  optionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  optionBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    backgroundColor: "transparent",
+  },
+  optionText: { fontSize: 14, fontWeight: "600", color: "#555" },
+  optionTextSelected: { color: "#fff" },
+
+  submitBar: { padding: 16, borderTopWidth: 1 },
+  submitBtn: {
+    borderRadius: 12,
+    padding: 14,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    borderRadius: 10,
-  },
-  optionText: { fontSize: 15, color: "#353535" },
-  bottomBar: {
-    padding: 16,
-    paddingBottom: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-  },
-  submitBtn: {
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
     justifyContent: "center",
+    gap: 8,
   },
-  submitText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  submitBtnDisabled: { opacity: 0.6 },
+  submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+
   successContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 24,
+    padding: 40,
   },
   successIcon: { marginBottom: 16 },
-  successTitle: { fontSize: 24, fontWeight: "800", marginBottom: 8 },
+  successTitle: { fontSize: 28, fontWeight: "800", marginBottom: 8 },
   successSub: {
-    fontSize: 14,
-    color: "#888",
+    fontSize: 15,
     textAlign: "center",
+    lineHeight: 22,
     marginBottom: 32,
   },
-  doneBtn: { paddingHorizontal: 32, paddingVertical: 12, borderRadius: 10 },
+  doneBtn: {
+    borderRadius: 12,
+    paddingHorizontal: 40,
+    paddingVertical: 14,
+  },
   doneBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });
