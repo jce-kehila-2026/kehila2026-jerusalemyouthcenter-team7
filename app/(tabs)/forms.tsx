@@ -1,30 +1,3 @@
-<<<<<<< HEAD
-import { forms } from '@/src/data/mockData';
-import { AppColors, Colors } from '@/constants/theme';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-const typeIcons: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
-  text: 'text-outline',
-  multiple_choice: 'radio-button-on-outline',
-  yes_no: 'checkmark-circle-outline',
-};
-
-export default function FormsScreen() {
-  const router = useRouter();
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
-
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>Forms</Text>
-        <Text style={[styles.subtitle, { color: theme.subtext }]}>{forms.length} active</Text>
-=======
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { forms } from "@/src/data/mockData";
@@ -34,7 +7,7 @@ import React from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// 1. Official Jerusalem Youth Chorus Colors
+
 const themeColors = {
   teal: "#039899", // Primary
   red: "#c56451", // Errors / Urgent
@@ -52,9 +25,15 @@ const typeIcons: Record<string, React.ComponentProps<typeof Ionicons>["name"]> =
   };
 
 export default function FormsScreen() {
-  const router = useRouter();
+const userRole = "admin";
+ const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
+
+  const visibleForms = forms.filter((f) => {
+    if (userRole === "admin") return true; // Admin sees all forms
+    return f.target_audience === "student" || f.target_audience === "both"; // Students see matching forms
+  });
 
   return (
     <SafeAreaView
@@ -65,68 +44,10 @@ export default function FormsScreen() {
           النماذج / Forms
         </Text>
         <Text style={styles.subtitle}>{forms.length} active / نشط</Text>
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
       </View>
 
       <FlatList
         data={forms}
-<<<<<<< HEAD
-        keyExtractor={item => String(item.id)}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <Pressable
-            style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}
-            onPress={() => router.push(`/form/${item.id}` as any)}
-          >
-            <View style={styles.cardHeader}>
-              <View style={[styles.iconBox, { backgroundColor: AppColors.primaryLight }]}>
-                <Ionicons name="document-text" size={22} color={AppColors.primary} />
-              </View>
-              <View style={styles.cardInfo}>
-                <Text style={[styles.cardTitle, { color: theme.text }]}>{item.title}</Text>
-                <Text style={[styles.cardDate, { color: theme.subtext }]}>
-                  Created {item.created_at}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={theme.subtext} />
-            </View>
-
-            <Text style={[styles.description, { color: theme.subtext }]} numberOfLines={2}>
-              {item.description}
-            </Text>
-
-            <View style={styles.questionsList}>
-              {item.questions.slice(0, 2).map(q => (
-                <View key={q.id} style={styles.questionRow}>
-                  <Ionicons name={typeIcons[q.type]} size={13} color={AppColors.primary} />
-                  <Text style={[styles.questionText, { color: theme.subtext }]} numberOfLines={1}>
-                    {q.text}
-                  </Text>
-                </View>
-              ))}
-              {item.questions.length > 2 && (
-                <Text style={[styles.moreText, { color: theme.subtext }]}>
-                  +{item.questions.length - 2} more questions
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.footer}>
-              <View style={[styles.countBadge, { backgroundColor: AppColors.primaryLight }]}>
-                <Ionicons name="help-circle-outline" size={13} color={AppColors.primary} />
-                <Text style={styles.countText}>{item.questions.length} questions</Text>
-              </View>
-              <Pressable
-                style={styles.fillButton}
-                onPress={() => router.push(`/form/${item.id}` as any)}
-              >
-                <Text style={styles.fillButtonText}>Fill out</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        )}
-=======
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
@@ -145,27 +66,13 @@ export default function FormsScreen() {
                 styles.card,
                 {
                   backgroundColor: themeColors.white,
-                  borderRightWidth: 6, // Adds a colored bar on the right for RTL
-                  borderRightColor: activeColor,
+                  borderLeftWidth: 6,
+                  borderLeftColor: activeColor,
                 },
               ]}
               onPress={() => router.push(`/form/${item.id}` as any)}
             >
               <View style={styles.cardHeader}>
-                <Ionicons
-                  name="chevron-back"
-                  size={16}
-                  color={themeColors.charcoal}
-                />
-
-                <View style={styles.cardInfo}>
-                  <Text style={[styles.cardTitle, { color: activeColor }]}>
-                    {item.title}
-                  </Text>
-                  <Text style={styles.cardDate}>Created {item.created_at}</Text>
-                </View>
-
-                {/* Icon box background using 15% opacity of the active color */}
                 <View
                   style={[
                     styles.iconBox,
@@ -178,6 +85,44 @@ export default function FormsScreen() {
                     color={activeColor}
                   />
                 </View>
+
+                <View style={styles.cardInfo}>
+                  <Text style={[styles.cardTitle, { color: activeColor }]}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.cardDate}>Created {item.created_at}</Text>
+                </View>
+
+                {userRole === "admin" ? (
+                  <View style={styles.adminActions}>
+                    <Pressable
+                      style={styles.actionButton}
+                      onPress={() => alert("Edit form " + item.id)}
+                    >
+                      <Ionicons
+                        name="pencil-outline"
+                        size={18}
+                        color={themeColors.charcoal}
+                      />
+                    </Pressable>
+                    <Pressable
+                      style={styles.actionButton}
+                      onPress={() => alert("Delete form " + item.id)}
+                    >
+                      <Ionicons
+                        name="trash-outline"
+                        size={18}
+                        color={themeColors.red}
+                      />
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Ionicons
+                    name="chevron-forward"
+                    size={16}
+                    color={themeColors.charcoal}
+                  />
+                )}
               </View>
 
               <Text
@@ -190,6 +135,11 @@ export default function FormsScreen() {
               <View style={styles.questionsList}>
                 {item.questions.slice(0, 2).map((q) => (
                   <View key={q.id} style={styles.questionRow}>
+                    <Ionicons
+                      name={typeIcons[q.type]}
+                      size={13}
+                      color={activeColor}
+                    />
                     <Text
                       style={[
                         styles.questionText,
@@ -199,11 +149,6 @@ export default function FormsScreen() {
                     >
                       {q.text}
                     </Text>
-                    <Ionicons
-                      name={typeIcons[q.type]}
-                      size={13}
-                      color={activeColor}
-                    />
                   </View>
                 ))}
               </View>
@@ -214,7 +159,7 @@ export default function FormsScreen() {
                   style={[styles.fillButton, { backgroundColor: activeColor }]}
                   onPress={() => router.push(`/form/${item.id}` as any)}
                 >
-                  <Text style={styles.fillButtonText}>Fill out / تعبئة</Text>
+                  <Text style={styles.fillButtonText}>Fill out</Text>
                 </Pressable>
 
                 <View
@@ -236,7 +181,7 @@ export default function FormsScreen() {
             </Pressable>
           );
         }}
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
+
       />
     </SafeAreaView>
   );
@@ -244,43 +189,24 @@ export default function FormsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-<<<<<<< HEAD
-  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
-  title: { fontSize: 24, fontWeight: '800' },
-  subtitle: { fontSize: 13, marginTop: 2 },
-  list: { padding: 20, gap: 12 },
-  card: {
-    borderRadius: 14, padding: 16, borderWidth: 1,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
-  },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
-  iconBox: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  cardInfo: { flex: 1 },
-  cardTitle: { fontSize: 15, fontWeight: '700' },
-  cardDate: { fontSize: 11, marginTop: 2 },
-  description: { fontSize: 13, lineHeight: 18, marginBottom: 10 },
-  questionsList: { gap: 4, marginBottom: 12 },
-  questionRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  questionText: { fontSize: 12, flex: 1 },
-  moreText: { fontSize: 11, marginLeft: 19, fontStyle: 'italic' },
-  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  countBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
-  },
-  countText: { fontSize: 11, color: AppColors.primary, fontWeight: '600' },
-  fillButton: {
-    backgroundColor: AppColors.primary, paddingHorizontal: 16,
-    paddingVertical: 6, borderRadius: 8,
-  },
-  fillButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-=======
   header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 8,
-    alignItems: "flex-end",
+  },
+  manageButton: {
+    backgroundColor: themeColors.teal,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  manageButtonText: {
+    color: themeColors.white,
+    fontWeight: "600",
+    fontSize: 14,
   },
   title: { fontSize: 24, fontWeight: "800" },
   subtitle: { fontSize: 13, marginTop: 2, color: "#666" },
@@ -308,14 +234,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  cardInfo: { flex: 1, alignItems: "flex-end" },
-  cardTitle: { fontSize: 16, fontWeight: "800", textAlign: "right" },
-  cardDate: { fontSize: 11, marginTop: 2, color: "#888", textAlign: "right" },
+  cardInfo: { flex: 1, alignItems: "flex-start" },
+  cardTitle: { fontSize: 16, fontWeight: "800", textAlign: "left" },
+  cardDate: { fontSize: 11, marginTop: 2, color: "#888", textAlign: "left" },
+  adminActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  actionButton: { padding: 4, zIndex: 10 },
   description: {
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 12,
-    textAlign: "right",
+    textAlign: "left",
     opacity: 0.8,
   },
   questionsList: {
@@ -328,10 +256,10 @@ const styles = StyleSheet.create({
   questionRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end",
+    justifyContent: "flex-start",
     gap: 8,
   },
-  questionText: { fontSize: 12, textAlign: "right", opacity: 0.7 },
+  questionText: { fontSize: 12, textAlign: "left", opacity: 0.7 },
   footer: {
     flexDirection: "row",
     alignItems: "center",
@@ -348,5 +276,4 @@ const styles = StyleSheet.create({
   countText: { fontSize: 11, fontWeight: "700" },
   fillButton: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 10 },
   fillButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
 });

@@ -5,7 +5,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,11 +13,6 @@ import {
   Text,
   TextInput,
   View,
-<<<<<<< HEAD
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-=======
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -33,6 +27,7 @@ const themeColors = {
 };
 
 export default function FormScreen() {
+  const userRole = "student";
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -48,6 +43,7 @@ export default function FormScreen() {
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!form) {
     return (
@@ -62,24 +58,27 @@ export default function FormScreen() {
   }
 
   const visibleQuestions = form.questions.filter(
-    (q) =>
-      !(q.options?.includes("is_private") && currentUser.role === "student"),
+    (q) => !(q.options?.includes("is_private") && userRole === "student"),
   );
 
   const setAnswer = (questionId: number, value: string) =>
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
 
-  const handleSubmit = async () => {
-    const unanswered = visibleQuestions.filter((q) => !answers[q.id]);
-    if (unanswered.length > 0) {
-      Alert.alert(
-        "تنبيه",
-        `الرجاء الإجابة على ${unanswered.length} أسئلة متبقية.`,
-      );
+  const handleSubmit = () => {
+    const hasUnanswered = visibleQuestions.some((q) => {
+      const answer = answers[q.id];
+      if (!answer) return true;
+      if (typeof answer === "string" && answer.trim() === "") return true;
+      if (Array.isArray(answer) && answer.length === 0) return true;
+      return false;
+    });
+
+    if (hasUnanswered) {
+      setErrorMessage("⚠️ Please answer all questions before submitting.");
       return;
     }
-    setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 1000));
+
+    setErrorMessage(null);
     setSubmitting(false);
     setSubmitted(true);
   };
@@ -101,7 +100,7 @@ export default function FormScreen() {
             style={[styles.doneBtn, { backgroundColor: activeColor }]}
             onPress={() => router.back()}
           >
-            <Text style={styles.doneBtnText}>عودة / Done</Text>
+            <Text style={styles.doneBtnText}>Done</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -126,9 +125,6 @@ export default function FormScreen() {
             <Text style={styles.formTitle}>{form.title}</Text>
             <Text style={styles.formDesc}>{form.description}</Text>
             <View style={styles.progressRow}>
-              <Text style={styles.progressText}>
-                {answeredCount}/{visibleQuestions.length}
-              </Text>
               <View style={styles.progressBg}>
                 <View
                   style={[
@@ -137,10 +133,18 @@ export default function FormScreen() {
                   ]}
                 />
               </View>
+              <Text style={styles.progressText}>
+                {answeredCount}/{visibleQuestions.length}
+              </Text>
             </View>
           </View>
 
           <View style={styles.questions}>
+            {errorMessage && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorText}>{errorMessage}</Text>
+              </View>
+            )}
             {visibleQuestions.map((q, idx) => (
               <View key={q.id} style={[styles.questionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
                 <View style={styles.questionHeader}>
@@ -171,14 +175,6 @@ export default function FormScreen() {
                 ]}
               >
                 <View style={styles.questionHeader}>
-                  <Text
-                    style={[
-                      styles.questionText,
-                      { color: themeColors.charcoal },
-                    ]}
-                  >
-                    {q.text}
-                  </Text>
                   {/* Circle number color matches activeColor */}
                   <View
                     style={[
