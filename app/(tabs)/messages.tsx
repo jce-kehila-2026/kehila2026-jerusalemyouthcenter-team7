@@ -1,37 +1,29 @@
-<<<<<<< HEAD
-import { useAuth } from '@/src/context/AuthContext';
-import { messages as mockMessages, Student, students as mockStudents } from '@/src/data/mockData';
-import { FirestoreMsg, messageService } from '@/src/data/messageService';
-import { studentService } from '@/src/data/studentService';
-import { timeAgo } from '@/src/utils/timeUtils';
-import { AppColors, Colors } from '@/constants/theme';
-import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useRef, useState } from 'react';
+import { AppColors, Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useAuth } from "@/src/context/AuthContext";
+import { FirestoreMsg, messageService } from "@/src/data/messageService";
+import {
+  messages as mockMessages,
+  students as mockStudents,
+  Student,
+} from "@/src/data/mockData";
+import { studentService } from "@/src/data/studentService";
+import { timeAgo } from "@/src/utils/timeUtils";
+import { Ionicons } from "@expo/vector-icons";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-=======
-import { messages } from '@/src/data/mockData';
-import { AppColors, Colors } from '@/constants/theme';
-import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
-import {
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
   FlatList,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-<<<<<<< HEAD
   ScrollView,
-=======
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
   StyleSheet,
   Text,
   TextInput,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-<<<<<<< HEAD
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type ThreadMsg = {
@@ -61,9 +53,9 @@ function groupConversations(
 ): Conversation[] {
   const map = new Map<string, Conversation>();
 
-  msgs.forEach(msg => {
+  msgs.forEach((msg) => {
     const fromMe = isAdmin
-      ? msg.sender_id === 'admin' || msg.sender_id === currentUid
+      ? msg.sender_id === "admin" || msg.sender_id === currentUid
       : msg.sender_id === currentUid;
 
     const otherPartyId = fromMe ? msg.receiver_id : msg.sender_id;
@@ -72,7 +64,12 @@ function groupConversations(
       : msg.sender_name;
 
     if (!map.has(otherPartyId)) {
-      map.set(otherPartyId, { otherPartyId, studentName: otherName, unread: false, thread: [] });
+      map.set(otherPartyId, {
+        otherPartyId,
+        studentName: otherName,
+        unread: false,
+        thread: [],
+      });
     }
 
     const conv = map.get(otherPartyId)!;
@@ -95,14 +92,28 @@ function groupConversations(
 function buildMockConversations(): Conversation[] {
   const map = new Map<string, Conversation>();
   [...mockMessages]
-    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-    .forEach(m => {
+    .sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    )
+    .forEach((m) => {
       const key = String(m.sender_id);
       if (!map.has(key)) {
-        map.set(key, { otherPartyId: key, studentName: m.sender_name, unread: false, thread: [] });
+        map.set(key, {
+          otherPartyId: key,
+          studentName: m.sender_name,
+          unread: false,
+          thread: [],
+        });
       }
       const conv = map.get(key)!;
-      conv.thread.push({ id: String(m.id), content: m.content, timestamp: m.timestamp, fromStudent: true, senderName: m.sender_name });
+      conv.thread.push({
+        id: String(m.id),
+        content: m.content,
+        timestamp: m.timestamp,
+        fromStudent: true,
+        senderName: m.sender_name,
+      });
       if (!m.is_read) conv.unread = true;
     });
   return Array.from(map.values());
@@ -112,40 +123,44 @@ function buildMockConversations(): Conversation[] {
 export default function MessagesScreen() {
   const { user } = useAuth();
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
+  const theme = Colors[colorScheme ?? "light"];
   const scrollRef = useRef<ScrollView>(null);
 
-  const isAdmin = user?.role === 'admin';
-  const currentUid = user?.uid ?? 'demo';
+  const isAdmin = user?.role === "admin";
+  const currentUid = user?.uid ?? "demo";
 
   const [loading, setLoading] = useState(true);
   const [allMessages, setAllMessages] = useState<FirestoreMsg[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [usingMock, setUsingMock] = useState(false);
   const [allStudents, setAllStudents] = useState<Student[]>(mockStudents);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
 
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
 
   // ── Fetch all students for search directory ───────────────────────────────
   useEffect(() => {
     studentService
       .getAllStudents()
-      .then(s => { if (s.length > 0) setAllStudents(s); })
+      .then((s) => {
+        if (s.length > 0) setAllStudents(s);
+      })
       .catch(() => {});
   }, []);
 
   // ── Firestore real-time subscription ─────────────────────────────────────
   useEffect(() => {
-    const unsub = messageService.subscribe(msgs => {
+    const unsub = messageService.subscribe((msgs) => {
       setLoading(false);
 
       // Each user only sees messages they are part of
       const forUser = isAdmin
         ? msgs
-        : msgs.filter(m => m.sender_id === currentUid || m.receiver_id === currentUid);
+        : msgs.filter(
+            (m) => m.sender_id === currentUid || m.receiver_id === currentUid,
+          );
 
       if (forUser.length === 0 && !usingMock) {
         setUsingMock(true);
@@ -162,7 +177,9 @@ export default function MessagesScreen() {
   // Keep active thread in sync with live updates
   useEffect(() => {
     if (!activeConv) return;
-    const updated = conversations.find(c => c.otherPartyId === activeConv.otherPartyId);
+    const updated = conversations.find(
+      (c) => c.otherPartyId === activeConv.otherPartyId,
+    );
     if (updated) setActiveConv(updated);
   }, [conversations]);
 
@@ -170,40 +187,52 @@ export default function MessagesScreen() {
   const searchTrimmed = search.trim().toLowerCase();
   const filteredStudents = searchTrimmed
     ? allStudents.filter(
-        s =>
+        (s) =>
           s.full_name.toLowerCase().includes(searchTrimmed) &&
           s.id !== currentUid, // exclude yourself
       )
-    : allStudents.filter(s => s.id !== currentUid);
+    : allStudents.filter((s) => s.id !== currentUid);
 
   function hasExistingConversation(studentId: string) {
-    return conversations.some(c => c.otherPartyId === studentId);
+    return conversations.some((c) => c.otherPartyId === studentId);
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────
   async function openConversation(conv: Conversation) {
     setActiveConv(conv);
-    setSearch('');
+    setSearch("");
     if (!usingMock) {
-      const unread = allMessages.filter(m => {
-        if (isAdmin) return m.receiver_id === 'admin' && m.sender_id === conv.otherPartyId && !m.is_read;
+      const unread = allMessages.filter((m) => {
+        if (isAdmin)
+          return (
+            m.receiver_id === "admin" &&
+            m.sender_id === conv.otherPartyId &&
+            !m.is_read
+          );
         return m.receiver_id === currentUid && !m.is_read;
       });
-      await Promise.all(unread.map(m => messageService.markRead(m.id)));
+      await Promise.all(unread.map((m) => messageService.markRead(m.id)));
     } else {
-      setConversations(prev =>
-        prev.map(c => (c.otherPartyId === conv.otherPartyId ? { ...c, unread: false } : c))
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.otherPartyId === conv.otherPartyId ? { ...c, unread: false } : c,
+        ),
       );
     }
   }
 
   function openStudentConversation(student: Student) {
-    const existing = conversations.find(c => c.otherPartyId === student.id);
+    const existing = conversations.find((c) => c.otherPartyId === student.id);
     if (existing) {
       openConversation(existing);
     } else {
-      setActiveConv({ otherPartyId: student.id, studentName: student.full_name, unread: false, thread: [] });
-      setSearch('');
+      setActiveConv({
+        otherPartyId: student.id,
+        studentName: student.full_name,
+        unread: false,
+        thread: [],
+      });
+      setSearch("");
     }
   }
 
@@ -211,7 +240,7 @@ export default function MessagesScreen() {
     if (!draft.trim() || !activeConv || sending) return;
     setSending(true);
     const text = draft.trim();
-    setDraft('');
+    setDraft("");
 
     if (usingMock) {
       const newMsg: ThreadMsg = {
@@ -219,18 +248,22 @@ export default function MessagesScreen() {
         content: text,
         timestamp: new Date().toISOString(),
         fromStudent: false,
-        senderName: user?.full_name ?? 'You',
+        senderName: user?.full_name ?? "You",
       };
-      setActiveConv(prev => (prev ? { ...prev, thread: [...prev.thread, newMsg] } : prev));
-      setConversations(prev =>
-        prev.map(c =>
-          c.otherPartyId === activeConv.otherPartyId ? { ...c, thread: [...c.thread, newMsg] } : c
-        )
+      setActiveConv((prev) =>
+        prev ? { ...prev, thread: [...prev.thread, newMsg] } : prev,
+      );
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.otherPartyId === activeConv.otherPartyId
+            ? { ...c, thread: [...c.thread, newMsg] }
+            : c,
+        ),
       );
     } else {
       await messageService.send({
-        sender_id: isAdmin ? 'admin' : currentUid,
-        sender_name: user?.full_name ?? (isAdmin ? 'Admin' : 'Student'),
+        sender_id: isAdmin ? "admin" : currentUid,
+        sender_name: user?.full_name ?? (isAdmin ? "Admin" : "Student"),
         receiver_id: activeConv.otherPartyId,
         content: text,
         timestamp: new Date().toISOString(),
@@ -243,12 +276,14 @@ export default function MessagesScreen() {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
   }
 
-  const totalUnread = conversations.filter(c => c.unread).length;
+  const totalUnread = conversations.filter((c) => c.unread).length;
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+      >
         <View style={styles.center}>
           <ActivityIndicator size="large" color={AppColors.primary} />
         </View>
@@ -258,55 +293,46 @@ export default function MessagesScreen() {
 
   // ── Thread view ───────────────────────────────────────────────────────────
   if (activeConv) {
-=======
-import { Message } from '@/src/data/mockData';
-
-function timeAgo(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
-
-export default function MessagesScreen() {
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
-  const [inbox, setInbox] = useState<Message[]>(messages);
-  const [selectedMsg, setSelectedMsg] = useState<Message | null>(null);
-  const [reply, setReply] = useState('');
-
-  const handleSelect = (msg: Message) => {
-    setSelectedMsg(msg);
-    setInbox(prev => prev.map(m => m.id === msg.id ? { ...m, is_read: true } : m));
-  };
-
-  const handleSendReply = () => {
-    if (!reply.trim()) return;
-    setReply('');
-    // In a real app, this would send via API
-  };
-
-  if (selectedMsg) {
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
           {/* Thread header */}
-          <View style={[styles.threadHeader, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-<<<<<<< HEAD
-            <Pressable onPress={() => setActiveConv(null)} style={styles.backBtn}>
+          <View
+            style={[
+              styles.threadHeader,
+              { backgroundColor: theme.card, borderBottomColor: theme.border },
+            ]}
+          >
+            <Pressable
+              onPress={() => setActiveConv(null)}
+              style={styles.backBtn}
+            >
               <Ionicons name="arrow-back" size={22} color={AppColors.primary} />
             </Pressable>
-            <View style={[styles.convAvatar, { backgroundColor: AppColors.primary + '20' }]}>
-              <Text style={[styles.convAvatarText, { color: AppColors.primary }]}>
+            <View
+              style={[
+                styles.convAvatar,
+                { backgroundColor: AppColors.primary + "20" },
+              ]}
+            >
+              <Text
+                style={[styles.convAvatarText, { color: AppColors.primary }]}
+              >
                 {activeConv.studentName.charAt(0)}
               </Text>
             </View>
             <View>
-              <Text style={[styles.threadName, { color: theme.text }]}>{activeConv.studentName}</Text>
-              <Text style={[styles.threadRole, { color: theme.subtext }]}>Student</Text>
+              <Text style={[styles.threadName, { color: theme.text }]}>
+                {activeConv.studentName}
+              </Text>
+              <Text style={[styles.threadRole, { color: theme.subtext }]}>
+                Student
+              </Text>
             </View>
           </View>
 
@@ -316,39 +342,67 @@ export default function MessagesScreen() {
             style={styles.threadScroll}
             contentContainerStyle={styles.threadContent}
             showsVerticalScrollIndicator={false}
-            onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
+            onContentSizeChange={() =>
+              scrollRef.current?.scrollToEnd({ animated: false })
+            }
           >
             {activeConv.thread.length === 0 && (
               <View style={styles.emptyThread}>
-                <Ionicons name="chatbubble-outline" size={36} color={theme.subtext} />
-                <Text style={[styles.emptyThreadText, { color: theme.subtext }]}>
+                <Ionicons
+                  name="chatbubble-outline"
+                  size={36}
+                  color={theme.subtext}
+                />
+                <Text
+                  style={[styles.emptyThreadText, { color: theme.subtext }]}
+                >
                   Start the conversation
                 </Text>
               </View>
             )}
-            {activeConv.thread.map(msg => (
+            {activeConv.thread.map((msg) => (
               <View
                 key={msg.id}
-                style={[styles.bubbleRow, msg.fromStudent ? styles.bubbleLeft : styles.bubbleRight]}
+                style={[
+                  styles.bubbleRow,
+                  msg.fromStudent ? styles.bubbleLeft : styles.bubbleRight,
+                ]}
               >
                 {msg.fromStudent && (
-                  <Text style={[styles.senderLabel, { color: theme.subtext }]}>{msg.senderName}</Text>
+                  <Text style={[styles.senderLabel, { color: theme.subtext }]}>
+                    {msg.senderName}
+                  </Text>
                 )}
                 <View
                   style={[
                     styles.bubble,
                     msg.fromStudent
-                      ? [styles.bubbleReceived, { backgroundColor: theme.card, borderColor: theme.border }]
+                      ? [
+                          styles.bubbleReceived,
+                          {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                          },
+                        ]
                       : styles.bubbleSent,
                   ]}
                 >
-                  <Text style={[styles.bubbleText, { color: msg.fromStudent ? theme.text : '#fff' }]}>
+                  <Text
+                    style={[
+                      styles.bubbleText,
+                      { color: msg.fromStudent ? theme.text : "#fff" },
+                    ]}
+                  >
                     {msg.content}
                   </Text>
                   <Text
                     style={[
                       styles.bubbleTime,
-                      { color: msg.fromStudent ? theme.subtext : 'rgba(255,255,255,0.7)' },
+                      {
+                        color: msg.fromStudent
+                          ? theme.subtext
+                          : "rgba(255,255,255,0.7)",
+                      },
                     ]}
                   >
                     {timeAgo(msg.timestamp)}
@@ -359,9 +413,21 @@ export default function MessagesScreen() {
           </ScrollView>
 
           {/* Compose bar */}
-          <View style={[styles.composeBar, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
+          <View
+            style={[
+              styles.composeBar,
+              { backgroundColor: theme.card, borderTopColor: theme.border },
+            ]}
+          >
             <TextInput
-              style={[styles.composeInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.border }]}
+              style={[
+                styles.composeInput,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.background,
+                  borderColor: theme.border,
+                },
+              ]}
               value={draft}
               onChangeText={setDraft}
               placeholder="Type a message…"
@@ -370,53 +436,18 @@ export default function MessagesScreen() {
               maxLength={500}
             />
             <Pressable
-              style={[styles.sendBtn, (!draft.trim() || sending) && styles.sendBtnDisabled]}
+              style={[
+                styles.sendBtn,
+                (!draft.trim() || sending) && styles.sendBtnDisabled,
+              ]}
               onPress={sendMessage}
               disabled={!draft.trim() || sending}
             >
-              {sending
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <Ionicons name="send" size={18} color="#fff" />}
-=======
-            <Pressable onPress={() => setSelectedMsg(null)} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={22} color={AppColors.primary} />
-            </Pressable>
-            <View style={[styles.threadAvatar, { backgroundColor: AppColors.primary + '20' }]}>
-              <Text style={[styles.threadAvatarText, { color: AppColors.primary }]}>
-                {selectedMsg.sender_name.charAt(0)}
-              </Text>
-            </View>
-            <View>
-              <Text style={[styles.threadName, { color: theme.text }]}>{selectedMsg.sender_name}</Text>
-              <Text style={[styles.threadStatus, { color: theme.subtext }]}>Student</Text>
-            </View>
-          </View>
-
-          {/* Message bubble */}
-          <View style={styles.bubbleContainer}>
-            <View style={[styles.bubble, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <Text style={[styles.bubbleText, { color: theme.text }]}>{selectedMsg.content}</Text>
-              <Text style={[styles.bubbleTime, { color: theme.subtext }]}>{timeAgo(selectedMsg.timestamp)}</Text>
-            </View>
-          </View>
-
-          {/* Reply input */}
-          <View style={[styles.replyBar, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
-            <TextInput
-              style={[styles.replyInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.border }]}
-              value={reply}
-              onChangeText={setReply}
-              placeholder="Type a reply..."
-              placeholderTextColor={theme.subtext}
-              multiline
-            />
-            <Pressable
-              style={[styles.sendBtn, !reply.trim() && styles.sendBtnDisabled]}
-              onPress={handleSendReply}
-              disabled={!reply.trim()}
-            >
-              <Ionicons name="send" size={18} color="#fff" />
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
+              {sending ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name="send" size={18} color="#fff" />
+              )}
             </Pressable>
           </View>
         </KeyboardAvoidingView>
@@ -424,12 +455,13 @@ export default function MessagesScreen() {
     );
   }
 
-<<<<<<< HEAD
   // ── Inbox ─────────────────────────────────────────────────────────────────
   const showingSearch = searchTrimmed.length > 0 || conversations.length === 0;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
       {/* Header */}
       <View style={styles.inboxHeader}>
         <Text style={[styles.inboxTitle, { color: theme.text }]}>Messages</Text>
@@ -441,7 +473,12 @@ export default function MessagesScreen() {
       </View>
 
       {/* Search bar */}
-      <View style={[styles.searchWrap, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      <View
+        style={[
+          styles.searchWrap,
+          { backgroundColor: theme.card, borderColor: theme.border },
+        ]}
+      >
         <Ionicons name="search" size={16} color={theme.subtext} />
         <TextInput
           style={[styles.searchInput, { color: theme.text }]}
@@ -452,7 +489,7 @@ export default function MessagesScreen() {
           returnKeyType="search"
         />
         {search.length > 0 && (
-          <Pressable onPress={() => setSearch('')} hitSlop={8}>
+          <Pressable onPress={() => setSearch("")} hitSlop={8}>
             <Ionicons name="close-circle" size={16} color={theme.subtext} />
           </Pressable>
         )}
@@ -462,35 +499,62 @@ export default function MessagesScreen() {
         /* ── Student directory (search mode or no conversations) ── */
         <FlatList
           data={filteredStudents}
-          keyExtractor={s => s.id}
+          keyExtractor={(s) => s.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <Text style={[styles.listHeader, { color: theme.subtext }]}>
-              {searchTrimmed ? `Results for "${search.trim()}"` : 'All Students'}
+              {searchTrimmed
+                ? `Results for "${search.trim()}"`
+                : "All Students"}
             </Text>
           }
           renderItem={({ item }) => {
-            const existing = conversations.find(c => c.otherPartyId === item.id);
+            const existing = conversations.find(
+              (c) => c.otherPartyId === item.id,
+            );
             const lastMsg = existing?.thread[existing.thread.length - 1];
             return (
               <Pressable
-                style={[styles.convCard, { backgroundColor: theme.card, borderColor: theme.border }, existing?.unread && styles.convCardUnread]}
+                style={[
+                  styles.convCard,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                  existing?.unread && styles.convCardUnread,
+                ]}
                 onPress={() => openStudentConversation(item)}
               >
-                <View style={[styles.convAvatar, { backgroundColor: AppColors.primary + '20' }]}>
-                  <Text style={[styles.convAvatarText, { color: AppColors.primary }]}>
+                <View
+                  style={[
+                    styles.convAvatar,
+                    { backgroundColor: AppColors.primary + "20" },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.convAvatarText,
+                      { color: AppColors.primary },
+                    ]}
+                  >
                     {item.full_name.charAt(0)}
                   </Text>
                 </View>
                 <View style={styles.convBody}>
-                  <Text style={[styles.convName, { color: theme.text }, existing?.unread && styles.convNameBold]}>
+                  <Text
+                    style={[
+                      styles.convName,
+                      { color: theme.text },
+                      existing?.unread && styles.convNameBold,
+                    ]}
+                  >
                     {item.full_name}
                   </Text>
-                  <Text style={[styles.convPreview, { color: theme.subtext }]} numberOfLines={1}>
+                  <Text
+                    style={[styles.convPreview, { color: theme.subtext }]}
+                    numberOfLines={1}
+                  >
                     {lastMsg
-                      ? (lastMsg.fromStudent ? '' : 'You: ') + lastMsg.content
-                      : 'Tap to start a conversation'}
+                      ? (lastMsg.fromStudent ? "" : "You: ") + lastMsg.content
+                      : "Tap to start a conversation"}
                   </Text>
                 </View>
                 <View style={styles.convRight}>
@@ -501,7 +565,11 @@ export default function MessagesScreen() {
                   )}
                   {existing?.unread && <View style={styles.unreadDot} />}
                   {!existing && (
-                    <Ionicons name="add-circle-outline" size={18} color={AppColors.primary} />
+                    <Ionicons
+                      name="add-circle-outline"
+                      size={18}
+                      color={AppColors.primary}
+                    />
                   )}
                 </View>
               </Pressable>
@@ -510,7 +578,9 @@ export default function MessagesScreen() {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={48} color={theme.subtext} />
-              <Text style={[styles.emptyText, { color: theme.subtext }]}>No students found</Text>
+              <Text style={[styles.emptyText, { color: theme.subtext }]}>
+                No students found
+              </Text>
             </View>
           }
         />
@@ -518,31 +588,56 @@ export default function MessagesScreen() {
         /* ── Conversation list ── */
         <FlatList
           data={conversations}
-          keyExtractor={item => item.otherPartyId}
+          keyExtractor={(item) => item.otherPartyId}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <Text style={[styles.listHeader, { color: theme.subtext }]}>Conversations</Text>
+            <Text style={[styles.listHeader, { color: theme.subtext }]}>
+              Conversations
+            </Text>
           }
           renderItem={({ item }) => {
             const lastMsg = item.thread[item.thread.length - 1];
             return (
               <Pressable
-                style={[styles.convCard, { backgroundColor: theme.card, borderColor: theme.border }, item.unread && styles.convCardUnread]}
+                style={[
+                  styles.convCard,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                  item.unread && styles.convCardUnread,
+                ]}
                 onPress={() => openConversation(item)}
               >
-                <View style={[styles.convAvatar, { backgroundColor: AppColors.primary + '20' }]}>
-                  <Text style={[styles.convAvatarText, { color: AppColors.primary }]}>
+                <View
+                  style={[
+                    styles.convAvatar,
+                    { backgroundColor: AppColors.primary + "20" },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.convAvatarText,
+                      { color: AppColors.primary },
+                    ]}
+                  >
                     {item.studentName.charAt(0)}
                   </Text>
                 </View>
                 <View style={styles.convBody}>
-                  <Text style={[styles.convName, { color: theme.text }, item.unread && styles.convNameBold]}>
+                  <Text
+                    style={[
+                      styles.convName,
+                      { color: theme.text },
+                      item.unread && styles.convNameBold,
+                    ]}
+                  >
                     {item.studentName}
                   </Text>
                   {lastMsg && (
-                    <Text style={[styles.convPreview, { color: theme.subtext }]} numberOfLines={1}>
-                      {lastMsg.fromStudent ? '' : 'You: '}
+                    <Text
+                      style={[styles.convPreview, { color: theme.subtext }]}
+                      numberOfLines={1}
+                    >
+                      {lastMsg.fromStudent ? "" : "You: "}
                       {lastMsg.content}
                     </Text>
                   )}
@@ -560,170 +655,136 @@ export default function MessagesScreen() {
           }}
         />
       )}
-=======
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>Messages</Text>
-        <View style={styles.headerRight}>
-          {inbox.filter(m => !m.is_read).length > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadBadgeText}>{inbox.filter(m => !m.is_read).length}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-
-      <FlatList
-        data={inbox}
-        keyExtractor={item => String(item.id)}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <Pressable
-            style={[
-              styles.messageCard,
-              { backgroundColor: theme.card, borderColor: theme.border },
-              !item.is_read && styles.unreadCard,
-            ]}
-            onPress={() => handleSelect(item)}
-          >
-            <View style={[styles.msgAvatar, { backgroundColor: AppColors.primary + '20' }]}>
-              <Text style={[styles.msgAvatarText, { color: AppColors.primary }]}>
-                {item.sender_name.charAt(0)}
-              </Text>
-            </View>
-            <View style={styles.msgBody}>
-              <View style={styles.msgTop}>
-                <Text style={[styles.senderName, { color: theme.text }, !item.is_read && styles.senderNameBold]}>
-                  {item.sender_name}
-                </Text>
-                <Text style={[styles.msgTime, { color: theme.subtext }]}>{timeAgo(item.timestamp)}</Text>
-              </View>
-              <Text style={[styles.msgPreview, { color: theme.subtext }]} numberOfLines={1}>
-                {item.content}
-              </Text>
-            </View>
-            {!item.is_read && <View style={styles.dot} />}
-          </Pressable>
-        )}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="chatbubbles-outline" size={48} color={theme.subtext} />
-            <Text style={[styles.emptyText, { color: theme.subtext }]}>No messages</Text>
-          </View>
-        }
-      />
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
     </SafeAreaView>
   );
 }
 
-<<<<<<< HEAD
 // ── Styles ─────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
   // Inbox
-  inboxHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10, gap: 10 },
-  inboxTitle: { fontSize: 24, fontWeight: '800' },
-  unreadBadge: { backgroundColor: AppColors.primary, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2, minWidth: 24, alignItems: 'center' },
-  unreadBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  inboxHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 10,
+    gap: 10,
+  },
+  inboxTitle: { fontSize: 24, fontWeight: "800" },
+  unreadBadge: {
+    backgroundColor: AppColors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 24,
+    alignItems: "center",
+  },
+  unreadBadgeText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   // Search
-  searchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
   searchInput: { flex: 1, fontSize: 15 },
   // List
   list: { padding: 16, gap: 8, paddingTop: 4 },
-  listHeader: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
-  convCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 14, borderWidth: 1, gap: 12 },
+  listHeader: {
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  convCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    gap: 12,
+  },
   convCardUnread: { borderLeftWidth: 3, borderLeftColor: AppColors.primary },
-  convAvatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  convAvatarText: { fontSize: 20, fontWeight: '700' },
+  convAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  convAvatarText: { fontSize: 20, fontWeight: "700" },
   convBody: { flex: 1 },
-  convName: { fontSize: 15, color: '#11181C', marginBottom: 2 },
-  convNameBold: { fontWeight: '700' },
+  convName: { fontSize: 15, color: "#11181C", marginBottom: 2 },
+  convNameBold: { fontWeight: "700" },
   convPreview: { fontSize: 13 },
-  convRight: { alignItems: 'flex-end', gap: 4 },
+  convRight: { alignItems: "flex-end", gap: 4 },
   convTime: { fontSize: 11 },
-  unreadDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: AppColors.primary },
-  empty: { alignItems: 'center', paddingTop: 60, gap: 12 },
+  unreadDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: AppColors.primary,
+  },
+  empty: { alignItems: "center", paddingTop: 60, gap: 12 },
   emptyText: { fontSize: 15 },
   // Thread
-  threadHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderBottomWidth: 1 },
+  threadHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+    borderBottomWidth: 1,
+  },
   backBtn: { padding: 4 },
-  threadName: { fontSize: 16, fontWeight: '700' },
+  threadName: { fontSize: 16, fontWeight: "700" },
   threadRole: { fontSize: 12 },
   threadScroll: { flex: 1 },
   threadContent: { padding: 16, gap: 4, paddingBottom: 8 },
-  emptyThread: { alignItems: 'center', paddingTop: 60, gap: 10 },
+  emptyThread: { alignItems: "center", paddingTop: 60, gap: 10 },
   emptyThreadText: { fontSize: 14 },
   bubbleRow: { marginBottom: 8 },
-  bubbleLeft: { alignItems: 'flex-start' },
-  bubbleRight: { alignItems: 'flex-end' },
+  bubbleLeft: { alignItems: "flex-start" },
+  bubbleRight: { alignItems: "flex-end" },
   senderLabel: { fontSize: 11, marginBottom: 3, marginLeft: 4 },
-  bubble: { maxWidth: '78%', borderRadius: 16, padding: 12 },
+  bubble: { maxWidth: "78%", borderRadius: 16, padding: 12 },
   bubbleReceived: { borderWidth: 1, borderBottomLeftRadius: 4 },
-  bubbleSent: { backgroundColor: AppColors.primary, borderBottomRightRadius: 4 },
+  bubbleSent: {
+    backgroundColor: AppColors.primary,
+    borderBottomRightRadius: 4,
+  },
   bubbleText: { fontSize: 15, lineHeight: 21 },
-  bubbleTime: { fontSize: 10, marginTop: 4, textAlign: 'right' },
-  composeBar: { flexDirection: 'row', alignItems: 'flex-end', padding: 12, borderTopWidth: 1, gap: 10 },
-  composeInput: { flex: 1, borderWidth: 1, borderRadius: 22, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, maxHeight: 100 },
-  sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: AppColors.primary, alignItems: 'center', justifyContent: 'center' },
-  sendBtnDisabled: { backgroundColor: '#ccc' },
-=======
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
-  title: { fontSize: 24, fontWeight: '800' },
-  headerRight: { flexDirection: 'row', alignItems: 'center' },
-  unreadBadge: {
-    backgroundColor: AppColors.primary, borderRadius: 12,
-    paddingHorizontal: 8, paddingVertical: 2,
+  bubbleTime: { fontSize: 10, marginTop: 4, textAlign: "right" },
+  composeBar: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    padding: 12,
+    borderTopWidth: 1,
+    gap: 10,
   },
-  unreadBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  list: { padding: 16, gap: 8 },
-  messageCard: {
-    flexDirection: 'row', alignItems: 'center', borderRadius: 12,
-    padding: 14, borderWidth: 1, gap: 12,
+  composeInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    maxHeight: 100,
   },
-  unreadCard: { borderLeftWidth: 3, borderLeftColor: AppColors.primary },
-  msgAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  msgAvatarText: { fontSize: 18, fontWeight: '700' },
-  msgBody: { flex: 1 },
-  msgTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 },
-  senderName: { fontSize: 14, color: '#11181C' },
-  senderNameBold: { fontWeight: '700' },
-  msgTime: { fontSize: 11 },
-  msgPreview: { fontSize: 13 },
-  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: AppColors.primary },
-  threadHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 16, borderBottomWidth: 1,
+  sendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: AppColors.primary,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  backBtn: { padding: 4 },
-  threadAvatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  threadAvatarText: { fontSize: 16, fontWeight: '700' },
-  threadName: { fontSize: 16, fontWeight: '700' },
-  threadStatus: { fontSize: 12 },
-  bubbleContainer: { flex: 1, padding: 16 },
-  bubble: {
-    borderRadius: 14, padding: 14, borderWidth: 1,
-    alignSelf: 'flex-start', maxWidth: '85%',
-  },
-  bubbleText: { fontSize: 15, lineHeight: 22 },
-  bubbleTime: { fontSize: 11, marginTop: 6, textAlign: 'right' },
-  replyBar: {
-    flexDirection: 'row', alignItems: 'flex-end',
-    padding: 12, borderTopWidth: 1, gap: 10,
-  },
-  replyInput: {
-    flex: 1, borderWidth: 1, borderRadius: 22,
-    paddingHorizontal: 14, paddingVertical: 10,
-    fontSize: 15, maxHeight: 100,
-  },
-  sendBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: AppColors.primary, alignItems: 'center', justifyContent: 'center' },
-  sendBtnDisabled: { backgroundColor: '#ccc' },
-  empty: { alignItems: 'center', paddingTop: 60, gap: 12 },
-  emptyText: { fontSize: 15 },
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
+  sendBtnDisabled: { backgroundColor: "#ccc" },
 });

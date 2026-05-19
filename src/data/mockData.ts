@@ -362,6 +362,7 @@ export const forms: Form[] = [
         text: "Does the student have any food allergies? (Visible to staff only)",
         type: "text",
         options: ["is_private"],
+        is_private: true,
       },
       {
         id: 11,
@@ -465,3 +466,4 @@ export const COLORS = {
   border: "#d8e0e0",
   success: "#22c55e",
 };
+
