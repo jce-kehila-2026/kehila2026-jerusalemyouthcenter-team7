@@ -82,3 +82,8 @@ export const eventStudents = [
   { event_id: 2, student_id: 3 },
   { event_id: 2, student_id: 4 },
 ];
+
+export const attendance = [];
+export const forms = [];
+export const messages = [];
+export const notifications = [];
