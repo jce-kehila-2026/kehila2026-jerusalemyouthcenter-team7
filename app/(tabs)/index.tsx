@@ -5,7 +5,6 @@ import { useAuth } from '@/src/context/AuthContext';
 import { FirestoreMsg, messageService } from '@/src/data/messageService';
 import {
   attendance as mockAttendance,
-  eventStudents as mockEventStudents,
   events as mockEvents,
   forms as mockForms,
   messages as mockMessages,
@@ -29,54 +28,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const DEMO_STUDENT_ID = '1';
-const CHART_H = 130; // pixel height of the bar area
-
 // ── Shared lightweight types ──────────────────────────────────────────────────
 type DashEvent = { id: string | number; title: string; date: string; location: string; registered: number; capacity: number };
 type DashMsg = { id: string; sender_name: string; content: string; timestamp: string; is_read: boolean };
 type DashNotif = { id: string | number; title: string; body: string; timestamp: string; is_read: boolean; type: string };
 type DashAttendance = { status: 'attended' | 'absent' | 'registered' };
 
-// ── Column chart (admin overview) ─────────────────────────────────────────────
-type ChartItem = {
-  label: string;
-  value: number;
-  color: string;
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-};
-
-function ColumnChart({ items, theme }: { items: ChartItem[]; theme: typeof Colors.light }) {
-  const maxVal = Math.max(...items.map(i => i.value), 1);
-
-  return (
-    <View style={[chartSt.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-      {/* Baseline */}
-      <View style={[chartSt.baseline, { borderColor: theme.border }]} />
-
-      <View style={chartSt.barsRow}>
-        {items.map(item => {
-          const barH = Math.max((item.value / maxVal) * CHART_H, 6);
-          return (
-            <View key={item.label} style={chartSt.barCol}>
-              {/* Value on top */}
-              <Text style={[chartSt.valLabel, { color: item.color }]}>{item.value}</Text>
-              {/* Track: bars grow from the bottom */}
-              <View style={chartSt.barTrack}>
-                <View style={[chartSt.bar, { height: barH, backgroundColor: item.color }]} />
-              </View>
-              {/* Icon + label below */}
-              <Ionicons name={item.icon} size={13} color={item.color} style={chartSt.barIcon} />
-              <Text style={[chartSt.barLabel, { color: theme.subtext }]}>{item.label}</Text>
-            </View>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
-// ── Stat card (student overview) ──────────────────────────────────────────────
+// ── Stat card ─────────────────────────────────────────────────────────────────
 function StatCard({
   label,
   value,
@@ -107,7 +65,6 @@ export default function DashboardScreen() {
   const theme = Colors[colorScheme ?? 'light'];
   const isAdmin = user?.role === 'admin';
 
-  // Initialised with mock data so UI renders immediately
   const [loading, setLoading] = useState(true);
   const [studentCount, setStudentCount] = useState((mockStudents || []).length);
   const [eventList, setEventList] = useState<DashEvent[]>(mockEvents || []);
@@ -117,13 +74,14 @@ export default function DashboardScreen() {
   const [messageList, setMessageList] = useState<DashMsg[]>(
     (mockMessages || []).map(m => ({ ...m, id: String(m.id) }))
   );
-  const [myRegisteredEventIds, setMyRegisteredEventIds] = useState<(string | number)[]>(
-    (mockEventStudents || []).filter(es => String(es.student_id) === DEMO_STUDENT_ID).map(es => es.event_id)
-  );
+  const [myRegisteredEventIds, setMyRegisteredEventIds] = useState<(string | number)[]>([]);
 
   // Derived values
   const now = new Date();
   const unreadNotifications = notifList.filter(n => !n.is_read).length;
+  const unreadMessages = isAdmin
+    ? messageList.filter(m => !m.is_read).length
+    : messageList.filter(m => !m.is_read && (m as any).receiver_id === user?.uid).length;
   const presentCount = attendanceData.filter(a => a.status === 'attended').length;
   const absentCount = attendanceData.filter(a => a.status === 'absent').length;
   const pendingCount = attendanceData.filter(a => a.status === 'registered').length;
@@ -200,14 +158,6 @@ export default function DashboardScreen() {
     );
   }
 
-  // Chart data for admin
-  const adminChartItems: ChartItem[] = [
-    { label: 'Students', value: studentCount, color: AppColors.primary, icon: 'people' },
-    { label: 'Events', value: eventList.length, color: AppColors.secondary, icon: 'calendar' },
-    { label: 'Forms', value: formCount, color: AppColors.success, icon: 'document-text' },
-    { label: 'Notifications', value: unreadNotifications, color: AppColors.danger, icon: 'notifications' },
-  ];
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -218,12 +168,27 @@ export default function DashboardScreen() {
             <Text style={[styles.name, { color: theme.text }]}>{user?.full_name}</Text>
           </View>
           <View style={styles.headerActions}>
+            {/* Messages button */}
+            <Pressable
+              onPress={() => router.push('/(tabs)/messages' as any)}
+              style={styles.headerIconWrap}
+              hitSlop={8}
+            >
+              <Ionicons name="chatbubbles-outline" size={24} color={theme.icon} />
+              {unreadMessages > 0 && (
+                <View style={styles.headerBadge}>
+                  <Text style={styles.headerBadgeText}>{unreadMessages > 9 ? '9+' : unreadMessages}</Text>
+                </View>
+              )}
+            </Pressable>
+            {/* Notification bell */}
             <NotificationBell
               unreadCount={unreadNotifications}
               color={theme.icon}
               onPress={() => router.push('/(tabs)/notifications' as any)}
             />
-            <Pressable onPress={() => router.push('/profile')}>
+            {/* Profile avatar */}
+            <Pressable onPress={() => router.push('/profile' as any)}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>{user?.full_name?.charAt(0) ?? '?'}</Text>
               </View>
@@ -234,9 +199,14 @@ export default function DashboardScreen() {
         {/* ── ADMIN VIEW ── */}
         {isAdmin ? (
           <>
-            {/* Column chart stats */}
+            {/* Overview stat cards */}
             <Text style={[styles.sectionTitle, { color: theme.text }]}>Overview</Text>
-            <ColumnChart items={adminChartItems} theme={theme} />
+            <View style={styles.statsGrid}>
+              <StatCard label="Students" value={studentCount} icon="people" color={AppColors.primary} />
+              <StatCard label="Events" value={eventList.length} icon="calendar" color={AppColors.secondary} />
+              <StatCard label="Forms" value={formCount} icon="document-text" color={AppColors.success} />
+              <StatCard label="Unread Notifs" value={unreadNotifications} icon="notifications" color={AppColors.danger} />
+            </View>
 
             {/* Attendance bar */}
             <Text style={[styles.sectionTitle, { color: theme.text }]}>Attendance</Text>
@@ -267,7 +237,7 @@ export default function DashboardScreen() {
             {/* Recent Messages */}
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: theme.text }]}>Recent Messages</Text>
-              <Pressable onPress={() => router.push('/(tabs)/messages')}>
+              <Pressable onPress={() => router.push('/(tabs)/messages' as any)}>
                 <Text style={styles.seeAll}>See all</Text>
               </Pressable>
             </View>
@@ -280,7 +250,7 @@ export default function DashboardScreen() {
                 <Pressable
                   key={msg.id}
                   style={[styles.activityRow, { backgroundColor: theme.card, borderColor: theme.border }]}
-                  onPress={() => router.push('/(tabs)/messages')}
+                  onPress={() => router.push('/(tabs)/messages' as any)}
                 >
                   <View style={[styles.activityAvatar, { backgroundColor: AppColors.primary + '20' }]}>
                     <Text style={[styles.activityAvatarText, { color: AppColors.primary }]}>{msg.sender_name.charAt(0)}</Text>
@@ -389,62 +359,7 @@ function NotifRow({ notif, theme }: { notif: DashNotif; theme: typeof Colors.lig
   );
 }
 
-// ── Chart styles ───────────────────────────────────────────────────────────────
-const chartSt = StyleSheet.create({
-  card: {
-    marginHorizontal: 20,
-    borderRadius: 14,
-    paddingHorizontal: 4,
-    paddingTop: 16,
-    paddingBottom: 12,
-    borderWidth: 1,
-    boxShadow: '0px 1px 4px rgba(0, 0, 0, 0.04)',
-    elevation: 1,
-    position: 'relative',
-  },
-  baseline: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    height: StyleSheet.hairlineWidth,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    bottom: 52,
-  },
-  barsRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  barCol: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  valLabel: {
-    fontSize: 14,
-    fontWeight: '800',
-    marginBottom: 6,
-  },
-  barTrack: {
-    height: CHART_H,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    width: '100%',
-  },
-  bar: {
-    width: 32,
-    borderRadius: 6,
-  },
-  barIcon: {
-    marginTop: 8,
-  },
-  barLabel: {
-    fontSize: 9,
-    textAlign: 'center',
-    marginTop: 2,
-    lineHeight: 13,
-  },
-});
-
-// ── Screen styles ──────────────────────────────────────────────────────────────
+// ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -452,12 +367,26 @@ const styles = StyleSheet.create({
   greeting: { fontSize: 13 },
   name: { fontSize: 20, fontWeight: '700' },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerIconWrap: { position: 'relative', padding: 4 },
+  headerBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: AppColors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  headerBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: AppColors.primary, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   sectionTitle: { fontSize: 16, fontWeight: '700', marginHorizontal: 20, marginTop: 16, marginBottom: 10 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginRight: 20 },
   seeAll: { color: AppColors.primary, fontSize: 13, fontWeight: '600' },
-  // Student stats grid
+  // Stats grid (used by both admin and student overview)
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 10 },
   statCard: { flex: 1, minWidth: '44%', backgroundColor: '#fff', borderRadius: 12, padding: 14, borderLeftWidth: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
   statIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
@@ -471,7 +400,7 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendText: { fontSize: 12 },
-  // Activity rows
+  // Activity rows (recent messages)
   activityRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 8, borderRadius: 12, padding: 12, borderWidth: 1, gap: 10 },
   activityAvatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   activityAvatarText: { fontSize: 16, fontWeight: '700' },
