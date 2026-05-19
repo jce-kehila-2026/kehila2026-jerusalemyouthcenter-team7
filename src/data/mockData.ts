@@ -88,9 +88,9 @@ export const currentUser: User = {
 };
 
 export const groups: Group[] = [
-  { id: "1", name: "Alpha", year_id: 1, program_id: 1 },
-  { id: "2", name: "Beta", year_id: 1, program_id: 2 },
-  { id: "3", name: "Gamma", year_id: 2, program_id: 1 },
+  { id: "1", name: "Year 1", year_id: 1, program_id: 1 },
+  { id: "2", name: "Year 2", year_id: 2, program_id: 2 },
+  { id: "3", name: "Year 3", year_id: 3, program_id: 1 },
 ];
 
 export const students: Student[] = [

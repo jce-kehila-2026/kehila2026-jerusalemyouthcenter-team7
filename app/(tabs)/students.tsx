@@ -21,7 +21,11 @@ import {
 } from "../../src/data/mockData";
 import { studentService } from "../../src/data/studentService";
 
-type StudentWithGroup = Omit<Student, "year_id"> & {
+type StudentWithVoice = Student & {
+  voice_type?: UserType["voice_type"];
+};
+
+type StudentWithGroup = Omit<StudentWithVoice, "year_id"> & {
   group_name: string;
   voice_type?: UserType["voice_type"];
   year_id: number | null;
@@ -36,7 +40,7 @@ export default function StudentsListScreen() {
   const [selectedVoiceFilter, setSelectedVoiceFilter] = useState<string | null>(
     null,
   ); // For admin voice filter
-  const [studentsList, setStudentsList] = useState<Student[]>([]);
+  const [studentsList, setStudentsList] = useState<StudentWithVoice[]>([]);
   const [groupsList, setGroupsList] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
@@ -72,16 +76,18 @@ export default function StudentsListScreen() {
       const group = groupsList.find(
         (g) => g.id === student.group_id || g.name === student.group_id,
       );
+      const yearId =
+        group?.year_id !== undefined
+          ? Number(group.year_id)
+          : student.year_id !== undefined
+            ? Number(student.year_id)
+            : null;
+
       return {
         ...student,
-        group_name: group ? group.name : student.group_id || "N/A",
-        // Prioritize group's year_id to ensure category-based filtering works correctly
-        year_id:
-          group?.year_id !== undefined
-            ? Number(group.year_id)
-            : student.year_id !== undefined
-              ? Number(student.year_id)
-              : null, // Default to null for consistency with AuthContext
+        // Use Year X format for display instead of Alpha/Beta/Gamma
+        group_name: yearId ? `Year ${yearId}` : student.group_id || "N/A",
+        year_id: yearId,
         voice_type: student.voice_type,
       };
     });
