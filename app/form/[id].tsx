@@ -1,10 +1,9 @@
-import { currentUser, forms } from "@/src/data/mockData";
+import { forms } from "@/src/data/mockData";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -27,6 +26,7 @@ const themeColors = {
 };
 
 export default function FormScreen() {
+  const userRole = "student";
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
@@ -40,6 +40,7 @@ export default function FormScreen() {
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!form) {
     return (
@@ -47,33 +48,34 @@ export default function FormScreen() {
         style={[styles.container, { backgroundColor: themeColors.bluishWhite }]}
       >
         <View style={styles.centered}>
-          <Text style={{ color: themeColors.charcoal }}>
-            النموذج غير موجود / Form not found
-          </Text>
+          <Text style={{ color: themeColors.charcoal }}>Form not found</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   const visibleQuestions = form.questions.filter(
-    (q) =>
-      !(q.options?.includes("is_private") && currentUser.role === "student"),
+    (q) => !(q.options?.includes("is_private") && userRole === "student"),
   );
 
   const setAnswer = (questionId: number, value: string) =>
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
 
-  const handleSubmit = async () => {
-    const unanswered = visibleQuestions.filter((q) => !answers[q.id]);
-    if (unanswered.length > 0) {
-      Alert.alert(
-        "تنبيه",
-        `الرجاء الإجابة على ${unanswered.length} أسئلة متبقية.`,
-      );
+  const handleSubmit = () => {
+    const hasUnanswered = visibleQuestions.some((q) => {
+      const answer = answers[q.id];
+      if (!answer) return true;
+      if (typeof answer === "string" && answer.trim() === "") return true;
+      if (Array.isArray(answer) && answer.length === 0) return true;
+      return false;
+    });
+
+    if (hasUnanswered) {
+      setErrorMessage("⚠️ Please answer all questions before submitting.");
       return;
     }
-    setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 1000));
+
+    setErrorMessage(null);
     setSubmitting(false);
     setSubmitted(true);
   };
@@ -88,16 +90,16 @@ export default function FormScreen() {
             <Ionicons name="checkmark-circle" size={72} color={activeColor} />
           </View>
           <Text style={[styles.successTitle, { color: themeColors.charcoal }]}>
-            تم الإرسال!
+            Success!
           </Text>
           <Text style={[styles.successSub, { color: "#666" }]}>
-            تم حفظ إجاباتك لنموذج "{form.title}" بنجاح.
+            {`Your answers for "${form?.title}" have been successfully saved.`}
           </Text>
           <Pressable
             style={[styles.doneBtn, { backgroundColor: activeColor }]}
             onPress={() => router.back()}
           >
-            <Text style={styles.doneBtnText}>عودة / Done</Text>
+            <Text style={styles.doneBtnText}>Done</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -122,9 +124,6 @@ export default function FormScreen() {
             <Text style={styles.formTitle}>{form.title}</Text>
             <Text style={styles.formDesc}>{form.description}</Text>
             <View style={styles.progressRow}>
-              <Text style={styles.progressText}>
-                {answeredCount}/{visibleQuestions.length}
-              </Text>
               <View style={styles.progressBg}>
                 <View
                   style={[
@@ -133,10 +132,18 @@ export default function FormScreen() {
                   ]}
                 />
               </View>
+              <Text style={styles.progressText}>
+                {answeredCount}/{visibleQuestions.length}
+              </Text>
             </View>
           </View>
 
           <View style={styles.questions}>
+            {errorMessage && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorText}>{errorMessage}</Text>
+              </View>
+            )}
             {visibleQuestions.map((q, idx) => (
               <View
                 key={q.id}
@@ -146,14 +153,6 @@ export default function FormScreen() {
                 ]}
               >
                 <View style={styles.questionHeader}>
-                  <Text
-                    style={[
-                      styles.questionText,
-                      { color: themeColors.charcoal },
-                    ]}
-                  >
-                    {q.text}
-                  </Text>
                   {/* Circle number color matches activeColor */}
                   <View
                     style={[
@@ -178,6 +177,14 @@ export default function FormScreen() {
                       </Text>
                     )}
                   </View>
+                  <Text
+                    style={[
+                      styles.questionText,
+                      { color: themeColors.charcoal },
+                    ]}
+                  >
+                    {q.text}
+                  </Text>
                 </View>
 
                 {q.type === "text" && (
@@ -192,7 +199,7 @@ export default function FormScreen() {
                     ]}
                     value={answers[q.id] ?? ""}
                     onChangeText={(v) => setAnswer(q.id, v)}
-                    placeholder="اكتب إجابتك هنا..."
+                    placeholder="Write your answer here..."
                     placeholderTextColor="#999"
                     multiline
                     numberOfLines={3}
@@ -201,7 +208,7 @@ export default function FormScreen() {
 
                 {q.type === "yes_no" && (
                   <View style={styles.yesNoRow}>
-                    {["Yes / نعم", "No / لا"].map((opt) => (
+                    {["Yes", "No"].map((opt) => (
                       <Pressable
                         key={opt}
                         style={[
@@ -278,13 +285,8 @@ export default function FormScreen() {
               <ActivityIndicator color="#fff" />
             ) : (
               <>
-                <Text style={styles.submitBtnText}>إرسال / Submit Form</Text>
-                <Ionicons
-                  name="send-outline"
-                  size={18}
-                  color="#fff"
-                  style={{ transform: [{ scaleX: -1 }] }}
-                />
+                <Text style={styles.submitBtnText}>Submit Form</Text>
+                <Ionicons name="send-outline" size={18} color="#fff" />
               </>
             )}
           </Pressable>
@@ -297,22 +299,22 @@ export default function FormScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
-  formHeader: { padding: 24, alignItems: "flex-end" },
+  formHeader: { padding: 24, alignItems: "flex-start" },
   formTitle: {
     fontSize: 20,
     fontWeight: "800",
     color: "#fff",
     marginBottom: 6,
-    textAlign: "right",
+    textAlign: "left",
   },
   formDesc: {
     fontSize: 13,
     color: "rgba(255,255,255,0.9)",
     marginBottom: 14,
-    textAlign: "right",
+    textAlign: "left",
   },
   progressRow: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     alignItems: "center",
     gap: 10,
     width: "100%",
@@ -329,9 +331,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 3,
     position: "absolute",
-    right: 0,
+    left: 0,
   },
   progressText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+
+  errorBanner: {
+    backgroundColor: "#ffebee",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#ffcdd2",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  errorText: {
+    color: "#c62828",
+    fontSize: 14,
+    fontWeight: "500",
+  },
 
   questions: { padding: 16, gap: 12 },
   questionCard: {
@@ -345,7 +363,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   questionHeader: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     gap: 10,
     marginBottom: 12,
     alignItems: "flex-start",
@@ -365,7 +383,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     lineHeight: 22,
-    textAlign: "right",
+    textAlign: "left",
   },
 
   textAnswer: {
@@ -375,11 +393,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     minHeight: 80,
     textAlignVertical: "top",
-    textAlign: "right",
+    textAlign: "left",
   },
 
-  yesNoRow: { flexDirection: "row-reverse", gap: 10 },
-  optionsGrid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 },
+  yesNoRow: { flexDirection: "row", gap: 10 },
+  optionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   optionBtn: {
     paddingHorizontal: 16,
     paddingVertical: 10,

@@ -39,7 +39,7 @@ export type Event = {
 
 export type EventAttendance = {
   event_id: number;
-  student_id: number;
+  student_id: string;
   status: "registered" | "attended" | "absent";
 };
 
@@ -49,6 +49,7 @@ export type Question = {
   text: string;
   type: "text" | "multiple_choice" | "yes_no";
   options?: string[];
+  is_private?: boolean;
 };
 
 export type Form = {
@@ -56,12 +57,13 @@ export type Form = {
   title: string;
   description: string;
   created_at: string;
+  target_audience: "student" | "admin" | "both";
   questions: Question[];
 };
 
 export type Message = {
   id: number;
-  sender_id: number;
+  sender_id: string;
   sender_name: string;
   content: string;
   timestamp: string;
@@ -71,7 +73,7 @@ export type Message = {
 export type Notification = {
   id: number;
   title: string;
-  body: string;ط
+  body: string;
   timestamp: string;
   is_read: boolean;
   type: "event" | "message" | "form" | "general";
@@ -214,11 +216,11 @@ export const events: Event[] = [
 ];
 
 export const attendance: EventAttendance[] = [
-  { event_id: 1, student_id: 1, status: "registered" },
-  { event_id: 1, student_id: 2, status: "attended" },
-  { event_id: 1, student_id: 3, status: "attended" },
-  { event_id: 2, student_id: 4, status: "registered" },
-  { event_id: 2, student_id: 5, status: "absent" },
+  { event_id: 1, student_id: "1", status: "registered" },
+  { event_id: 1, student_id: "2", status: "attended" },
+  { event_id: 1, student_id: "3", status: "attended" },
+  { event_id: 2, student_id: "4", status: "registered" },
+  { event_id: 2, student_id: "5", status: "absent" },
 ];
 
 export const forms: Form[] = [
@@ -227,6 +229,7 @@ export const forms: Form[] = [
     title: "End of Year Survey",
     description: "Share your experience with us this year.",
     created_at: "2026-04-01",
+    target_audience: "both",
     questions: [
       {
         id: 1,
@@ -254,6 +257,7 @@ export const forms: Form[] = [
     title: "Event Registration: Shabbat Dinner",
     description: "Register for the upcoming Shabbat dinner.",
     created_at: "2026-04-20",
+    target_audience: "student",
     questions: [
       {
         id: 4,
@@ -269,6 +273,7 @@ export const forms: Form[] = [
     title: "Program Feedback - Spring 2026",
     description: "Help us improve our programs.",
     created_at: "2026-04-25",
+    target_audience: "student",
     questions: [
       {
         id: 6,
@@ -286,6 +291,7 @@ export const forms: Form[] = [
     description:
       "This form is filled out by the coordinator to add a new student to the chorus.",
     created_at: "2026-05-10",
+    target_audience: "admin",
     questions: [
       { id: 8, form_id: 4, text: "Student's Full Name", type: "text" },
       {
@@ -307,6 +313,13 @@ export const forms: Form[] = [
         text: "Parental Consent and Signature",
         type: "yes_no",
       },
+      {
+        id: 404,
+        form_id: 4,
+        text: "Medical Situation / Allergies (If any)",
+        type: "text",
+        is_private: true,
+      },
     ],
   },
 ];
@@ -314,7 +327,7 @@ export const forms: Form[] = [
 export const messages: Message[] = [
   {
     id: 1,
-    sender_id: 2,
+    sender_id: "2",
     sender_name: "Sara Cohen",
     content: "Hi, I wanted to ask about the upcoming event details.",
     timestamp: "2026-05-03T09:15:00",
@@ -322,7 +335,7 @@ export const messages: Message[] = [
   },
   {
     id: 2,
-    sender_id: 3,
+    sender_id: "3",
     sender_name: "Omar Nasser",
     content: "Will the workshop include lunch?",
     timestamp: "2026-05-03T10:30:00",
@@ -330,7 +343,7 @@ export const messages: Message[] = [
   },
   {
     id: 3,
-    sender_id: 5,
+    sender_id: "5",
     sender_name: "Yusuf Khalil",
     content: "Thank you for the great session yesterday!",
     timestamp: "2026-05-02T16:00:00",
@@ -338,7 +351,7 @@ export const messages: Message[] = [
   },
   {
     id: 4,
-    sender_id: 7,
+    sender_id: "7",
     sender_name: "Kareem Hassan",
     content: "I registered for the heritage walk.",
     timestamp: "2026-05-01T12:45:00",
