@@ -1,264 +1,444 @@
-import { forms } from '@/src/data/mockData';
-import { AppColors, Colors } from '@/constants/theme';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-const typeIcons: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
-  text: 'text-outline',
-  multiple_choice: 'radio-button-on-outline',
-  yes_no: 'checkmark-circle-outline',
-};
-
-export default function FormsScreen() {
-  const router = useRouter();
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
-
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>Forms</Text>
-        <Text style={[styles.subtitle, { color: theme.subtext }]}>{forms.length} active</Text>
-=======
-import { Colors } from "@/constants/theme";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { forms } from "@/src/data/mockData";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// 1. Official Jerusalem Youth Chorus Colors
+// Official JYC Color Palette
 const themeColors = {
-  teal: "#039899", // Primary
-  red: "#c56451", // Errors / Urgent
-  yellow: "#cfad5d", // Warnings / Accents
+  teal: "#039899",
+  red: "#c56451",
+  yellow: "#cfad5d",
   bluishWhite: "#f5fafe",
   charcoal: "#353535",
   white: "#ffffff",
 };
 
-const typeIcons: Record<string, React.ComponentProps<typeof Ionicons>["name"]> =
-  {
-    text: "text-outline",
-    multiple_choice: "radio-button-on-outline",
-    yes_no: "checkmark-circle-outline",
+export default function FormScreen() {
+  const userRole = "student";
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+
+  const form = forms.find((f) => f.id === Number(id));
+
+  // Dynamic color logic to match the main screen
+  const colors = [themeColors.teal, themeColors.red, themeColors.yellow];
+  // Using (id - 1) to align with the array index (0, 1, 2)
+  const activeColor = colors[(Number(id) - 1) % 3];
+
+  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  if (!form) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: themeColors.bluishWhite }]}
+      >
+        <View style={styles.centered}>
+          <Text style={{ color: themeColors.charcoal }}>Form not found</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const visibleQuestions = form.questions.filter(
+    (q) => !(q.options?.includes("is_private") && userRole === "student"),
+  );
+
+  const setAnswer = (questionId: number, value: string) =>
+    setAnswers((prev) => ({ ...prev, [questionId]: value }));
+
+  const handleSubmit = () => {
+    const hasUnanswered = visibleQuestions.some((q) => {
+      const answer = answers[q.id];
+      if (!answer) return true;
+      if (typeof answer === "string" && answer.trim() === "") return true;
+      if (Array.isArray(answer) && answer.length === 0) return true;
+      return false;
+    });
+
+    if (hasUnanswered) {
+      setErrorMessage("⚠️ Please answer all questions before submitting.");
+      return;
+    }
+
+    setErrorMessage(null);
+    setSubmitting(false);
+    setSubmitted(true);
   };
 
-export default function FormsScreen() {
-  const router = useRouter();
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? "light"];
+  if (submitted) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: themeColors.bluishWhite }]}
+      >
+        <View style={styles.successContainer}>
+          <View style={styles.successIcon}>
+            <Ionicons name="checkmark-circle" size={72} color={activeColor} />
+          </View>
+          <Text style={[styles.successTitle, { color: themeColors.charcoal }]}>
+            Success!
+          </Text>
+          <Text style={[styles.successSub, { color: "#666" }]}>
+            {`Your answers for "${form?.title}" have been successfully saved.`}
+          </Text>
+          <Pressable
+            style={[styles.doneBtn, { backgroundColor: activeColor }]}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.doneBtnText}>Done</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const answeredCount = Object.keys(answers).length;
+  const progress = answeredCount / (visibleQuestions.length || 1);
 
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: themeColors.bluishWhite }]}
+      edges={["bottom"]}
     >
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: themeColors.charcoal }]}>
-          النماذج / Forms
-        </Text>
-        <Text style={styles.subtitle}>{forms.length} active / نشط</Text>
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
-      </View>
-
-      <FlatList
-        data={forms}
-<<<<<<< HEAD
-        keyExtractor={item => String(item.id)}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <Pressable
-            style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}
-            onPress={() => router.push(`/form/${item.id}` as any)}
-          >
-            <View style={styles.cardHeader}>
-              <View style={[styles.iconBox, { backgroundColor: AppColors.primaryLight }]}>
-                <Ionicons name="document-text" size={22} color={AppColors.primary} />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Header color now matches the activeColor */}
+          <View style={[styles.formHeader, { backgroundColor: activeColor }]}>
+            <Text style={styles.formTitle}>{form.title}</Text>
+            <Text style={styles.formDesc}>{form.description}</Text>
+            <View style={styles.progressRow}>
+              <View style={styles.progressBg}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: `${progress * 100}%` as any },
+                  ]}
+                />
               </View>
-              <View style={styles.cardInfo}>
-                <Text style={[styles.cardTitle, { color: theme.text }]}>{item.title}</Text>
-                <Text style={[styles.cardDate, { color: theme.subtext }]}>
-                  Created {item.created_at}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={theme.subtext} />
+              <Text style={styles.progressText}>
+                {answeredCount}/{visibleQuestions.length}
+              </Text>
             </View>
+          </View>
 
-            <Text style={[styles.description, { color: theme.subtext }]} numberOfLines={2}>
-              {item.description}
-            </Text>
-
-            <View style={styles.questionsList}>
-              {item.questions.slice(0, 2).map(q => (
-                <View key={q.id} style={styles.questionRow}>
-                  <Ionicons name={typeIcons[q.type]} size={13} color={AppColors.primary} />
-                  <Text style={[styles.questionText, { color: theme.subtext }]} numberOfLines={1}>
+          <View style={styles.questions}>
+            {errorMessage && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorText}>{errorMessage}</Text>
+              </View>
+            )}
+            {visibleQuestions.map((q, idx) => (
+              <View
+                key={q.id}
+                style={[
+                  styles.questionCard,
+                  { backgroundColor: themeColors.white },
+                ]}
+              >
+                <View style={styles.questionHeader}>
+                  {/* Circle number color matches activeColor */}
+                  <View
+                    style={[
+                      styles.qNumber,
+                      {
+                        backgroundColor: answers[q.id]
+                          ? activeColor
+                          : "#e0e0e0",
+                      },
+                    ]}
+                  >
+                    {answers[q.id] ? (
+                      <Ionicons name="checkmark" size={14} color="#fff" />
+                    ) : (
+                      <Text
+                        style={[
+                          styles.qNumberText,
+                          { color: themeColors.charcoal },
+                        ]}
+                      >
+                        {idx + 1}
+                      </Text>
+                    )}
+                  </View>
+                  <Text
+                    style={[
+                      styles.questionText,
+                      { color: themeColors.charcoal },
+                    ]}
+                  >
                     {q.text}
                   </Text>
                 </View>
-              ))}
-              {item.questions.length > 2 && (
-                <Text style={[styles.moreText, { color: theme.subtext }]}>
-                  +{item.questions.length - 2} more questions
-                </Text>
-              )}
-            </View>
 
-            <View style={styles.footer}>
-              <View style={[styles.countBadge, { backgroundColor: AppColors.primaryLight }]}>
-                <Ionicons name="help-circle-outline" size={13} color={AppColors.primary} />
-                <Text style={styles.countText}>{item.questions.length} questions</Text>
-              </View>
-              <Pressable
-                style={styles.fillButton}
-                onPress={() => router.push(`/form/${item.id}` as any)}
-              >
-                <Text style={styles.fillButtonText}>Fill out</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        )}
-=======
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item, index }) => {
-          // Dynamic color assignment: Teal, Red, Yellow cycle
-          const colors = [
-            themeColors.teal,
-            themeColors.red,
-            themeColors.yellow,
-          ];
-          const activeColor = colors[index % 3];
-
-          return (
-            <Pressable
-              style={[
-                styles.card,
-                {
-                  backgroundColor: themeColors.white,
-                  borderRightWidth: 6, // Adds a colored bar on the right for RTL
-                  borderRightColor: activeColor,
-                },
-              ]}
-              onPress={() => router.push(`/form/${item.id}` as any)}
-            >
-              <View style={styles.cardHeader}>
-                <Ionicons
-                  name="chevron-back"
-                  size={16}
-                  color={themeColors.charcoal}
-                />
-
-                <View style={styles.cardInfo}>
-                  <Text style={[styles.cardTitle, { color: activeColor }]}>
-                    {item.title}
-                  </Text>
-                  <Text style={styles.cardDate}>Created {item.created_at}</Text>
-                </View>
-
-                {/* Icon box background using 15% opacity of the active color */}
-                <View
-                  style={[
-                    styles.iconBox,
-                    { backgroundColor: activeColor + "26" },
-                  ]}
-                >
-                  <Ionicons
-                    name="document-text"
-                    size={22}
-                    color={activeColor}
+                {q.type === "text" && (
+                  <TextInput
+                    style={[
+                      styles.textAnswer,
+                      {
+                        color: themeColors.charcoal,
+                        borderColor: "#ccc",
+                        backgroundColor: "#fafafa",
+                      },
+                    ]}
+                    value={answers[q.id] ?? ""}
+                    onChangeText={(v) => setAnswer(q.id, v)}
+                    placeholder="Write your answer here..."
+                    placeholderTextColor="#999"
+                    multiline
+                    numberOfLines={3}
                   />
-                </View>
-              </View>
+                )}
 
-              <Text
-                style={[styles.description, { color: themeColors.charcoal }]}
-                numberOfLines={2}
-              >
-                {item.description}
-              </Text>
-
-              <View style={styles.questionsList}>
-                {item.questions.slice(0, 2).map((q) => (
-                  <View key={q.id} style={styles.questionRow}>
-                    <Text
-                      style={[
-                        styles.questionText,
-                        { color: themeColors.charcoal },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {q.text}
-                    </Text>
-                    <Ionicons
-                      name={typeIcons[q.type]}
-                      size={13}
-                      color={activeColor}
-                    />
+                {q.type === "yes_no" && (
+                  <View style={styles.yesNoRow}>
+                    {["Yes", "No"].map((opt) => (
+                      <Pressable
+                        key={opt}
+                        style={[
+                          styles.optionBtn,
+                          answers[q.id] === opt && {
+                            backgroundColor: activeColor,
+                            borderColor: activeColor,
+                          },
+                        ]}
+                        onPress={() => setAnswer(q.id, opt)}
+                      >
+                        <Text
+                          style={[
+                            styles.optionText,
+                            answers[q.id] === opt && styles.optionTextSelected,
+                          ]}
+                        >
+                          {opt}
+                        </Text>
+                      </Pressable>
+                    ))}
                   </View>
-                ))}
-              </View>
+                )}
 
-              <View style={styles.footer}>
-                {/* Submit button uses the dynamic color */}
-                <Pressable
-                  style={[styles.fillButton, { backgroundColor: activeColor }]}
-                  onPress={() => router.push(`/form/${item.id}` as any)}
-                >
-                  <Text style={styles.fillButtonText}>Fill out / تعبئة</Text>
-                </Pressable>
-
-                <View
-                  style={[
-                    styles.countBadge,
-                    { backgroundColor: activeColor + "26" },
-                  ]}
-                >
-                  <Text style={[styles.countText, { color: activeColor }]}>
-                    {item.questions.length} questions
-                  </Text>
-                  <Ionicons
-                    name="help-circle-outline"
-                    size={13}
-                    color={activeColor}
-                  />
-                </View>
+                {q.type === "multiple_choice" && q.options && (
+                  <View style={styles.optionsGrid}>
+                    {q.options.map((opt) => (
+                      <Pressable
+                        key={opt}
+                        style={[
+                          styles.optionBtn,
+                          answers[q.id] === opt && {
+                            backgroundColor: activeColor,
+                            borderColor: activeColor,
+                          },
+                        ]}
+                        onPress={() => setAnswer(q.id, opt)}
+                      >
+                        <Text
+                          style={[
+                            styles.optionText,
+                            answers[q.id] === opt && styles.optionTextSelected,
+                          ]}
+                        >
+                          {opt}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
               </View>
-            </Pressable>
-          );
-        }}
-      />
+            ))}
+          </View>
+          <View style={{ height: 100 }} />
+        </ScrollView>
+
+        <View
+          style={[
+            styles.submitBar,
+            { backgroundColor: themeColors.white, borderTopColor: "#e0e0e0" },
+          ]}
+        >
+          {/* Submit button matches activeColor */}
+          <Pressable
+            style={[
+              styles.submitBtn,
+              { backgroundColor: activeColor },
+              submitting && styles.submitBtnDisabled,
+            ]}
+            onPress={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Text style={styles.submitBtnText}>Submit Form</Text>
+                <Ionicons name="send-outline" size={18} color="#fff" />
+              </>
+            )}
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8, alignItems: "flex-end" },
-  title: { fontSize: 24, fontWeight: "800" },
-  subtitle: { fontSize: 13, marginTop: 2, color: "#666" },
-  list: { padding: 20, gap: 16 },
-  card: { borderRadius: 14, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 3 },
-  cardHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 10 },
-  iconBox: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  cardInfo: { flex: 1, alignItems: "flex-end" },
-  cardTitle: { fontSize: 16, fontWeight: "800", textAlign: "right" },
-  cardDate: { fontSize: 11, marginTop: 2, color: "#888", textAlign: "right" },
-  description: { fontSize: 13, lineHeight: 18, marginBottom: 12, textAlign: "right", opacity: 0.8 },
-  questionsList: { gap: 6, marginBottom: 16, borderTopWidth: 1, borderTopColor: "#f0f0f0", paddingTop: 12 },
-  questionRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 },
-  questionText: { fontSize: 12, textAlign: "right", opacity: 0.7 },
-  footer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  countBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  countText: { fontSize: 11, fontWeight: "700" },
-  fillButton: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 10 },
-  fillButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  formHeader: { padding: 24, alignItems: "flex-start" },
+  formTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#fff",
+    marginBottom: 6,
+    textAlign: "left",
+  },
+  formDesc: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.9)",
+    marginBottom: 14,
+    textAlign: "left",
+  },
+  progressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+  },
+  progressBg: {
+    flex: 1,
+    height: 6,
+    backgroundColor: "rgba(255,255,255,0.3)",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 3,
+    position: "absolute",
+    left: 0,
+  },
+  progressText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+
+  errorBanner: {
+    backgroundColor: "#ffebee",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#ffcdd2",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  errorText: {
+    color: "#c62828",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+
+  questions: { padding: 16, gap: 12 },
+  questionCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    elevation: 1,
+  },
+  questionHeader: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+    alignItems: "flex-start",
+  },
+  qNumber: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  qNumberText: { fontSize: 12, fontWeight: "800" },
+  questionText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 22,
+    textAlign: "left",
+  },
+
+  textAnswer: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    minHeight: 80,
+    textAlignVertical: "top",
+    textAlign: "left",
+  },
+
+  yesNoRow: { flexDirection: "row", gap: 10 },
+  optionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  optionBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    backgroundColor: "transparent",
+  },
+  optionText: { fontSize: 14, fontWeight: "600", color: "#555" },
+  optionTextSelected: { color: "#fff" },
+
+  submitBar: { padding: 16, borderTopWidth: 1 },
+  submitBtn: {
+    borderRadius: 12,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  submitBtnDisabled: { opacity: 0.6 },
+  submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+
+  successContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+  },
+  successIcon: { marginBottom: 16 },
+  successTitle: { fontSize: 28, fontWeight: "800", marginBottom: 8 },
+  successSub: {
+    fontSize: 15,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  doneBtn: {
+    borderRadius: 12,
+    paddingHorizontal: 40,
+    paddingVertical: 14,
+  },
+  doneBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });
