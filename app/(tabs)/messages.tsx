@@ -91,7 +91,7 @@ function groupConversations(
 
 function buildMockConversations(): Conversation[] {
   const map = new Map<string, Conversation>();
-  [...mockMessages]
+  [...(mockMessages || [])]
     .sort(
       (a, b) =>
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
@@ -133,7 +133,7 @@ export default function MessagesScreen() {
   const [allMessages, setAllMessages] = useState<FirestoreMsg[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [usingMock, setUsingMock] = useState(false);
-  const [allStudents, setAllStudents] = useState<Student[]>(mockStudents);
+  const [allStudents, setAllStudents] = useState<Student[]>(mockStudents || []);
   const [search, setSearch] = useState("");
 
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
