@@ -33,7 +33,15 @@ export const messageService = {
         callback(msgs);
       },
       error => {
-        console.error('messages listener error:', error);
+        if (error.code === 'permission-denied') {
+          console.error(
+            '[messageService] Firestore permission denied.\n' +
+            'Go to Firebase Console → Firestore → Rules and set:\n' +
+            '  match /messages/{msg} { allow read, write: if request.auth != null; }'
+          );
+        } else {
+          console.error('[messageService] Listener error:', error.code, error.message);
+        }
         callback([]);
       },
     );
