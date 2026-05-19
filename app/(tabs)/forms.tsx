@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { forms } from '@/src/data/mockData';
 import { AppColors, Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -236,7 +235,6 @@ export default function FormsScreen() {
             </Pressable>
           );
         }}
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
       />
     </SafeAreaView>
   );
@@ -244,109 +242,23 @@ export default function FormsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-<<<<<<< HEAD
-  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
-  title: { fontSize: 24, fontWeight: '800' },
-  subtitle: { fontSize: 13, marginTop: 2 },
-  list: { padding: 20, gap: 12 },
-  card: {
-    borderRadius: 14, padding: 16, borderWidth: 1,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
-  },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
-  iconBox: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  cardInfo: { flex: 1 },
-  cardTitle: { fontSize: 15, fontWeight: '700' },
-  cardDate: { fontSize: 11, marginTop: 2 },
-  description: { fontSize: 13, lineHeight: 18, marginBottom: 10 },
-  questionsList: { gap: 4, marginBottom: 12 },
-  questionRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  questionText: { fontSize: 12, flex: 1 },
-  moreText: { fontSize: 11, marginLeft: 19, fontStyle: 'italic' },
-  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  countBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
-  },
-  countText: { fontSize: 11, color: AppColors.primary, fontWeight: '600' },
-  fillButton: {
-    backgroundColor: AppColors.primary, paddingHorizontal: 16,
-    paddingVertical: 6, borderRadius: 8,
-  },
-  fillButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-=======
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
-    alignItems: "flex-end",
-  },
+  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8, alignItems: "flex-end" },
   title: { fontSize: 24, fontWeight: "800" },
   subtitle: { fontSize: 13, marginTop: 2, color: "#666" },
   list: { padding: 20, gap: 16 },
-  card: {
-    borderRadius: 14,
-    padding: 16,
-    // Soft shadow for cards
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 10,
-  },
-  iconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  card: { borderRadius: 14, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 3 },
+  cardHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 10 },
+  iconBox: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   cardInfo: { flex: 1, alignItems: "flex-end" },
   cardTitle: { fontSize: 16, fontWeight: "800", textAlign: "right" },
   cardDate: { fontSize: 11, marginTop: 2, color: "#888", textAlign: "right" },
-  description: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 12,
-    textAlign: "right",
-    opacity: 0.8,
-  },
-  questionsList: {
-    gap: 6,
-    marginBottom: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-    paddingTop: 12,
-  },
-  questionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 8,
-  },
+  description: { fontSize: 13, lineHeight: 18, marginBottom: 12, textAlign: "right", opacity: 0.8 },
+  questionsList: { gap: 6, marginBottom: 16, borderTopWidth: 1, borderTopColor: "#f0f0f0", paddingTop: 12 },
+  questionRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 },
   questionText: { fontSize: 12, textAlign: "right", opacity: 0.7 },
-  footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  countBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
+  footer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  countBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   countText: { fontSize: 11, fontWeight: "700" },
   fillButton: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 10 },
   fillButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
->>>>>>> d19a49f56894c5f15ce73bce2feff1db076471ba
 });

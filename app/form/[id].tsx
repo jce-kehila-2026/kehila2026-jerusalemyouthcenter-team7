@@ -14,13 +14,9 @@ import {
   Text,
   TextInput,
   View,
-<<<<<<< HEAD
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-=======
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 // Official JYC Color Palette
 const themeColors = {
