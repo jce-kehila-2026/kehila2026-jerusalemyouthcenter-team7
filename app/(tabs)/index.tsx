@@ -5,7 +5,6 @@ import { useAuth } from "@/src/context/AuthContext";
 import { FirestoreMsg, messageService } from "@/src/data/messageService";
 import {
   attendance as mockAttendance,
-  eventStudents as mockEventStudents,
   events as mockEvents,
   forms as mockForms,
   messages as mockMessages,
@@ -169,9 +168,9 @@ export default function DashboardScreen() {
   const [myRegisteredEventIds, setMyRegisteredEventIds] = useState<
     (string | number)[]
   >(
-    (mockEventStudents || [])
-      .filter((es) => String(es.student_id) === DEMO_STUDENT_ID)
-      .map((es) => es.event_id),
+    (mockAttendance || [])
+      .filter((att) => String(att.student_id) === DEMO_STUDENT_ID)
+      .map((att) => att.event_id),
   );
 
   // Derived values
@@ -264,7 +263,7 @@ export default function DashboardScreen() {
     });
 
     return () => unsubMessages();
-  }, [user?.uid]);
+  }, [user, isAdmin]);
 
   if (loading) {
     return (

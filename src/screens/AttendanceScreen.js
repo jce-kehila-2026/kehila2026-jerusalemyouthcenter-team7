@@ -1,7 +1,6 @@
-// src/screens/AttendanceScreen.js
-
-import { useLocalSearchParams, useRouter } from "expo-router"; // ← FIX
-import { useState } from "react";
+// app/attendance.js
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   FlatList,
   Pressable,
@@ -10,97 +9,113 @@ import {
   Text,
   View,
 } from "react-native";
-import { COLORS } from "../../src/data/mockData";
+import {
+  getAttendance,
+  saveAttendance as saveToFirebase,
+} from "../backend/attendanceService";
+import { getStudents } from "../backend/eventsService";
 
-// ─── 5 statuses — text only, no emoji ─────────────────────────────────────
+const C = {
+  teal: "#039899",
+  red: "#c56451",
+  yellow: "#cfad5d",
+  white: "#ffffff",
+  black: "#111111",
+  muted: "#888888",
+  bg: "#f8f9fa",
+  card: "#ffffff",
+  border: "#e8e8e8",
+};
+
 const STATUSES = [
-  { key: "on_time", label: "On Time", color: COLORS.teal },
-  { key: "late", label: "Late", color: COLORS.yellow },
-  { key: "absent", label: "Absent", color: COLORS.red },
+  { key: "on_time", label: "On Time", color: C.teal },
+  { key: "late", label: "Late", color: C.yellow },
+  { key: "absent", label: "Absent", color: C.red },
   { key: "school_trip", label: "School Trip", color: "#8b5cf6" },
-  { key: "sick", label: "Sick", color: "#888888" },
+  { key: "sick", label: "Sick", color: C.muted },
 ];
 
-// ─── Mock students – replace with Firebase ────────────────────────────────
-const MOCK_STUDENTS = [
-  { id: "s1", name: "Yael Cohen", year: "Year 1" },
-  { id: "s2", name: "Noa Levi", year: "Year 1" },
-  { id: "s3", name: "David Mizrahi", year: "Year 2" },
-  { id: "s4", name: "Tamar Katz", year: "Year 2" },
-  { id: "s5", name: "Eli Ben-David", year: "Year 3" },
-  { id: "s6", name: "Maya Shapiro", year: "Year 3" },
-];
-
-export default function AttendanceScreen({ route }) {
-  // ── FIX: useRouter instead of navigation prop ──────────────────────────
+export default function AttendancePage() {
+  const { eventId, eventTitle } = useLocalSearchParams();
   const router = useRouter();
 
-  // Support both Expo Router params and React Navigation route.params
-  const localParams = useLocalSearchParams();
-  const eventTitle =
-    localParams?.eventTitle || route?.params?.eventTitle || "Attendance";
-
-  const [attendance, setAttendance] = useState(
-    Object.fromEntries(MOCK_STUDENTS.map((s) => [s.id, null])),
-  );
+  const [students, setStudents] = useState([]);
+  const [attendance, setAttendance] = useState({});
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      const studentsData = await getStudents();
+      setStudents(studentsData);
+      const initial = Object.fromEntries(studentsData.map((s) => [s.id, null]));
+      const existing = await getAttendance(eventId);
+      if (existing && Object.keys(existing).length > 0) {
+        setAttendance({ ...initial, ...existing });
+      } else {
+        setAttendance(initial);
+      }
+    };
+    load();
+  }, [eventId]);
 
   const setStatus = (studentId, statusKey) => {
     setSaved(false);
     setAttendance((prev) => ({ ...prev, [studentId]: statusKey }));
   };
 
-  const saveAttendance = () => {
-    // TODO: Firebase → setDoc(doc(db, 'attendance', eventId), attendance)
-    setSaved(true);
+  const handleSave = async () => {
+    const ok = await saveToFirebase(eventId, attendance);
+    if (ok) setSaved(true);
   };
 
-  // ── Stats ────────────────────────────────────────────────────────────────
   const counts = STATUSES.map((s) => ({
     ...s,
     count: Object.values(attendance).filter((v) => v === s.key).length,
   }));
   const unmarked = Object.values(attendance).filter((v) => v === null).length;
 
-  // ── Student row ──────────────────────────────────────────────────────────
   const renderStudent = ({ item }) => {
     const current = attendance[item.id];
-    const currentStatus = STATUSES.find((st) => st.key === current);
+    const name = item.full_name ?? item.name ?? "Unknown";
+    const year = item.year_id ? `Year ${item.year_id}` : (item.year ?? "");
+    const initials = name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2);
 
     return (
-      <View style={s.studentCard}>
-        {/* Student info row */}
+      <View style={s.card}>
         <View style={s.studentInfo}>
           <View style={s.avatar}>
-            <Text style={s.avatarText}>
-              {item.name
-                .split(" ")
-                .map((n) => n[0])
-                .join("")}
-            </Text>
+            <Text style={s.avatarText}>{initials}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.studentName}>{item.name}</Text>
-            <Text style={s.studentYear}>{item.year}</Text>
+            <Text style={s.studentName}>{name}</Text>
+            <Text style={s.studentYear}>{year}</Text>
           </View>
-          {/* Current status badge */}
-          {currentStatus && (
+          {current && (
             <View
               style={[
                 s.currentBadge,
-                { backgroundColor: currentStatus.color + "30" },
+                {
+                  backgroundColor:
+                    STATUSES.find((st) => st.key === current)?.color + "20",
+                },
               ]}
             >
               <Text
-                style={[s.currentBadgeText, { color: currentStatus.color }]}
+                style={[
+                  s.currentBadgeText,
+                  { color: STATUSES.find((st) => st.key === current)?.color },
+                ]}
               >
-                {currentStatus.label}
+                {STATUSES.find((st) => st.key === current)?.label}
               </Text>
             </View>
           )}
         </View>
 
-        {/* 5 status buttons — TEXT only, no emoji, dark text on active */}
         <View style={s.statusRow}>
           {STATUSES.map((st) => {
             const isActive = current === st.key;
@@ -117,7 +132,7 @@ export default function AttendanceScreen({ route }) {
                 <Text
                   style={[
                     s.statusBtnText,
-                    { color: isActive ? COLORS.black : st.color },
+                    { color: isActive ? "#fff" : st.color },
                   ]}
                 >
                   {st.label}
@@ -134,16 +149,15 @@ export default function AttendanceScreen({ route }) {
     <SafeAreaView style={s.safe}>
       {/* Header */}
       <View style={s.header}>
-        {/* ← FIX: router.back() instead of navigation.goBack() */}
         <Pressable onPress={() => router.back()} style={s.backBtn}>
           <Text style={s.backText}>← Back</Text>
         </Pressable>
         <Text style={s.eventName} numberOfLines={1}>
-          {eventTitle}
+          {eventTitle || "Attendance"}
         </Text>
       </View>
 
-      {/* Stats summary */}
+      {/* Stats */}
       <View style={s.statsRow}>
         {counts.map((st) => (
           <View
@@ -154,29 +168,32 @@ export default function AttendanceScreen({ route }) {
             <Text style={s.statLabel}>{st.label}</Text>
           </View>
         ))}
-        <View style={[s.statBox, { borderColor: "#44444460" }]}>
-          <Text style={[s.statNum, { color: "#888" }]}>{unmarked}</Text>
+        <View style={[s.statBox, { borderColor: "#ddd" }]}>
+          <Text style={[s.statNum, { color: C.muted }]}>{unmarked}</Text>
           <Text style={s.statLabel}>Unmarked</Text>
         </View>
       </View>
 
-      {/* Students list */}
+      {/* Students */}
       <FlatList
-        data={MOCK_STUDENTS}
+        data={students}
         keyExtractor={(i) => i.id}
         renderItem={renderStudent}
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <Text style={s.emptyText}>Loading students...</Text>
+        }
       />
 
-      {/* Save button */}
+      {/* Save */}
       <View style={s.footer}>
         <Pressable
           style={[s.saveBtn, saved && s.saveBtnDone]}
-          onPress={saveAttendance}
+          onPress={handleSave}
         >
           <Text style={s.saveBtnText}>
-            {saved ? "Saved!" : "Save Attendance"}
+            {saved ? "✓ Saved!" : "Save Attendance"}
           </Text>
         </Pressable>
       </View>
@@ -185,37 +202,59 @@ export default function AttendanceScreen({ route }) {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.black },
-  header: { flexDirection: "row", alignItems: "center", padding: 16, gap: 12 },
+  safe: { flex: 1, backgroundColor: C.bg },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 12,
+    backgroundColor: C.card,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
   backBtn: { padding: 4 },
-  backText: { color: COLORS.teal, fontSize: 15, fontWeight: "600" },
-  eventName: { flex: 1, fontSize: 17, fontWeight: "700", color: COLORS.white },
-
+  backText: { color: C.teal, fontSize: 15, fontWeight: "600" },
+  eventName: { flex: 1, fontSize: 17, fontWeight: "700", color: C.black },
   statsRow: {
     flexDirection: "row",
     paddingHorizontal: 16,
     gap: 6,
-    marginBottom: 12,
+    marginVertical: 12,
     flexWrap: "wrap",
   },
   statBox: {
     flex: 1,
     minWidth: 60,
-    backgroundColor: "#111",
+    backgroundColor: C.card,
     borderRadius: 10,
     borderWidth: 1,
     padding: 8,
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   statNum: { fontSize: 20, fontWeight: "800" },
-  statLabel: { fontSize: 9, color: "#888", textAlign: "center", marginTop: 2 },
-
-  studentCard: {
-    backgroundColor: "#111",
+  statLabel: { fontSize: 9, color: C.muted, textAlign: "center", marginTop: 2 },
+  emptyText: {
+    color: C.muted,
+    textAlign: "center",
+    marginTop: 40,
+    fontSize: 14,
+  },
+  card: {
+    backgroundColor: C.card,
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#2a2a2a",
+    borderColor: C.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   studentInfo: {
     flexDirection: "row",
@@ -227,22 +266,19 @@ const s = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.teal + "20",
+    backgroundColor: C.teal + "18",
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { color: COLORS.teal, fontWeight: "700", fontSize: 14 },
-  studentName: { color: COLORS.white, fontWeight: "600", fontSize: 15 },
-  studentYear: { color: "#888", fontSize: 12, marginTop: 1 },
-
+  avatarText: { color: C.teal, fontWeight: "700", fontSize: 14 },
+  studentName: { color: C.black, fontWeight: "600", fontSize: 15 },
+  studentYear: { color: C.muted, fontSize: 12, marginTop: 1 },
   currentBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
   },
   currentBadgeText: { fontSize: 11, fontWeight: "700" },
-
-  // ── Status buttons: text only, readable ──────────────────────────────
   statusRow: { flexDirection: "row", gap: 6 },
   statusBtn: {
     flex: 1,
@@ -251,22 +287,20 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 42,
   },
-  statusBtnText: {
-    fontSize: 11,
-    fontWeight: "700",
-    textAlign: "center",
-    lineHeight: 14,
+  statusBtnText: { fontSize: 11, fontWeight: "700", textAlign: "center" },
+  footer: {
+    padding: 16,
+    backgroundColor: C.card,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
   },
-
-  footer: { padding: 16 },
   saveBtn: {
-    backgroundColor: COLORS.teal,
+    backgroundColor: C.teal,
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
   },
-  saveBtnDone: { backgroundColor: "#025f5f" },
-  saveBtnText: { color: COLORS.black, fontWeight: "800", fontSize: 16 },
+  saveBtnDone: { backgroundColor: "#027a5f" },
+  saveBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
 });

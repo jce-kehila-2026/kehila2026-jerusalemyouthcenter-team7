@@ -80,7 +80,15 @@ export default function TabLayout() {
             ),
           }}
         />
-        <Tabs.Screen name="notifications" options={{ href: null }} />
+        <Tabs.Screen
+          name="library"
+          options={{
+            title: "Library",
+            tabBarIcon: ({ color, size }) => (
+              <TabIcon name="musical-notes-outline" color={color} size={size} />
+            ),
+          }}
+        />
         <Tabs.Screen name="explore" options={{ href: null }} />
         <Tabs.Screen name="admin" options={{ href: null }} />
         <Tabs.Screen name="student-events" options={{ href: null }} />
