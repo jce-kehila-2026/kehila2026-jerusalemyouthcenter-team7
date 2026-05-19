@@ -1,10 +1,12 @@
 import { AppColors } from '@/constants/theme';
-import { useAuth, AuthProvider } from '@/src/context/AuthContext';
+import { AuthProvider, useAuth } from '@/src/context/AuthContext';
+import { db } from '@/src/firebase/firebase';
 import { FirestoreMsg, messageService } from '@/src/data/messageService';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { doc, getDoc } from 'firebase/firestore';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import 'react-native-reanimated';
@@ -27,6 +29,37 @@ function MessageNotifier() {
   const seenIds = useRef(new Set<string>());
   const sessionStart = useRef(new Date().toISOString());
   const animRunning = useRef(false);
+  // Cache uid → display name so we only fetch each sender once
+  const nameCache = useRef(new Map<string, string>());
+
+  async function resolveName(senderId: string, fallback: string): Promise<string> {
+    if (senderId === 'admin') return 'Admin';
+    const cached = nameCache.current.get(senderId);
+    if (cached) return cached;
+    try {
+      let snap = await getDoc(doc(db, 'students', senderId));
+      if (!snap.exists()) snap = await getDoc(doc(db, 'admins', senderId));
+      if (snap.exists()) {
+        const name: string = snap.data().full_name || fallback;
+        nameCache.current.set(senderId, name);
+        return name;
+      }
+    } catch {}
+    return fallback;
+  }
+
+  function showBanner(name: string, text: string) {
+    setBanner({ name, text });
+    animRunning.current = true;
+    Animated.sequence([
+      Animated.timing(slideAnim, { toValue: 0, duration: 280, useNativeDriver: true }),
+      Animated.delay(3500),
+      Animated.timing(slideAnim, { toValue: -120, duration: 280, useNativeDriver: true }),
+    ]).start(() => {
+      animRunning.current = false;
+      setBanner(null);
+    });
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -34,27 +67,20 @@ function MessageNotifier() {
     const myId = user.uid;
 
     const unsub = messageService.subscribe((msgs: FirestoreMsg[]) => {
-      // Find messages directed at the current user that arrived after session start
       const fresh = msgs.filter(m => {
         if (seenIds.current.has(m.id)) return false;
         seenIds.current.add(m.id);
+        // Only notify for messages received after this session started
         if (m.timestamp <= sessionStart.current) return false;
-        if (isAdmin) return m.receiver_id === 'admin';
-        return m.receiver_id === myId;
+        return isAdmin ? m.receiver_id === 'admin' : m.receiver_id === myId;
       });
 
       if (fresh.length > 0 && !animRunning.current) {
         const last = fresh[fresh.length - 1];
-        setBanner({ name: last.sender_name, text: last.content });
-        animRunning.current = true;
-
-        Animated.sequence([
-          Animated.timing(slideAnim, { toValue: 0, duration: 280, useNativeDriver: true }),
-          Animated.delay(3500),
-          Animated.timing(slideAnim, { toValue: -120, duration: 280, useNativeDriver: true }),
-        ]).start(() => {
-          animRunning.current = false;
-          setBanner(null);
+        // Always resolve the name from Firestore so we show the real name,
+        // not whatever was stored in sender_name (could be a UID in old docs)
+        resolveName(last.sender_id, last.sender_name).then(resolvedName => {
+          if (!animRunning.current) showBanner(resolvedName, last.content);
         });
       }
     });
@@ -105,7 +131,7 @@ function RootLayoutNav() {
         <Stack.Screen name="form/[id]" options={{ headerShown: true, title: 'Form', headerBackTitle: 'Back' }} />
         <Stack.Screen name="profile" options={{ headerShown: true, title: 'My Profile', headerBackTitle: 'Back' }} />
       </Stack>
-      {/* Floating notification banner — rendered above all screens */}
+      {/* Floating banner rendered above all screens */}
       <MessageNotifier />
       <StatusBar style="auto" />
     </ThemeProvider>
