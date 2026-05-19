@@ -3,26 +3,24 @@ export type User = {
   full_name: string;
   email: string;
   phone: string;
-  role: "admin" | "student";
+  role: "admin";
 };
 
 export type Student = {
-  id: string;
+  id: string; // Changed from number to string to match Firestore doc.id
   full_name: string;
   email: string;
   phone: string;
   group_id: string;
   year_id: number;
   program_id: number;
-  voice_type?: "bass" | "tenor" | "alto" | "soprano";
-  year_joined?: number;
   parent_phone?: string;
   parent_signature?: boolean;
   allergies?: string;
 };
 
 export type Group = {
-  id: string;
+  id: string; // Changed from number to string to match Firestore doc.id
   name: string;
   year_id: number;
   program_id: number;
@@ -35,7 +33,6 @@ export type Event = {
   date: string;
   location: string;
   group_ids: string[];
-  group_name: string; // Added to match screen logic
   capacity: number;
   registered: number;
 };
@@ -44,22 +41,6 @@ export type EventAttendance = {
   event_id: number;
   student_id: string;
   status: "registered" | "attended" | "absent";
-};
-
-export type EventStudent = {
-  student_id: string;
-  event_id: number;
-};
-
-export type MessageStudent = {
-  student_id: number;
-  student_name: string;
-};
-
-export type MessageGroup = {
-  id: string;
-  name: string;
-  group_id: string;
 };
 
 export type Question = {
@@ -107,9 +88,9 @@ export const currentUser: User = {
 };
 
 export const groups: Group[] = [
-  { id: "1", name: "Year 1", year_id: 1, program_id: 1 },
-  { id: "2", name: "Year 2", year_id: 2, program_id: 2 },
-  { id: "3", name: "Year 3", year_id: 3, program_id: 1 },
+  { id: "1", name: "Alpha", year_id: 1, program_id: 1 },
+  { id: "2", name: "Beta", year_id: 1, program_id: 2 },
+  { id: "3", name: "Gamma", year_id: 2, program_id: 1 },
 ];
 
 export const students: Student[] = [
@@ -121,8 +102,6 @@ export const students: Student[] = [
     group_id: "1",
     year_id: 1,
     program_id: 1,
-    voice_type: "tenor",
-    year_joined: 2024,
   },
   {
     id: "2",
@@ -131,8 +110,6 @@ export const students: Student[] = [
     phone: "+972-50-111-0002",
     group_id: "1",
     year_id: 1,
-    voice_type: "soprano",
-    year_joined: 2024,
     program_id: 1,
   },
   {
@@ -141,9 +118,7 @@ export const students: Student[] = [
     email: "omar@student.com",
     phone: "+972-50-111-0003",
     group_id: "2",
-    year_id: 2,
-    voice_type: "bass",
-    year_joined: 2023,
+    year_id: 1,
     program_id: 2,
   },
   {
@@ -152,9 +127,7 @@ export const students: Student[] = [
     email: "maya@student.com",
     phone: "+972-50-111-0004",
     group_id: "2",
-    year_id: 2,
-    voice_type: "alto",
-    year_joined: 2023,
+    year_id: 1,
     program_id: 2,
   },
   {
@@ -163,9 +136,7 @@ export const students: Student[] = [
     email: "yusuf@student.com",
     phone: "+972-50-111-0005",
     group_id: "3",
-    year_id: 3,
-    voice_type: "tenor",
-    year_joined: 2022,
+    year_id: 2,
     program_id: 1,
   },
   {
@@ -174,9 +145,7 @@ export const students: Student[] = [
     email: "noa@student.com",
     phone: "+972-50-111-0006",
     group_id: "3",
-    year_id: 3,
-    voice_type: "soprano",
-    year_joined: 2022,
+    year_id: 2,
     program_id: 1,
   },
   {
@@ -186,8 +155,6 @@ export const students: Student[] = [
     phone: "+972-50-111-0007",
     group_id: "1",
     year_id: 1,
-    voice_type: "bass",
-    year_joined: 2024,
     program_id: 1,
   },
   {
@@ -196,9 +163,7 @@ export const students: Student[] = [
     email: "tamar@student.com",
     phone: "+972-50-111-0008",
     group_id: "2",
-    year_id: 2,
-    voice_type: "alto",
-    year_joined: 2023,
+    year_id: 1,
     program_id: 2,
   },
 ];
@@ -212,7 +177,6 @@ export const events: Event[] = [
     date: "2026-05-09T18:00:00",
     location: "Community Center Hall",
     group_ids: ["1", "2", "3"],
-    group_name: "All Groups",
     capacity: 100,
     registered: 42,
   },
@@ -224,7 +188,6 @@ export const events: Event[] = [
     date: "2026-05-12T10:00:00",
     location: "Room 201",
     group_ids: ["1", "2"],
-    group_name: "Year 1",
     capacity: 30,
     registered: 18,
   },
@@ -236,7 +199,6 @@ export const events: Event[] = [
     date: "2026-05-15T09:00:00",
     location: "Jaffa Gate Meeting Point",
     group_ids: ["1", "2", "3"],
-    group_name: "All Groups",
     capacity: 50,
     registered: 35,
   },
@@ -248,7 +210,6 @@ export const events: Event[] = [
     date: "2026-05-20T17:00:00",
     location: "Main Hall",
     group_ids: ["3"],
-    group_name: "Year 3",
     capacity: 60,
     registered: 22,
   },
@@ -260,23 +221,6 @@ export const attendance: EventAttendance[] = [
   { event_id: 1, student_id: "3", status: "attended" },
   { event_id: 2, student_id: "4", status: "registered" },
   { event_id: 2, student_id: "5", status: "absent" },
-];
-
-export const eventStudents: EventStudent[] = [
-  { student_id: "1", event_id: 1 },
-  { student_id: "2", event_id: 1 },
-  { student_id: "3", event_id: 1 },
-];
-
-export const messageStudents: MessageStudent[] = [
-  { student_id: 2, student_name: "Sara Cohen" },
-  { student_id: 3, student_name: "Omar Nasser" },
-];
-
-export const messageGroups: MessageGroup[] = [
-  { id: "g1", name: "Year 1 Group", group_id: "1" },
-  { id: "g2", name: "Year 2 Group", group_id: "2" },
-  { id: "g3", name: "Year 3 Group", group_id: "3" },
 ];
 
 export const forms: Form[] = [
@@ -362,7 +306,6 @@ export const forms: Form[] = [
         text: "Does the student have any food allergies? (Visible to staff only)",
         type: "text",
         options: ["is_private"],
-        is_private: true,
       },
       {
         id: 11,
@@ -450,7 +393,6 @@ export const notifications: Notification[] = [
     type: "event",
   },
 ];
-
 export const COLORS = {
   teal: "#039899",
   tealLight: "#e0f5f5",
@@ -466,4 +408,3 @@ export const COLORS = {
   border: "#d8e0e0",
   success: "#22c55e",
 };
-
