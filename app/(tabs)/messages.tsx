@@ -3,6 +3,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/src/context/AuthContext";
 import { FirestoreMsg, messageService } from "@/src/data/messageService";
 import { Student } from "@/src/data/mockData";
+import { notificationService } from "@/src/data/notificationService";
 import { studentService } from "@/src/data/studentService";
 import { timeAgo } from "@/src/utils/timeUtils";
 import { Ionicons } from "@expo/vector-icons";
@@ -161,14 +162,28 @@ export default function MessagesScreen() {
     const text = draft.trim();
     setDraft("");
 
+    const senderName = user?.full_name ?? (isAdmin ? "Admin" : "Student");
+    const receiverId = activeConv.otherPartyId;
+
     try {
       await messageService.send({
         sender_id: isAdmin ? "admin" : currentUid,
-        sender_name: user?.full_name ?? (isAdmin ? "Admin" : "Student"),
-        receiver_id: activeConv.otherPartyId,
+        sender_name: senderName,
+        receiver_id: receiverId,
         content: text,
         timestamp: new Date().toISOString(),
         is_read: false,
+      });
+
+      // Write a notification for the receiver so it appears in their notification centre.
+      // If receiver is 'admin', omit target_uid so all admins see it.
+      await notificationService.create({
+        title: "New Message",
+        body: `${senderName} sent you a message`,
+        type: "message",
+        is_read: false,
+        timestamp: new Date().toISOString(),
+        ...(receiverId !== "admin" ? { target_uid: receiverId } : {}),
       });
     } catch (e) {
       console.error("Send failed:", e);
