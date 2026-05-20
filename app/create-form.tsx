@@ -21,6 +21,7 @@ const themeColors = {
   bluishWhite: "#f5fafe",
   charcoal: "#353535",
   white: "#ffffff",
+  gray: "#e0e0e0",
 };
 
 export default function CreateFormScreen() {
@@ -39,11 +40,11 @@ export default function CreateFormScreen() {
       style={[styles.container, { backgroundColor: themeColors.bluishWhite }]}
       edges={["top", "bottom"]}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: themeColors.teal }]}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={themeColors.charcoal} />
+          <Ionicons name="arrow-back" size={24} color={themeColors.white} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: themeColors.charcoal }]}>
+        <Text style={[styles.headerTitle, { color: themeColors.white }]}>
           Create New Form
         </Text>
         <View style={{ width: 24 }} /> {/* Spacer for centering title */}
@@ -61,7 +62,7 @@ export default function CreateFormScreen() {
             <TextInput
               style={[
                 styles.input,
-                { borderColor: "#e0e0e0", color: themeColors.charcoal },
+                { borderColor: themeColors.gray, color: themeColors.charcoal },
               ]}
               placeholder="Enter form title..."
               placeholderTextColor="#999"
@@ -76,7 +77,7 @@ export default function CreateFormScreen() {
               style={[
                 styles.input,
                 styles.textArea,
-                { borderColor: "#e0e0e0", color: themeColors.charcoal },
+                { borderColor: themeColors.gray, color: themeColors.charcoal },
               ]}
               placeholder="Enter form description..."
               placeholderTextColor="#999"
@@ -107,7 +108,10 @@ export default function CreateFormScreen() {
         <View
           style={[
             styles.footer,
-            { backgroundColor: themeColors.white, borderTopColor: "#e0e0e0" },
+            {
+              backgroundColor: themeColors.white,
+              borderTopColor: themeColors.gray,
+            },
           ]}
         >
           <Pressable
@@ -129,11 +133,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-    backgroundColor: themeColors.white,
+    borderColor: themeColors.teal,
   },
   backButton: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: "700" },
@@ -142,7 +145,9 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: themeColors.teal + "40",
+    borderLeftWidth: 4,
+    borderLeftColor: themeColors.teal,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,

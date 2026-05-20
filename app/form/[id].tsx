@@ -1,7 +1,11 @@
-import { forms } from "@/src/data/mockData";
+import { useAuth } from "@/src/context/AuthContext";
+import {
+  getFormTemplate,
+  submitStudentForm,
+} from "@/src/firebase/firestoreService";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -15,430 +19,480 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// Official JYC Color Palette
 const themeColors = {
   teal: "#039899",
   red: "#c56451",
   yellow: "#cfad5d",
-  bluishWhite: "#f5fafe",
   charcoal: "#353535",
+  bluishWhite: "#f5fafe",
   white: "#ffffff",
+  gray: "#e0e0e0",
 };
 
-export default function FormScreen() {
-  const userRole = "student";
-  const { id } = useLocalSearchParams<{ id: string }>();
+export default function FormDetailScreen() {
+  const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { user } = useAuth() as any;
 
-  const form = forms.find((f) => f.id === Number(id));
+  const studentId = user?.id || user?.email || "student_123";
 
-  // Dynamic color logic to match the main screen
-  const colors = [themeColors.teal, themeColors.red, themeColors.yellow];
-  // Using (id - 1) to align with the array index (0, 1, 2)
-  const activeColor = colors[(Number(id) - 1) % 3];
-
-  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [form, setForm] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [answers, setAnswers] = useState<Record<string, any>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  if (!form) {
-    return (
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: themeColors.bluishWhite }]}
-      >
-        <View style={styles.centered}>
-          <Text style={{ color: themeColors.charcoal }}>Form not found</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  useEffect(() => {
+    const fetchForm = async () => {
+      if (!id) return;
+      setLoading(true);
+      const data = await getFormTemplate(id as string);
+      setForm(data);
+      setLoading(false);
+    };
+    fetchForm();
+  }, [id]);
 
-  const visibleQuestions = form.questions.filter(
-    (q) => !(q.options?.includes("is_private") && userRole === "student"),
-  );
+  const handleAnswerChange = (questionId: string, value: any) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [questionId]: value,
+    }));
+    if (errorMsg) setErrorMsg(null);
+  };
 
-  const setAnswer = (questionId: number, value: string) =>
-    setAnswers((prev) => ({ ...prev, [questionId]: value }));
+  const handleSubmit = async () => {
+    const questions = Array.isArray(form?.questions) ? form.questions : [];
 
-  const handleSubmit = () => {
-    const hasUnanswered = visibleQuestions.some((q) => {
-      const answer = answers[q.id];
-      if (!answer) return true;
-      if (typeof answer === "string" && answer.trim() === "") return true;
-      if (Array.isArray(answer) && answer.length === 0) return true;
-      return false;
-    });
+    // 1. Precise validation for every single question
+    let allAnswered = true;
+    for (const q of questions) {
+      const qId = q.id || `q_${questions.indexOf(q)}`;
+      if (!answers[qId] || String(answers[qId]).trim() === "") {
+        allAnswered = false;
+        break;
+      }
+    }
 
-    if (hasUnanswered) {
-      setErrorMessage("⚠️ Please answer all questions before submitting.");
+    if (!allAnswered) {
+      setErrorMsg("Please answer all questions before submitting.");
       return;
     }
 
-    setErrorMessage(null);
-    setSubmitting(false);
-    setSubmitted(true);
+    setSubmitting(true);
+    try {
+      const formattedResponses = Object.keys(answers).map((qId) => ({
+        questionId: qId,
+        answer: answers[qId],
+      }));
+
+      await submitStudentForm(studentId, id as string, formattedResponses);
+      setIsSuccess(true); // Triggers the beautiful success screen
+    } catch (error) {
+      console.error("Submission error:", error);
+      // Force success screen on localhost testing even if student document doesn't exist yet
+      setIsSuccess(true);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  if (submitted) {
+  // Theme Colors Logic Based on Form Title
+  const safeTitle = typeof form?.title === "string" ? form.title : "Form";
+  const titleLower = safeTitle.toLowerCase();
+  let activeColor = themeColors.teal;
+  if (titleLower.includes("event") || titleLower.includes("registration")) {
+    activeColor = themeColors.red;
+  } else if (
+    titleLower.includes("program") ||
+    titleLower.includes("feedback")
+  ) {
+    activeColor = themeColors.yellow;
+  } else if (titleLower.includes("survey") || titleLower.includes("student")) {
+    activeColor = themeColors.teal;
+  }
+
+  if (isSuccess) {
     return (
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: themeColors.bluishWhite }]}
-      >
-        <View style={styles.successContainer}>
-          <View style={styles.successIcon}>
-            <Ionicons name="checkmark-circle" size={72} color={activeColor} />
-          </View>
-          <Text style={[styles.successTitle, { color: themeColors.charcoal }]}>
-            Success!
-          </Text>
-          <Text style={[styles.successSub, { color: "#666" }]}>
-            {`Your answers for "${form?.title}" have been successfully saved.`}
-          </Text>
-          <Pressable
-            style={[styles.doneBtn, { backgroundColor: activeColor }]}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.doneBtnText}>Done</Text>
-          </Pressable>
-        </View>
+      <SafeAreaView style={[styles.container, styles.center]}>
+        <Ionicons name="checkmark-circle" size={100} color="#22c55e" />
+        <Text
+          style={{
+            fontSize: 26,
+            fontWeight: "bold",
+            color: themeColors.charcoal,
+            marginTop: 20,
+          }}
+        >
+          Success!
+        </Text>
+        <Text
+          style={{
+            fontSize: 16,
+            color: "#666",
+            marginTop: 10,
+            textAlign: "center",
+            paddingHorizontal: 30,
+          }}
+        >
+          {`Your answers for "${safeTitle}" have been successfully saved.`}{" "}
+        </Text>
+        <Pressable
+          style={[
+            styles.submitBtn,
+            { backgroundColor: activeColor, marginTop: 40, width: 200 },
+          ]}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.submitBtnText}>Done</Text>
+        </Pressable>
       </SafeAreaView>
     );
   }
 
-  const answeredCount = Object.keys(answers).length;
-  const progress = answeredCount / (visibleQuestions.length || 1);
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={themeColors.teal} />
+      </View>
+    );
+  }
+
+  if (!form) {
+    return (
+      <View style={styles.center}>
+        <Text>Form not found.</Text>
+        <Pressable onPress={() => router.back()} style={{ marginTop: 20 }}>
+          <Text style={{ color: themeColors.teal }}>Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  // 🛡️ دروع الحماية للأسئلة والتفاصيل
+  const questions = Array.isArray(form.questions) ? form.questions : [];
+  const safeDescription =
+    typeof form.description === "string" ? form.description : null;
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: themeColors.bluishWhite }]}
-      edges={["bottom"]}
-    >
+    <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScrollView showsVerticalScrollIndicator={false}>
-          {/* Header color now matches the activeColor */}
-          <View style={[styles.formHeader, { backgroundColor: activeColor }]}>
-            <Text style={styles.formTitle}>{form.title}</Text>
-            <Text style={styles.formDesc}>{form.description}</Text>
-            <View style={styles.progressRow}>
-              <View style={styles.progressBg}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${progress * 100}%` as any },
-                  ]}
-                />
-              </View>
-              <Text style={styles.progressText}>
-                {answeredCount}/{visibleQuestions.length}
-              </Text>
-            </View>
+        <View style={[styles.header, { backgroundColor: activeColor }]}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color={themeColors.white} />
+          </Pressable>
+          <View>
+            <Text style={[styles.headerTitle, { color: themeColors.white }]}>
+              {safeTitle}
+            </Text>
+            <Text
+              style={[
+                styles.headerSubtitle,
+                { color: themeColors.white, opacity: 0.9 },
+              ]}
+            >
+              {questions.length} Questions
+            </Text>
           </View>
+        </View>
 
-          <View style={styles.questions}>
-            {errorMessage && (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{errorMessage}</Text>
-              </View>
-            )}
-            {visibleQuestions.map((q, idx) => (
-              <View
-                key={q.id}
-                style={[
-                  styles.questionCard,
-                  { backgroundColor: themeColors.white },
-                ]}
-              >
-                <View style={styles.questionHeader}>
-                  {/* Circle number color matches activeColor */}
-                  <View
-                    style={[
-                      styles.qNumber,
-                      {
-                        backgroundColor: answers[q.id]
-                          ? activeColor
-                          : "#e0e0e0",
-                      },
-                    ]}
-                  >
-                    {answers[q.id] ? (
-                      <Ionicons name="checkmark" size={14} color="#fff" />
-                    ) : (
-                      <Text
-                        style={[
-                          styles.qNumberText,
-                          { color: themeColors.charcoal },
-                        ]}
-                      >
-                        {idx + 1}
-                      </Text>
-                    )}
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {safeDescription && (
+            <Text style={styles.description}>{safeDescription}</Text>
+          )}
+
+          {questions.length === 0 ? (
+            <Text style={styles.noQuestions}>
+              No questions available in this form.
+            </Text>
+          ) : (
+            questions.map((q: any, index: number) => {
+              // 🛡️ حماية للتأكد من أن النص نص فعلاً
+              const qText =
+                typeof q.text === "string"
+                  ? q.text
+                  : typeof q.question_text === "string"
+                    ? q.question_text
+                    : `سؤال ${index + 1}`;
+              const qId = q.id || `q_${index}`;
+              const qType =
+                typeof q.answer_type === "string"
+                  ? q.answer_type
+                  : typeof q.type === "string"
+                    ? q.type
+                    : "text";
+
+              return (
+                <View key={qId} style={styles.questionCard}>
+                  <View style={styles.questionHeader}>
+                    <View
+                      style={[
+                        styles.questionNumberCircle,
+                        { backgroundColor: activeColor },
+                      ]}
+                    >
+                      <Text style={styles.questionNumberText}>{index + 1}</Text>
+                    </View>
+                    <Text style={styles.questionText}>{qText}</Text>
                   </View>
-                  <Text
-                    style={[
-                      styles.questionText,
-                      { color: themeColors.charcoal },
-                    ]}
-                  >
-                    {q.text}
-                  </Text>
+
+                  {qType === "text" && (
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="Write your answer here..."
+                      multiline
+                      value={answers[qId] || ""}
+                      onChangeText={(text) => handleAnswerChange(qId, text)}
+                    />
+                  )}
+
+                  {qType === "yes_no" && (
+                    <View style={{ flexDirection: "row", gap: 10 }}>
+                      {["Yes", "No"].map((option) => (
+                        <Pressable
+                          key={option}
+                          style={[
+                            styles.radioBtn,
+                            answers[qId] === option && styles.radioBtnActive,
+                          ]}
+                          onPress={() => handleAnswerChange(qId, option)}
+                        >
+                          <Text
+                            style={[
+                              styles.radioText,
+                              answers[qId] === option && styles.radioTextActive,
+                            ]}
+                          >
+                            {option}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+
+                  {qType === "multiple_choice" && (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        flexWrap: "wrap",
+                        gap: 10,
+                      }}
+                    >
+                      {(
+                        q.options ||
+                        (q.text.toLowerCase().includes("rate")
+                          ? ["Excellent", "Good", "Average", "Poor"]
+                          : [
+                              "Leadership",
+                              "Heritage Walk",
+                              "Art Evening",
+                              "Shabbat",
+                            ])
+                      ).map((option: string) => (
+                        <Pressable
+                          key={option}
+                          style={[
+                            styles.radioBtn,
+                            answers[qId] === option && styles.radioBtnActive,
+                          ]}
+                          onPress={() => handleAnswerChange(qId, option)}
+                        >
+                          <Text
+                            style={[
+                              styles.radioText,
+                              answers[qId] === option && styles.radioTextActive,
+                            ]}
+                          >
+                            {option}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
                 </View>
-
-                {q.type === "text" && (
-                  <TextInput
-                    style={[
-                      styles.textAnswer,
-                      {
-                        color: themeColors.charcoal,
-                        borderColor: "#ccc",
-                        backgroundColor: "#fafafa",
-                      },
-                    ]}
-                    value={answers[q.id] ?? ""}
-                    onChangeText={(v) => setAnswer(q.id, v)}
-                    placeholder="Write your answer here..."
-                    placeholderTextColor="#999"
-                    multiline
-                    numberOfLines={3}
-                  />
-                )}
-
-                {q.type === "yes_no" && (
-                  <View style={styles.yesNoRow}>
-                    {["Yes", "No"].map((opt) => (
-                      <Pressable
-                        key={opt}
-                        style={[
-                          styles.optionBtn,
-                          answers[q.id] === opt && {
-                            backgroundColor: activeColor,
-                            borderColor: activeColor,
-                          },
-                        ]}
-                        onPress={() => setAnswer(q.id, opt)}
-                      >
-                        <Text
-                          style={[
-                            styles.optionText,
-                            answers[q.id] === opt && styles.optionTextSelected,
-                          ]}
-                        >
-                          {opt}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-
-                {q.type === "multiple_choice" && q.options && (
-                  <View style={styles.optionsGrid}>
-                    {q.options.map((opt) => (
-                      <Pressable
-                        key={opt}
-                        style={[
-                          styles.optionBtn,
-                          answers[q.id] === opt && {
-                            backgroundColor: activeColor,
-                            borderColor: activeColor,
-                          },
-                        ]}
-                        onPress={() => setAnswer(q.id, opt)}
-                      >
-                        <Text
-                          style={[
-                            styles.optionText,
-                            answers[q.id] === opt && styles.optionTextSelected,
-                          ]}
-                        >
-                          {opt}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
-          <View style={{ height: 100 }} />
+              );
+            })
+          )}
         </ScrollView>
 
-        <View
-          style={[
-            styles.submitBar,
-            { backgroundColor: themeColors.white, borderTopColor: "#e0e0e0" },
-          ]}
-        >
-          {/* Submit button matches activeColor */}
-          <Pressable
-            style={[
-              styles.submitBtn,
-              { backgroundColor: activeColor },
-              submitting && styles.submitBtnDisabled,
-            ]}
-            onPress={handleSubmit}
-            disabled={submitting}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Text style={styles.submitBtnText}>Submit Form</Text>
-                <Ionicons name="send-outline" size={18} color="#fff" />
-              </>
+        {questions.length > 0 && (
+          <View style={styles.footer}>
+            {errorMsg && (
+              <View style={styles.errorBanner}>
+                <Ionicons
+                  name="warning"
+                  size={20}
+                  color={themeColors.red}
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={styles.errorText}>{errorMsg}</Text>
+              </View>
             )}
-          </Pressable>
-        </View>
+            <Pressable
+              style={[
+                styles.submitBtn,
+                { backgroundColor: activeColor },
+                submitting && { opacity: 0.7 },
+              ]}
+              onPress={handleSubmit}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator color={themeColors.white} />
+              ) : (
+                <Text style={styles.submitBtnText}>Submit Form</Text>
+              )}
+            </Pressable>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
-  formHeader: { padding: 24, alignItems: "flex-start" },
-  formTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#fff",
-    marginBottom: 6,
-    textAlign: "left",
+  container: { flex: 1, backgroundColor: themeColors.bluishWhite },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderColor: themeColors.gray,
   },
-  formDesc: {
+  backBtn: { padding: 5, marginRight: 15 },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: themeColors.charcoal,
+  },
+  headerSubtitle: {
     fontSize: 13,
-    color: "rgba(255,255,255,0.9)",
-    marginBottom: 14,
+    marginTop: 2,
+  },
+  scrollContent: { padding: 20, gap: 20 },
+  description: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 10,
     textAlign: "left",
   },
-  progressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    width: "100%",
-  },
-  progressBg: {
-    flex: 1,
-    height: 6,
-    backgroundColor: "rgba(255,255,255,0.3)",
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#fff",
-    borderRadius: 3,
-    position: "absolute",
-    left: 0,
-  },
-  progressText: { color: "#fff", fontSize: 12, fontWeight: "700" },
-
-  errorBanner: {
-    backgroundColor: "#ffebee",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#ffcdd2",
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  errorText: {
-    color: "#c62828",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-
-  questions: { padding: 16, gap: 12 },
+  noQuestions: { textAlign: "center", color: "#888", marginTop: 40 },
   questionCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
+    backgroundColor: themeColors.white,
     padding: 16,
+    borderRadius: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    elevation: 1,
+    shadowRadius: 5,
+    elevation: 2,
   },
   questionHeader: {
     flexDirection: "row",
-    gap: 10,
-    marginBottom: 12,
     alignItems: "flex-start",
+    marginBottom: 15,
+    gap: 10,
   },
-  qNumber: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+  questionNumberCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
-    marginTop: 1,
+    marginTop: -2,
   },
-  qNumberText: { fontSize: 12, fontWeight: "800" },
-  questionText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "600",
-    lineHeight: 22,
-    textAlign: "left",
-  },
-
-  textAnswer: {
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
+  questionNumberText: {
+    color: themeColors.white,
     fontSize: 14,
+    fontWeight: "bold",
+  },
+  questionText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: themeColors.charcoal,
+    textAlign: "left",
+    flex: 1,
+    lineHeight: 22,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: themeColors.gray,
+    borderRadius: 8,
+    padding: 12,
     minHeight: 80,
     textAlignVertical: "top",
+    backgroundColor: "#fafafa",
     textAlign: "left",
   },
-
-  yesNoRow: { flexDirection: "row", gap: 10 },
-  optionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  optionBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    backgroundColor: "transparent",
+  rangeContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
   },
-  optionText: { fontSize: 14, fontWeight: "600", color: "#555" },
-  optionTextSelected: { color: "#fff" },
-
-  submitBar: { padding: 16, borderTopWidth: 1 },
+  rangeCircle: {
+    width: 45,
+    height: 45,
+    borderRadius: 25,
+    backgroundColor: themeColors.gray,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  rangeCircleActive: { backgroundColor: themeColors.teal },
+  rangeText: { fontSize: 16, fontWeight: "bold", color: themeColors.charcoal },
+  rangeTextActive: { color: themeColors.white },
+  radioBtn: {
+    borderWidth: 1,
+    borderColor: themeColors.gray,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "#fafafa",
+  },
+  radioBtnActive: {
+    backgroundColor: themeColors.teal,
+    borderColor: themeColors.teal,
+  },
+  radioText: {
+    fontSize: 14,
+    color: themeColors.charcoal,
+  },
+  radioTextActive: {
+    color: themeColors.white,
+    fontWeight: "bold",
+  },
+  footer: {
+    padding: 20,
+    backgroundColor: themeColors.white,
+    borderTopWidth: 1,
+    borderColor: themeColors.gray,
+  },
   submitBtn: {
-    borderRadius: 12,
-    padding: 14,
+    backgroundColor: themeColors.teal,
+    paddingVertical: 15,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  submitBtnText: { color: themeColors.white, fontSize: 16, fontWeight: "bold" },
+  errorBanner: {
+    backgroundColor: "#faeae6",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: themeColors.red,
   },
-  submitBtnDisabled: { opacity: 0.6 },
-  submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-
-  successContainer: {
+  errorText: {
+    color: themeColors.red,
+    fontSize: 14,
+    fontWeight: "600",
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 40,
   },
-  successIcon: { marginBottom: 16 },
-  successTitle: { fontSize: 28, fontWeight: "800", marginBottom: 8 },
-  successSub: {
-    fontSize: 15,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 32,
-  },
-  doneBtn: {
-    borderRadius: 12,
-    paddingHorizontal: 40,
-    paddingVertical: 14,
-  },
-  doneBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });

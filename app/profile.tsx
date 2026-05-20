@@ -1,211 +1,496 @@
-import { useAuth } from '@/src/context/AuthContext';
-import { AppColors, Colors } from '@/constants/theme';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useAuth } from "@/src/context/AuthContext";
+import { db } from "@/src/firebase/firebase";
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import {
-  Alert,
+  collection,
+  doc,
+  getDocs,
+  query,
+  updateDoc,
+  where,
+} from "firebase/firestore";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
-  TextInput,
+  TouchableOpacity,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
+// ── الألوان الرسمية للتطبيق ──────────────────────────────────────────────────────────
+const themeColors = {
+  teal: "#039899",
+  red: "#c56451",
+  yellow: "#cfad5d",
+  bluishWhite: "#f5fafe",
+  charcoal: "#353535",
+  white: "#ffffff",
+  gray: "#f0f0f0",
+  textMuted: "#687076",
+};
+
+const ProfileAvatar = ({
+  name,
+  url,
+  allowEdit,
+  onPress,
+  uploading,
+}: {
+  name: string;
+  url?: string | null;
+  allowEdit: boolean;
+  onPress: () => void;
+  uploading: boolean;
+}) => {
+  return (
+    <TouchableOpacity
+      style={styles.avatarContainer}
+      onPress={onPress}
+      disabled={!allowEdit || uploading}
+    >
+      {uploading ? (
+        <View style={[styles.avatarImage, styles.avatarPlaceholder]}>
+          <ActivityIndicator color={themeColors.white} />
+        </View>
+      ) : url ? (
+        <Image source={{ uri: url }} style={styles.avatarImage} />
+      ) : (
+        <View style={[styles.avatarImage, styles.avatarPlaceholder]}>
+          <Text style={styles.avatarInitial}>
+            {name.charAt(0).toUpperCase()}
+          </Text>
+        </View>
+      )}
+      {allowEdit && (
+        <View style={styles.editAvatarBtn}>
+          <Ionicons name="camera" size={16} color={themeColors.white} />
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+};
+// 2. مكون صف المعلومات (Info Row)
+const InfoRow = ({
+  icon,
+  label,
+  value,
+  showEdit,
+  isLast,
+}: {
+  icon: string;
+  label: string;
+  value: string | number;
+  showEdit?: boolean;
+  isLast?: boolean;
+}) => (
+  <View style={[styles.infoRow, !isLast && styles.infoRowBorder]}>
+    <View style={styles.iconCircle}>
+      <Ionicons name={icon as any} size={22} color={themeColors.teal} />
+    </View>
+    <View style={styles.infoTextContainer}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+    {showEdit && (
+      <Pressable
+        onPress={() => alert(`Edit ${label}`)}
+        style={styles.inlineEditBtn}
+      >
+        <Ionicons name="pencil" size={16} color={themeColors.textMuted} />
+      </Pressable>
+    )}
+  </View>
+);
+
+// 3. مكون البطاقة (Card Wrapper)
+const InfoCard = ({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) => (
+  <View style={styles.card}>
+    <Text style={styles.cardTitle}>{title}</Text>
+    <View style={styles.cardContent}>{children}</View>
+  </View>
+);
+
+// ── الشاشة الرئيسية (Main Screen) ──────────────────────────────────────────────
+// ── الشاشة الرئيسية (Main Screen) ──────────────────────────────────────────────
 export default function ProfileScreen() {
-  const { user, logout } = useAuth();
-  const router = useRouter();
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(user?.full_name ?? '');
-  const [email, setEmail] = useState(user?.email ?? '');
-  const [phone, setPhone] = useState(user?.phone ?? '');
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  // 1. جلب بيانات المستخدم الحقيقي اللي مسجل دخول
+  const { user } = useAuth() as any;
+  const [fullData, setFullData] = useState<any>(null);
+  const [uploading, setUploading] = useState(false);
 
-  const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: () => { logout(); router.replace('/(auth)/login'); } },
-    ]);
+  useEffect(() => {
+    const getFullData = async () => {
+      if (!user?.email) return;
+      try {
+        const collectionName = user?.role === "admin" ? "admins" : "students";
+        const q = query(
+          collection(db, collectionName),
+          where("email", "==", user.email),
+        );
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          setFullData(snapshot.docs[0].data());
+        }
+      } catch (error) {
+        console.error("Error fetching full data:", error);
+      }
+    };
+    getFullData();
+  }, [user]);
+
+  const handlePhotoUpdate = async () => {
+    try {
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        alert("Permission to access media library is required!");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.2, // Small file size for Base64 compatibility
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0].base64) {
+        setUploading(true);
+        const base64Image = "data:image/jpeg;base64," + result.assets[0].base64;
+
+        const collectionName = user?.role === "admin" ? "admins" : "students";
+        const q = query(
+          collection(db, collectionName),
+          where("email", "==", user.email),
+        );
+        const snapshot = await getDocs(q);
+
+        if (!snapshot.empty) {
+          const docRef = doc(db, collectionName, snapshot.docs[0].id);
+          await updateDoc(docRef, { photoURL: base64Image });
+          setFullData((prev: any) => ({ ...prev, photoURL: base64Image }));
+        }
+        setUploading(false);
+      }
+    } catch (error) {
+      console.error("Error updating photo:", error);
+      setUploading(false);
+    }
   };
 
+  // 2. فحص نوع المستخدم
+  const isViewingStudent = user?.role === "student";
+  const isViewingAdmin = user?.role === "admin" || user?.role === "staff";
+  const isOwner = true; // بما إنه فاتح بروفايله الشخصي، إذن هو المالك بيقدر يعدل
+
+  // 3. تجهيز البيانات (عشان لو في معلومة ناقصة بالداتابيس ما يضرب التطبيق)
+  // Name
+  const profileName =
+    fullData?.full_name ||
+    fullData?.["full-name"] ||
+    user?.["full-name"] ||
+    "Unknown User";
+
+  // Role & Contact
+  const profileRole =
+    fullData?.role?.toUpperCase() || user?.role?.toUpperCase() || "STUDENT";
+  const profileEmail = fullData?.email || user?.email || "N/A";
+  const profilePhone = fullData?.phone || user?.phone || "N/A";
+  const address =
+    fullData?.neighborhood || fullData?.address || user?.address || "N/A";
+
+  // Student Info
+  const age = fullData?.age || user?.age || "N/A";
+  const dob =
+    fullData?.birth_date ||
+    fullData?.date_of_birth ||
+    user?.date_of_birth ||
+    "N/A";
+  const studyYear =
+    fullData?.study_year || fullData?.year_joined || user?.study_year || "N/A";
+  const voiceType = fullData?.voice_type || user?.voice_type || "N/A";
+  const allergies =
+    fullData?.food_notes || fullData?.allergies || user?.allergies || "No";
+
+  // Admin Info (fallback)
+  const jobTitle = fullData?.job_title || user?.job_title || "N/A";
+  const staffType = fullData?.staff_type || user?.staff_type || "N/A";
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Avatar + name */}
-        <View style={[styles.heroCard, { backgroundColor: theme.card }]}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{user?.full_name?.charAt(0)}</Text>
-          </View>
-          {editing ? (
-            <TextInput
-              style={[styles.nameInput, { color: theme.text, borderColor: theme.border }]}
-              value={name}
-              onChangeText={setName}
-            />
-          ) : (
-            <Text style={[styles.name, { color: theme.text }]}>{user?.full_name}</Text>
-          )}
-          <View style={[styles.roleBadge, { backgroundColor: AppColors.primaryLight }]}>
-            <Text style={styles.roleText}>{user?.role?.toUpperCase()}</Text>
-          </View>
-        </View>
-
-        {/* Edit toggle */}
-        <View style={styles.editRow}>
-          <Pressable
-            style={[styles.editBtn, editing && { backgroundColor: AppColors.success }]}
-            onPress={() => setEditing(e => !e)}
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* ── قسم الترويسة والصورة ── */}
+        <View style={styles.headerSection}>
+          <ProfileAvatar
+            name={profileName}
+            url={
+              fullData?.photoURL || user?.photoURL || user?.avatar_url || null
+            }
+            allowEdit={isOwner}
+            onPress={handlePhotoUpdate}
+            uploading={uploading}
+          />
+          <Text style={styles.profileName}>{profileName}</Text>
+          <View
+            style={[
+              styles.roleBadge,
+              {
+                backgroundColor: isViewingAdmin
+                  ? themeColors.red + "20"
+                  : themeColors.teal + "20",
+              },
+            ]}
           >
-            <Ionicons name={editing ? 'checkmark-outline' : 'pencil-outline'} size={16} color="#fff" />
-            <Text style={styles.editBtnText}>{editing ? 'Save Changes' : 'Edit Profile'}</Text>
-          </Pressable>
-        </View>
-
-        {/* Contact info */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Contact Information</Text>
-          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <FieldRow
-              icon="mail-outline"
-              label="Email"
-              value={email}
-              editing={editing}
-              onChange={setEmail}
-              theme={theme}
-              last={false}
-            />
-            <View style={[styles.divider, { backgroundColor: theme.border }]} />
-            <FieldRow
-              icon="call-outline"
-              label="Phone"
-              value={phone}
-              editing={editing}
-              onChange={setPhone}
-              theme={theme}
-              last={true}
-            />
+            <Text
+              style={[
+                styles.roleBadgeText,
+                { color: isViewingAdmin ? themeColors.red : themeColors.teal },
+              ]}
+            >
+              {profileRole}
+            </Text>
           </View>
         </View>
 
-        {/* Settings */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Settings</Text>
-          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <View style={styles.settingRow}>
-              <Ionicons name="notifications-outline" size={20} color={AppColors.primary} />
-              <Text style={[styles.settingLabel, { color: theme.text }]}>Push Notifications</Text>
-              <Switch
-                value={notificationsEnabled}
-                onValueChange={setNotificationsEnabled}
-                trackColor={{ false: '#ddd', true: AppColors.primary }}
-                thumbColor="#fff"
+        {/* ── عرض حساب الطالب (Student Profile) ── */}
+        {isViewingStudent && (
+          <>
+            <InfoCard title="Basic Information">
+              <InfoRow
+                icon="person-outline"
+                label="Age"
+                value={`${age} years`}
+                showEdit={isOwner}
               />
-            </View>
-          </View>
-        </View>
+              <InfoRow
+                icon="calendar-outline"
+                label="Date of Birth"
+                value={dob}
+                showEdit={isOwner}
+              />
+              <InfoRow
+                icon="school-outline"
+                label="Study Year"
+                value={studyYear}
+                showEdit={isOwner}
+              />
+              <InfoRow
+                icon="mic-outline"
+                label="Voice Type"
+                value={voiceType}
+                showEdit={isOwner}
+                isLast={true}
+              />
+            </InfoCard>
 
-        {/* Danger zone */}
-        <View style={styles.section}>
-          <Pressable style={styles.logoutBtn} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color={AppColors.danger} />
-            <Text style={styles.logoutText}>Sign Out</Text>
-          </Pressable>
-        </View>
+            <InfoCard title="Contact Information">
+              <InfoRow
+                icon="mail-outline"
+                label="Email"
+                value={profileEmail}
+                showEdit={isOwner}
+              />
+              <InfoRow
+                icon="call-outline"
+                label="Phone"
+                value={profilePhone}
+                showEdit={isOwner}
+              />
+              <InfoRow
+                icon="location-outline"
+                label="Address"
+                value={address}
+                showEdit={isOwner}
+                isLast={true}
+              />
+            </InfoCard>
 
-        <View style={{ height: 30 }} />
+            <InfoCard title="Medical Details">
+              <InfoRow
+                icon="medkit-outline"
+                label="Allergies"
+                value={allergies}
+                showEdit={isOwner}
+                isLast={true}
+              />
+            </InfoCard>
+          </>
+        )}
+
+        {/* ── عرض حساب الإدارة/الطاقم (Admin / Staff Profile) ── */}
+        {isViewingAdmin && (
+          <InfoCard title="Staff Information">
+            <InfoRow icon="mail-outline" label="Email" value={profileEmail} />
+            <InfoRow icon="call-outline" label="Phone" value={profilePhone} />
+            <InfoRow
+              icon="calendar-outline"
+              label="Date of Birth"
+              value={dob}
+            />
+            <InfoRow
+              icon="briefcase-outline"
+              label="Job Title"
+              value={jobTitle}
+            />
+            <InfoRow
+              icon="business-outline"
+              label="Staff Type"
+              value={staffType}
+              isLast={!user?.responsible_category}
+            />
+            {user?.responsible_category && (
+              <InfoRow
+                icon="people-outline"
+                label="Responsible For"
+                value={user?.responsible_category}
+                isLast={true}
+              />
+            )}
+          </InfoCard>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-function FieldRow({
-  icon,
-  label,
-  value,
-  editing,
-  onChange,
-  theme,
-  last,
-}: {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-  label: string;
-  value: string;
-  editing: boolean;
-  onChange: (v: string) => void;
-  theme: any;
-  last: boolean;
-}) {
-  return (
-    <View style={styles.fieldRow}>
-      <Ionicons name={icon} size={18} color={AppColors.primary} style={{ marginRight: 12 }} />
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.fieldLabel, { color: theme.subtext }]}>{label}</Text>
-        {editing ? (
-          <TextInput
-            style={[styles.fieldInput, { color: theme.text, borderColor: theme.border }]}
-            value={value}
-            onChangeText={onChange}
-          />
-        ) : (
-          <Text style={[styles.fieldValue, { color: theme.text }]}>{value}</Text>
-        )}
-      </View>
-    </View>
-  );
-}
-
+// ── الأنماط (Styles) ──────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  heroCard: {
-    alignItems: 'center', padding: 32,
-    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  container: {
+    flex: 1,
+    backgroundColor: themeColors.bluishWhite,
   },
-  avatar: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: AppColors.primary,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
   },
-  avatarText: { color: '#fff', fontSize: 36, fontWeight: '800' },
-  nameInput: {
-    fontSize: 20, fontWeight: '700', borderBottomWidth: 2,
-    paddingBottom: 4, marginBottom: 10, textAlign: 'center', minWidth: 200,
+  headerSection: {
+    alignItems: "center",
+    marginBottom: 24,
   },
-  name: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
-  roleBadge: { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20 },
-  roleText: { fontSize: 12, fontWeight: '700', color: AppColors.primary },
-  editRow: { alignItems: 'center', marginTop: 16 },
-  editBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: AppColors.primary, borderRadius: 20,
-    paddingHorizontal: 18, paddingVertical: 8,
+  avatarContainer: {
+    position: "relative",
+    marginBottom: 12,
   },
-  editBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  section: { padding: 20, paddingBottom: 0 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', marginBottom: 10 },
-  card: { borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
-  fieldRow: { flexDirection: 'row', alignItems: 'center', padding: 14 },
-  fieldLabel: { fontSize: 11, marginBottom: 2 },
-  fieldValue: { fontSize: 14, fontWeight: '600' },
-  fieldInput: {
-    fontSize: 14, fontWeight: '600', borderBottomWidth: 1, paddingBottom: 2,
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
-  divider: { height: 1, marginLeft: 44 },
-  settingRow: {
-    flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12,
+  avatarPlaceholder: {
+    backgroundColor: themeColors.teal,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  settingLabel: { flex: 1, fontSize: 14, fontWeight: '600' },
-  logoutBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, borderRadius: 12, padding: 14,
-    backgroundColor: AppColors.dangerLight, borderWidth: 1, borderColor: AppColors.danger + '40',
+  avatarInitial: {
+    fontSize: 40,
+    fontWeight: "bold",
+    color: themeColors.white,
   },
-  logoutText: { color: AppColors.danger, fontSize: 15, fontWeight: '700' },
+  editAvatarBtn: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: themeColors.charcoal,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: themeColors.bluishWhite,
+  },
+  profileName: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: themeColors.charcoal,
+    marginBottom: 6,
+  },
+  roleBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  roleBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+
+  // ── الستايلات الجديدة للبطاقات (Cards) ──
+  card: {
+    backgroundColor: "#F8F9FA",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: themeColors.charcoal,
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  cardContent: {
+    flexDirection: "column",
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+  },
+  infoRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  iconCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: themeColors.white,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  infoTextContainer: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  infoLabel: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  inlineEditBtn: {
+    padding: 6,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 8,
+  },
 });

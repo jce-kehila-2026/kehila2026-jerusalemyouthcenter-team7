@@ -1,18 +1,25 @@
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/src/context/AuthContext";
-import { forms } from "@/src/data/mockData";
+import { deleteForm, getAllForms } from "@/src/firebase/firestoreService";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// 1. Official Jerusalem Youth Chorus Colors
 const themeColors = {
-  teal: "#039899", // Primary
-  red: "#c56451", // Errors / Urgent
-  yellow: "#cfad5d", // Warnings / Accents
+  teal: "#039899",
+  red: "#c56451",
+  yellow: "#cfad5d",
   bluishWhite: "#f5fafe",
   charcoal: "#353535",
   white: "#ffffff",
@@ -23,18 +30,57 @@ const typeIcons: Record<string, React.ComponentProps<typeof Ionicons>["name"]> =
     text: "text-outline",
     multiple_choice: "radio-button-on-outline",
     yes_no: "checkmark-circle-outline",
+    range: "options-outline",
   };
 
 export default function FormsScreen() {
-  const { user } = useAuth();
+  const { user } = useAuth() as any;
   const userRole = user?.role || "student";
   const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
 
-  const visibleForms = forms.filter((f) => {
-    if (userRole === "admin") return true; // Admin sees all forms
-    return f.target_audience === "student" || f.target_audience === "both"; // Students see matching forms
+  const [formsList, setFormsList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const handleDelete = (formId: string) => {
+    Alert.alert(
+      "Confirm Delete",
+      "Are you sure you want to delete this form?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            await deleteForm(formId);
+            setLoading(true);
+            const data = await getAllForms();
+            setFormsList(data);
+            setLoading(false);
+          },
+        },
+      ],
+    );
+  };
+
+  useEffect(() => {
+    const fetchForms = async () => {
+      setLoading(true);
+      const data = await getAllForms();
+      // عشان نشوف الداتا بالـ Terminal ونعرف وين الغلطة اللي بالفايربيز
+      console.log("🔥 Data from Firebase:", JSON.stringify(data, null, 2));
+      setFormsList(data);
+      setLoading(false);
+    };
+    fetchForms();
+  }, []);
+
+  const visibleForms = formsList.filter((f) => {
+    if (userRole === "admin" || userRole === "staff") return true;
+    const audience =
+      typeof f.target_audience === "string" ? f.target_audience : "both";
+    return audience === "student" || audience === "both";
   });
 
   return (
@@ -43,12 +89,27 @@ export default function FormsScreen() {
     >
       <View style={styles.header}>
         <View>
-          <Text style={[styles.title, { color: themeColors.charcoal }]}>
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "700",
+              color: themeColors.teal,
+              marginBottom: 2,
+            }}
+          >
+            Jerusalem Youth Chorus
+          </Text>
+          <Text
+            style={[
+              styles.title,
+              { color: themeColors.charcoal, fontSize: 32 },
+            ]}
+          >
             Forms
           </Text>
           <Text style={styles.subtitle}>{visibleForms.length} active</Text>
         </View>
-        {userRole === "admin" && (
+        {(userRole === "admin" || userRole === "staff") && (
           <Pressable
             style={styles.manageButton}
             onPress={() => router.push("/create-form" as any)}
@@ -58,148 +119,193 @@ export default function FormsScreen() {
         )}
       </View>
 
-      <FlatList
-        data={visibleForms}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item, index }) => {
-          // Dynamic color assignment: Teal, Red, Yellow cycle
-          const colors = [
-            themeColors.teal,
-            themeColors.red,
-            themeColors.yellow,
-          ];
-          const activeColor = colors[index % 3];
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={themeColors.teal} />
+        </View>
+      ) : (
+        <FlatList
+          data={visibleForms}
+          keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={() => (
+            <Text style={{ textAlign: "center", marginTop: 20, color: "#888" }}>
+              لا يوجد فورمات حالياً
+            </Text>
+          )}
+          renderItem={({ item, index }) => {
+            const colors = [
+              themeColors.teal,
+              themeColors.red,
+              themeColors.yellow,
+            ];
+            const activeColor = colors[index % 3];
 
-          return (
-            <Pressable
-              style={[
-                styles.card,
-                {
-                  backgroundColor: themeColors.white,
-                  borderLeftWidth: 6,
-                  borderLeftColor: activeColor,
-                },
-              ]}
-              onPress={() => router.push(`/form/${item.id}` as any)}
-            >
-              <View style={styles.cardHeader}>
-                <View
-                  style={[
-                    styles.iconBox,
-                    { backgroundColor: activeColor + "26" },
-                  ]}
-                >
-                  <Ionicons
-                    name="document-text"
-                    size={22}
-                    color={activeColor}
-                  />
-                </View>
+            // 🛡️ دروع الحماية: التأكد إن البيانات نصوص مش كائنات (Objects)
+            const safeTitle =
+              typeof item.title === "string" ? item.title : "Form Title";
+            const safeDescription =
+              typeof item.description === "string" ? item.description : null;
+            const safeDate =
+              typeof item.date === "string" ? item.date : "Recently";
+            const questions = Array.isArray(item.questions)
+              ? item.questions
+              : [];
 
-                <View style={styles.cardInfo}>
-                  <Text style={[styles.cardTitle, { color: activeColor }]}>
-                    {item.title}
-                  </Text>
-                  <Text style={styles.cardDate}>Created {item.created_at}</Text>
-                </View>
-
-                {userRole === "admin" ? (
-                  <View style={styles.adminActions}>
-                    <Pressable
-                      style={styles.actionButton}
-                      onPress={() => alert("Edit form " + item.id)}
-                    >
-                      <Ionicons
-                        name="pencil-outline"
-                        size={18}
-                        color={themeColors.charcoal}
-                      />
-                    </Pressable>
-                    <Pressable
-                      style={styles.actionButton}
-                      onPress={() => alert("Delete form " + item.id)}
-                    >
-                      <Ionicons
-                        name="trash-outline"
-                        size={18}
-                        color={themeColors.red}
-                      />
-                    </Pressable>
-                  </View>
-                ) : (
-                  <Ionicons
-                    name="chevron-forward"
-                    size={16}
-                    color={themeColors.charcoal}
-                  />
-                )}
-              </View>
-
-              <Text
-                style={[styles.description, { color: themeColors.charcoal }]}
-                numberOfLines={2}
+            return (
+              <Pressable
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: themeColors.white,
+                    borderLeftWidth: 6,
+                    borderLeftColor: activeColor,
+                  },
+                ]}
+                onPress={() => router.push(`/form/${item.id}` as any)}
               >
-                {item.description}
-              </Text>
-
-              <View style={styles.questionsList}>
-                {item.questions.slice(0, 2).map((q) => (
-                  <View key={q.id} style={styles.questionRow}>
+                <View style={styles.cardHeader}>
+                  <View
+                    style={[
+                      styles.iconBox,
+                      { backgroundColor: activeColor + "26" },
+                    ]}
+                  >
                     <Ionicons
-                      name={typeIcons[q.type]}
+                      name="document-text"
+                      size={22}
+                      color={activeColor}
+                    />
+                  </View>
+
+                  <View style={styles.cardInfo}>
+                    <Text style={[styles.cardTitle, { color: activeColor }]}>
+                      {safeTitle}
+                    </Text>
+                    <Text style={styles.cardDate}>Created {safeDate}</Text>
+                  </View>
+
+                  {userRole === "admin" || userRole === "staff" ? (
+                    <View style={styles.adminActions}>
+                      <Pressable
+                        style={styles.actionButton}
+                        onPress={() => alert("Edit form " + item.id)}
+                      >
+                        <Ionicons
+                          name="pencil-outline"
+                          size={18}
+                          color={themeColors.charcoal}
+                        />
+                      </Pressable>
+                      <Pressable
+                        style={styles.actionButton}
+                        onPress={() => handleDelete(item.id)}
+                      >
+                        <Ionicons
+                          name="trash-outline"
+                          size={18}
+                          color={themeColors.red}
+                        />
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <Ionicons
+                      name="chevron-forward"
+                      size={16}
+                      color={themeColors.charcoal}
+                    />
+                  )}
+                </View>
+
+                {safeDescription && (
+                  <Text
+                    style={[
+                      styles.description,
+                      { color: themeColors.charcoal },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {safeDescription}
+                  </Text>
+                )}
+
+                {questions.length > 0 && (
+                  <View style={styles.questionsList}>
+                    {questions.slice(0, 2).map((q: any, i: number) => {
+                      // 🛡️ حماية لطباعة نص السؤال
+                      const qText =
+                        typeof q.text === "string"
+                          ? q.text
+                          : typeof q.question_text === "string"
+                            ? q.question_text
+                            : `سؤال ${i + 1}`;
+                      const qType =
+                        typeof q.answer_type === "string"
+                          ? q.answer_type
+                          : "text";
+
+                      return (
+                        <View key={q.id || i} style={styles.questionRow}>
+                          <Ionicons
+                            name={typeIcons[qType] || "document-outline"}
+                            size={13}
+                            color={activeColor}
+                          />
+                          <Text
+                            style={[
+                              styles.questionText,
+                              { color: themeColors.charcoal },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {qText}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+
+                <View style={styles.footer}>
+                  <Pressable
+                    style={[
+                      styles.fillButton,
+                      { backgroundColor: activeColor },
+                    ]}
+                    onPress={() => router.push(`/form/${item.id}` as any)}
+                  >
+                    <Text style={styles.fillButtonText}>Fill out</Text>
+                  </Pressable>
+
+                  <View
+                    style={[
+                      styles.countBadge,
+                      { backgroundColor: activeColor + "26" },
+                    ]}
+                  >
+                    <Text style={[styles.countText, { color: activeColor }]}>
+                      {questions.length} questions
+                    </Text>
+                    <Ionicons
+                      name="help-circle-outline"
                       size={13}
                       color={activeColor}
                     />
-                    <Text
-                      style={[
-                        styles.questionText,
-                        { color: themeColors.charcoal },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {q.text}
-                    </Text>
                   </View>
-                ))}
-              </View>
-
-              <View style={styles.footer}>
-                {/* Submit button uses the dynamic color */}
-                <Pressable
-                  style={[styles.fillButton, { backgroundColor: activeColor }]}
-                  onPress={() => router.push(`/form/${item.id}` as any)}
-                >
-                  <Text style={styles.fillButtonText}>Fill out</Text>
-                </Pressable>
-
-                <View
-                  style={[
-                    styles.countBadge,
-                    { backgroundColor: activeColor + "26" },
-                  ]}
-                >
-                  <Text style={[styles.countText, { color: activeColor }]}>
-                    {item.questions.length} questions
-                  </Text>
-                  <Ionicons
-                    name="help-circle-outline"
-                    size={13}
-                    color={activeColor}
-                  />
                 </View>
-              </View>
-            </Pressable>
-          );
-        }}
-      />
+              </Pressable>
+            );
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -225,7 +331,6 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 14,
     padding: 16,
-    // Soft shadow for cards
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
