@@ -1,42 +1,102 @@
+import { useAuth } from "@/src/context/AuthContext";
+import { COLORS } from "@/src/data/mockData";
+import { studentService } from "@/src/data/studentService";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
-import { COLORS } from "../src/data/mockData";
-import { studentService } from "../src/data/studentService";
+
+type VoiceType = "bass" | "tenor" | "alto" | "soprano";
+const voiceTypes: VoiceType[] = ["bass", "tenor", "alto", "soprano"];
+
+function VoiceTypeSelector({
+  selectedVoice,
+  onSelect,
+}: {
+  selectedVoice: VoiceType | null;
+  onSelect: (voice: VoiceType) => void;
+}) {
+  return (
+    <View style={s.voiceTypeContainer}>
+      {voiceTypes.map((voice) => (
+        <Pressable
+          key={voice}
+          onPress={() => onSelect(voice)}
+          style={[
+            s.voiceTypePill,
+            selectedVoice === voice && s.voiceTypePillActive,
+          ]}
+        >
+          <Text
+            style={[
+              s.voiceTypeText,
+              selectedVoice === voice && s.voiceTypeTextActive,
+            ]}
+          >
+            {voice.charAt(0).toUpperCase() + voice.slice(1)}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
 
 export default function AddStudentScreen() {
   const router = useRouter();
-  const [form, setForm] = useState({
-    full_name: "",
-    email: "",
-    phone: "",
-    group_id: "1",
-    year_id: 1,
-    program_id: 1,
-  });
+  const { user } = useAuth();
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [selectedVoiceType, setSelectedVoiceType] = useState<VoiceType | null>(
+    null,
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  if (user?.role !== "admin") {
+    return (
+      <SafeAreaView style={s.container}>
+        <View style={s.content}>
+          <Text style={s.errorText}>Only admins can access this page.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const handleSave = async () => {
-    if (!form.full_name || !form.email) {
-      Alert.alert("Error", "Please fill in at least the name and email.");
+    if (!fullName || !email || !phone || !selectedVoiceType) {
+      setError("Please fill in all required fields.");
       return;
     }
 
+    setLoading(true);
+    setError("");
+
     try {
-      await studentService.addStudent(form);
+      const newStudent = {
+        full_name: fullName,
+        email: email,
+        phone: phone,
+        voice_type: selectedVoiceType,
+      };
+
+      await studentService.addStudent(newStudent);
       Alert.alert("Success", "Student added successfully!");
       router.back();
-    } catch (error) {
-      console.error(error);
-      Alert.alert("Error", "Failed to add student.");
+    } catch (e) {
+      console.error(e);
+      setError("Failed to add student. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -45,12 +105,14 @@ export default function AddStudentScreen() {
       <ScrollView contentContainerStyle={s.content}>
         <Text style={s.title}>Add New Student</Text>
 
+        {error ? <Text style={s.errorText}>{error}</Text> : null}
+
         <View style={s.inputGroup}>
           <Text style={s.label}>Full Name</Text>
           <TextInput
             style={s.input}
-            value={form.full_name}
-            onChangeText={(v) => setForm({ ...form, full_name: v })}
+            value={fullName}
+            onChangeText={setFullName}
             placeholder="Enter full name"
             placeholderTextColor={COLORS.gray}
           />
@@ -60,28 +122,50 @@ export default function AddStudentScreen() {
           <Text style={s.label}>Email</Text>
           <TextInput
             style={s.input}
-            value={form.email}
-            onChangeText={(v) => setForm({ ...form, email: v })}
+            value={email}
+            onChangeText={setEmail}
             placeholder="student@example.com"
             placeholderTextColor={COLORS.gray}
             keyboardType="email-address"
+            autoCapitalize="none"
           />
         </View>
 
         <View style={s.inputGroup}>
-          <Text style={s.label}>Phone</Text>
+          <Text style={s.label}>Phone Number</Text>
           <TextInput
             style={s.input}
-            value={form.phone}
-            onChangeText={(v) => setForm({ ...form, phone: v })}
+            value={phone}
+            onChangeText={setPhone}
             placeholder="+972..."
             placeholderTextColor={COLORS.gray}
+            keyboardType="phone-pad"
           />
         </View>
 
-        <TouchableOpacity style={s.saveBtn} onPress={handleSave}>
-          <Text style={s.saveBtnText}>Save Student</Text>
-        </TouchableOpacity>
+        <View style={s.inputGroup}>
+          <Text style={s.label}>Voice Type</Text>
+          <VoiceTypeSelector
+            selectedVoice={selectedVoiceType}
+            onSelect={setSelectedVoiceType}
+          />
+        </View>
+
+        <Pressable
+          style={({ pressed }) => [
+            s.saveBtn,
+            pressed && { opacity: 0.8 },
+            loading && { opacity: 0.6 },
+          ]}
+          onPress={handleSave}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color={COLORS.white} />
+          ) : (
+            <Text style={s.saveBtnText}>Add Student</Text>
+          )}
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -119,4 +203,35 @@ const s = StyleSheet.create({
     marginTop: 20,
   },
   saveBtnText: { color: COLORS.white, fontWeight: "bold", fontSize: 16 },
+  voiceTypeContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 8,
+  },
+  voiceTypePill: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: COLORS.grayLight,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  voiceTypePillActive: {
+    backgroundColor: COLORS.teal,
+    borderColor: COLORS.teal,
+  },
+  voiceTypeText: {
+    color: COLORS.gray,
+    fontWeight: "500",
+  },
+  voiceTypeTextActive: {
+    color: COLORS.white,
+  },
+  errorText: {
+    color: COLORS.red,
+    marginBottom: 10,
+    textAlign: "center",
+    fontWeight: "600",
+  },
 });
