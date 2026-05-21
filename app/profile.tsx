@@ -222,8 +222,6 @@ export default function ProfileScreen() {
   const studyYear =
     fullData?.study_year || fullData?.year_joined || user?.study_year || "N/A";
   const voiceType = fullData?.voice_type || user?.voice_type || "N/A";
-  const allergies =
-    fullData?.food_notes || fullData?.allergies || user?.allergies || "No";
 
   // Admin Info (fallback)
   const jobTitle = fullData?.job_title || user?.job_title || "N/A";
@@ -316,16 +314,6 @@ export default function ProfileScreen() {
                 icon="location-outline"
                 label="Address"
                 value={address}
-                showEdit={isOwner}
-                isLast={true}
-              />
-            </InfoCard>
-
-            <InfoCard title="Medical Details">
-              <InfoRow
-                icon="medkit-outline"
-                label="Allergies"
-                value={allergies}
                 showEdit={isOwner}
                 isLast={true}
               />
