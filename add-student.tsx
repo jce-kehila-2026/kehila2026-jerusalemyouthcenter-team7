@@ -1,20 +1,21 @@
+import { useAuth } from "@/src/context/AuthContext";
+import { COLORS } from "@/src/data/mockData";
+import { studentService } from "@/src/data/studentService";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { COLORS } from "../src/data/mockData";
-import { studentService } from "../src/data/studentService";
 
 type VoiceType = "bass" | "tenor" | "alto" | "soprano";
 
@@ -54,25 +55,28 @@ function VoiceTypeSelector({
 
 export default function AddStudentScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [schoolName, setSchoolName] = useState("");
-  const [yearJoined, setYearJoined] = useState("");
   const [selectedVoiceType, setSelectedVoiceType] = useState<VoiceType | null>(
     null,
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  if (user?.role !== "admin") {
+    return (
+      <SafeAreaView style={s.safe}>
+        <View style={s.scroll}>
+          <Text style={s.errorText}>Only admins can access this page.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const handleAddStudent = async () => {
-    if (
-      !fullName ||
-      !phone ||
-      !schoolName ||
-      !yearJoined ||
-      !selectedVoiceType
-    ) {
+    if (!fullName || !email || !phone || !selectedVoiceType) {
       setError("Please fill in all required fields.");
       return;
     }
@@ -84,11 +88,9 @@ export default function AddStudentScreen() {
       // For simplicity, some fields are mocked or left empty as they are not part of this form
       const newStudent = {
         full_name: fullName,
-        email: email || undefined, // Optional email
+        email: email,
         phone: phone,
-        school_name: schoolName,
         voice_type: selectedVoiceType,
-        year_joined: parseInt(yearJoined, 10),
       };
 
       await studentService.addStudent(newStudent);
@@ -120,7 +122,7 @@ export default function AddStudentScreen() {
             onChangeText={setFullName}
           />
 
-          <Text style={s.label}>Email (Optional)</Text>
+          <Text style={s.label}>Email</Text>
           <TextInput
             style={s.input}
             value={email}
@@ -135,21 +137,6 @@ export default function AddStudentScreen() {
             value={phone}
             onChangeText={setPhone}
             keyboardType="phone-pad"
-          />
-
-          <Text style={s.label}>School Name</Text>
-          <TextInput
-            style={s.input}
-            value={schoolName}
-            onChangeText={setSchoolName}
-          />
-
-          <Text style={s.label}>Year Joined</Text>
-          <TextInput
-            style={s.input}
-            value={yearJoined}
-            onChangeText={setYearJoined}
-            keyboardType="numeric"
           />
 
           <Text style={s.label}>Voice Type</Text>

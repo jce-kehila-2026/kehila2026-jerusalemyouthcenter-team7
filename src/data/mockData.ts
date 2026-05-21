@@ -11,12 +11,13 @@ export type Student = {
   full_name: string;
   email: string;
   phone: string;
-  group_id: string;
-  year_id: number;
-  program_id: number;
+  group_id?: string;
+  year_id?: number;
+  program_id?: number;
   parent_phone?: string;
   parent_signature?: boolean;
   allergies?: string;
+  voice_type?: string;
 };
 
 export type Group = {
