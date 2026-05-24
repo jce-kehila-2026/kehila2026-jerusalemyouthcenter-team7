@@ -71,15 +71,8 @@ export default function TabLayout() {
             ),
           }}
         />
-        <Tabs.Screen
-          name="messages"
-          options={{
-            title: "Messages",
-            tabBarIcon: ({ color, size }) => (
-              <TabIcon name="chatbubbles-outline" color={color} size={size} />
-            ),
-          }}
-        />
+        <Tabs.Screen name="messages" options={{ href: null }} />
+        <Tabs.Screen name="notifications" options={{ href: null }} />
         <Tabs.Screen
           name="library"
           options={{
