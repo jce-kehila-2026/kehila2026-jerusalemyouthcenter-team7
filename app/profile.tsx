@@ -2,6 +2,7 @@ import { useAuth } from "@/src/context/AuthContext";
 import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
 import {
   collection,
   doc,
@@ -126,7 +127,8 @@ const InfoCard = ({
 // ── الشاشة الرئيسية (Main Screen) ──────────────────────────────────────────────
 export default function ProfileScreen() {
   // 1. جلب بيانات المستخدم الحقيقي اللي مسجل دخول
-  const { user } = useAuth() as any;
+  const { user, logout } = useAuth() as any;
+  const router = useRouter();
   const [fullData, setFullData] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -352,6 +354,19 @@ export default function ProfileScreen() {
             )}
           </InfoCard>
         )}
+
+        {/* ── Sign Out ── */}
+        <TouchableOpacity
+          style={styles.signOutBtn}
+          onPress={async () => {
+            await logout();
+            router.replace("/(auth)/login" as any);
+          }}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="log-out-outline" size={20} color={themeColors.red} />
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -480,5 +495,23 @@ const styles = StyleSheet.create({
     padding: 6,
     backgroundColor: "#E5E7EB",
     borderRadius: 8,
+  },
+  signOutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: themeColors.red + "55",
+    backgroundColor: themeColors.red + "0D",
+  },
+  signOutText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: themeColors.red,
   },
 });
