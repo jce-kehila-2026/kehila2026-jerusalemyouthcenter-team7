@@ -12,85 +12,30 @@ import {
   Text,
   TextInput,
   View,
+  Image,   
 } from "react-native";
-import Svg, {
-  Circle,
-  Defs,
-  Ellipse,
-  Path,
-  RadialGradient,
-  Stop,
-} from "react-native-svg";
+// remove this entire line if not using SVG
+import Svg, { Circle, Defs, Ellipse, Path, RadialGradient, Stop } from "react-native-svg";
 
 function BirdLogo({ size = 80 }: { size?: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 100 100">
-      <Defs>
-        <RadialGradient id="birdGrad" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor={COLORS.teal} stopOpacity="1" />
-          <Stop offset="100%" stopColor={COLORS.tealDark} stopOpacity="1" />
-        </RadialGradient>
-      </Defs>
-      <Path
-        d="M18 38 Q10 20 28 14 Q38 10 45 22 Q35 26 30 35 Z"
-        fill={COLORS.teal}
-        opacity={0.9}
-      />
-      <Path
-        d="M22 52 Q12 48 14 36 Q22 28 34 38 Q28 44 26 54 Z"
-        fill={COLORS.teal}
-        opacity={0.75}
-      />
-      <Path
-        d="M30 70 Q18 72 16 60 Q20 52 32 56 Q30 62 30 70 Z"
-        fill={COLORS.teal}
-        opacity={0.65}
-      />
-      <Ellipse cx="52" cy="50" rx="16" ry="20" fill="url(#birdGrad)" />
-      <Circle cx="58" cy="34" r="10" fill={COLORS.teal} />
-      <Path d="M67 33 L76 31 L68 36 Z" fill={COLORS.yellow} />
-      <Circle cx="61" cy="32" r="2" fill={COLORS.black} />
-      <Circle cx="62" cy="31" r="0.7" fill={COLORS.white} />
-      <Path
-        d="M44 58 Q40 68 46 76 Q52 80 56 72 Q50 68 48 58 Z"
-        fill={COLORS.red}
-        opacity={0.85}
-      />
-      <Path
-        d="M50 60 Q48 72 54 78 Q58 74 56 64 Z"
-        fill={COLORS.red}
-        opacity={0.6}
-      />
-      <Path
-        d="M62 46 Q78 38 84 50 Q80 60 68 58"
-        fill="none"
-        stroke={COLORS.yellow}
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
-      <Path
-        d="M64 52 Q82 50 86 62 Q80 70 70 64"
-        fill="none"
-        stroke={COLORS.yellow}
-        strokeWidth="2"
-        strokeLinecap="round"
-        opacity={0.7}
-      />
-      <Circle cx="78" cy="22" r="1.5" fill={COLORS.teal} opacity={0.7} />
-      <Circle cx="84" cy="18" r="1" fill={COLORS.teal} opacity={0.5} />
-      <Circle cx="82" cy="26" r="1" fill={COLORS.yellow} opacity={0.6} />
-      <Circle cx="88" cy="24" r="0.8" fill={COLORS.red} opacity={0.5} />
-      <Path
-        d="M46 76 Q40 86 48 90 Q54 86 52 76 Z"
-        fill={COLORS.teal}
-        opacity={0.7}
-      />
-      <Path
-        d="M50 78 Q50 90 56 88 Q60 82 56 74 Z"
-        fill={COLORS.red}
-        opacity={0.5}
-      />
-    </Svg>
+        <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        overflow: "hidden",
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "black", // important
+      }}
+    >
+     <Image
+      source={require("../../assets/images/bird-logo.jpeg")}
+      style={{ width: size * 0.8, height: size * 0.8, resizeMode: "contain" }}
+
+    />
+    </View>
   );
 }
 
@@ -106,13 +51,13 @@ function RoleToggle({
       <Pressable
         style={[
           rt.pill,
-          role === "student" && { backgroundColor: COLORS.teal },
+          role === "singer" && { backgroundColor: COLORS.teal },
         ]}
-        onPress={() => onChange("student")}
+        onPress={() => onChange("singer")}
       >
-        <Text style={rt.icon}>🎓</Text>
-        <Text style={[rt.text, role === "student" && { color: COLORS.white }]}>
-          Student
+        <Text style={rt.icon}>🎤</Text>
+        <Text style={[rt.text, role === "singer" && { color: COLORS.white }]}>
+          Singer
         </Text>
       </Pressable>
       <Pressable
@@ -152,7 +97,7 @@ export default function LoginScreen() {
   const { login } = useAuth();
   const router = useRouter();
 
-  const [role, setRole] = useState<UserRole>("student");
+  const [role, setRole] = useState<UserRole>("singer");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -184,8 +129,8 @@ export default function LoginScreen() {
       );
     } else {
       setError(
-        role === "student"
-          ? "No student account found with this phone number.\nPlease check and try again."
+        role === "singer"
+          ? "No singer account found with this phone number.\nPlease check and try again."
           : "No admin account found with these credentials.\nCheck your email or role selection.",
       );
     }
@@ -210,8 +155,7 @@ export default function LoginScreen() {
           <View style={[s.ring, { shadowColor: accent }]}>
             <BirdLogo size={88} />
           </View>
-          <Text style={[s.appName, { color: accent }]}>Kehila</Text>
-          <Text style={s.tagline}>Jerusalem Youth Center</Text>
+          <Text style={[s.appName, { color: accent }]}>Jerusalem Youth Chorus</Text>
           <View style={s.accentBar}>
             {[COLORS.teal, COLORS.red, COLORS.yellow].map((c) => (
               <View key={c} style={[s.accentSeg, { backgroundColor: c }]} />
@@ -239,7 +183,7 @@ export default function LoginScreen() {
             <Text style={[s.badgeText, { color: accent }]}>
               {role === "admin"
                 ? "🛡️  Admins sign in with their email address"
-                : "🎓  Students sign in with their phone number"}
+                : " 🎤 Singer sign in with their phone number"}
             </Text>
           </View>
 
@@ -251,17 +195,17 @@ export default function LoginScreen() {
 
           {/* Label + keyboard type change with role */}
           <Text style={s.label}>
-            {role === "student" ? "Phone Number" : "Email"}
+            {role === "singer" ? "Phone Number" : "Email"}
           </Text>
           <TextInput
             style={inp("id")}
             value={identifier}
             onChangeText={setIdentifier}
             placeholder={
-              role === "student" ? "+972-50-000-0000" : "admin@kehila.org"
+              role === "singer" ? "+972-50-000-0000" : "admin@kehila.org"
             }
             placeholderTextColor="#aab"
-            keyboardType={role === "student" ? "phone-pad" : "email-address"}
+            keyboardType={role === "singer" ? "phone-pad" : "email-address"}
             autoCapitalize="none"
             onFocus={() => setFocused("id")}
             onBlur={() => setFocused(null)}
@@ -302,8 +246,8 @@ export default function LoginScreen() {
             <View style={s.divLine} />
           </View>
 
-          {/* Sign up link only shown for students */}
-          {role === "student" ? (
+          {/* Sign up link only shown for singers */}
+          {role === "singer" ? (
             <View style={s.footer}>
               <Text style={s.footerText}>Don&apos;t have an account? </Text>
               <Link href={"/(auth)/signup" as any} style={s.signupLink}>
