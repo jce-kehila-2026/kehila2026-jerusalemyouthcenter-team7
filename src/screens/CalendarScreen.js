@@ -36,7 +36,7 @@ export default function CalendarScreen({ onEventPress }) {
   const markedDates = {};
   events.forEach((event) => {
     const date = event.date.split("T")[0];
-    const color = getGroupColor(event.group_name);
+    const color = getGroupColor(event.groupLabel ?? event.group_name);
     if (markedDates[date]) {
       markedDates[date].dots.push({ color });
     } else {

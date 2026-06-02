@@ -11,7 +11,7 @@ export default function EventsTab() {
 
   return (
     <EventStudentScreen
-      studentYear={user?.year_id ?? 1}
+      studentYear={user?.current_year_id ?? 1}
       studentName={user?.full_name ?? "Student"}
       isAdmin={false}
     />

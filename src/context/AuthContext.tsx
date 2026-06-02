@@ -161,10 +161,10 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
               : null,
             group_id: d.group_id ?? null,
             current_year_id:
-              d.year_id !== undefined
-                ? Number(d.year_id)
-                : d.year !== undefined && d.year !== null
-                  ? Number(d.year)
+              d.group_id !== undefined && d.group_id !== null
+                ? Number(d.group_id)
+                : d.year_id !== undefined
+                  ? Number(d.year_id)
                   : null,
           });
         } else {

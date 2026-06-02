@@ -125,17 +125,23 @@ const validateForm = (values) => {
     errors.title = "Title is required.";
     valid = false;
   }
-  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
+
   if (!values.date.trim()) {
     errors.date = "Date is required.";
     valid = false;
   } else if (!dateRegex.test(values.date)) {
-    errors.date = "Date must be in format YYYY-MM-DD";
+    errors.date = "Date must be in format DD/MM/YYYY";
     valid = false;
-  } else if (isNaN(new Date(values.date).getTime())) {
-    errors.date = "Not a valid date.";
-    valid = false;
+  } else {
+    const [day, month, year] = values.date.split("/");
+    const d = new Date(`${year}-${month}-${day}`);
+    if (isNaN(d.getTime())) {
+      errors.date = "Not a valid date.";
+      valid = false;
+    }
   }
+
   const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
   if (!values.time.trim()) {
     errors.time = "Time is required.";
@@ -206,13 +212,13 @@ function FormFields({ values, setValues, errors }) {
           style={[s.input, errors.date && s.inputError]}
           value={values.date}
           onChangeText={(v) => setValues((p) => ({ ...p, date: v }))}
-          placeholder="YYYY-MM-DD"
+          placeholder="DD/MM/YYYY"
           placeholderTextColor="#aaa"
         />
         {errors.date ? (
           <Text style={s.errorText}>{errors.date}</Text>
         ) : (
-          <Text style={s.hintText}>Format: YYYY-MM-DD — e.g. 2026-05-15</Text>
+          <Text style={s.hintText}>Format: DD/MM/YYYY — e.g. 15/05/2026</Text>
         )}
       </View>
 
@@ -305,10 +311,17 @@ export default function EventsScreen() {
 
   const openEdit = (item) => {
     setEditTarget(item);
+
+    // המר תאריך מ-YYYY-MM-DD ל-DD/MM/YYYY
+    const dateForDisplay =
+      item.date && item.date.includes("-")
+        ? item.date.split("-").reverse().join("/")
+        : item.date;
+
     setForm({
       title: item.title,
       description: item.description,
-      date: item.date,
+      date: dateForDisplay, // ← שני זה
       time: item.time || "",
       location: item.location,
       group: item.group,
@@ -323,9 +336,14 @@ export default function EventsScreen() {
     setFormErrors(errors);
     if (!valid) return;
     try {
-      await updateEvent(editTarget.id, form);
+      // המר DD/MM/YYYY ל-YYYY-MM-DD לפני שמירה
+      const [day, month, year] = form.date.split("/");
+      const isoDate = `${year}-${month}-${day}`;
+      const formWithIso = { ...form, date: isoDate };
+
+      await updateEvent(editTarget.id, formWithIso);
       setEvents((p) =>
-        p.map((e) => (e.id === editTarget.id ? { ...e, ...form } : e)),
+        p.map((e) => (e.id === editTarget.id ? { ...e, ...formWithIso } : e)),
       );
     } catch (e) {
       console.error(e);
@@ -338,8 +356,13 @@ export default function EventsScreen() {
     setNewErrors(errors);
     if (!valid) return;
     try {
+      // המר DD/MM/YYYY ל-YYYY-MM-DD לפני שמירה
+      const [day, month, year] = newForm.date.split("/");
+      const isoDate = `${year}-${month}-${day}`;
+
       const newEvent = await addEvent({
         ...newForm,
+        date: isoDate, // ← שמור בפורמט ISO
         groupLabel:
           FILTERS.find((f) => f.key === newForm.group)?.label || "All Groups",
       });
@@ -382,7 +405,10 @@ export default function EventsScreen() {
             </Text>
           </View>
           <Text style={s.dateText}>
-            📅 {item.date} {item.time}
+            {item.date && item.date.includes("-")
+              ? item.date.split("-").reverse().join("/")
+              : item.date}{" "}
+            {item.time}
           </Text>
         </View>
         <Pressable onPress={() => goToDetail(item)}>
@@ -390,7 +416,7 @@ export default function EventsScreen() {
           <Text style={s.cardDesc} numberOfLines={2}>
             {item.description}
           </Text>
-          <Text style={s.cardLoc}>📍 {item.location}</Text>
+          <Text style={s.cardLoc}> {item.location}</Text>
         </Pressable>
         <View style={s.btnRow}>
           <Pressable
