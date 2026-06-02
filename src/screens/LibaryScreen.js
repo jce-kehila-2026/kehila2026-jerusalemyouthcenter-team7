@@ -132,7 +132,11 @@ export default function LibaryScreen() {
   const filtered = isAdmin
     ? activeFilter === "all"
       ? materials
-      : materials.filter((m) => m.group === activeFilter)
+      : activeFilter === "all_groups"
+        ? materials.filter((m) => m.group === "all_groups")
+        : materials.filter(
+            (m) => m.group === activeFilter || m.group === "all_groups",
+          )
     : materials.filter(
         (m) => m.group === "all_groups" || m.group === studentGroup,
       );
