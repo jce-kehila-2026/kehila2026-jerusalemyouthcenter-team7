@@ -10,7 +10,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { auth, db } from "../firebase/firebase";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-export type UserRole = "student" | "admin";
+export type UserRole = "singer" | "admin";
 
 export type UserType = {
   uid: string;
@@ -57,7 +57,8 @@ type AuthContextType = {
     password: string,
     role: UserRole,
   ) => Promise<boolean>;
-  // Only students self-register; admins are added manually in Firebase
+  // Singers submit a join request; admins approve/reject from their side
+  submitJoinRequest: (payload: StudentSignupPayload) => Promise<boolean>;
   signupStudent: (payload: StudentSignupPayload) => Promise<boolean>;
   logout: () => void;
 };
@@ -79,12 +80,12 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
       if (fb) {
         try {
           // Check students collection first
-          let snap = await getDoc(doc(db, "students", fb.uid));
+          let snap = await getDoc(doc(db, "singers", fb.uid));
           if (snap.exists()) {
             const d = snap.data();
             setUser({
               uid: fb.uid,
-              role: "student",
+              role: "singer",
               full_name: d.full_name,
               email: d.email ?? null,
               phone: d.phone ?? null,
@@ -138,20 +139,20 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
   ): Promise<boolean> => {
     try {
       // Students use phone (mapped to email), Admins use direct email
-      const email = role === "student" ? phoneToEmail(identifier) : identifier;
+      const email = role === "singer" ? phoneToEmail(identifier) : identifier;
       const result = await signInWithEmailAndPassword(auth, email, password);
       const fbUser = result.user;
 
       // Check the appropriate collection based on the intended role
-      const collectionName = role === "student" ? "students" : "admins";
+      const collectionName = role === "singer" ? "singers" : "admins";
       const snap = await getDoc(doc(db, collectionName, fbUser.uid));
 
       if (snap.exists()) {
         const d = snap.data();
-        if (role === "student") {
+        if (role === "singer") {
           setUser({
             uid: fbUser.uid,
-            role: "student",
+            role: "singer",
             full_name: d.full_name,
             email: d.email ?? null,
             phone: d.phone ?? null,
@@ -202,9 +203,9 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
       );
       const uid = result.user.uid;
 
-      await setDoc(doc(db, "students", uid), {
+      await setDoc(doc(db, "singers", uid), {
         uid,
-        role: "student",
+        role: "singer",
         full_name: fields.full_name.trim(),
         email: fields.email?.trim() || null,
         phone: fields.phone.trim(),
@@ -229,7 +230,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
 
       setUser({
         uid,
-        role: "student",
+        role: "singer",
         full_name: fields.full_name.trim(),
         email: fields.email?.trim() || null,
         phone: fields.phone.trim(),
@@ -248,6 +249,47 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
     }
   };
 
+
+  // ── Submit join request (pending approval by admin) ──────────────────────
+  const submitJoinRequest = async (
+    payload: StudentSignupPayload,
+  ): Promise<boolean> => {
+    try {
+      const { password, ...fields } = payload;
+
+      // Save to join_requests collection with status "pending"
+      // Use phone as document ID to prevent duplicates
+      const requestId = fields.phone.replace(/\D/g, "");
+      await setDoc(doc(db, "join_requests", requestId), {
+        ...fields,
+        full_name: fields.full_name.trim(),
+        email: fields.email?.trim() || null,
+        phone: fields.phone.trim(),
+        birth_date: fields.birth_date.trim(),
+        address: fields.address.trim(),
+        neighborhood: fields.neighborhood.trim(),
+        nationality: fields.nationality.trim(),
+        school_name: fields.school_name.trim(),
+        voice_type: fields.voice_type
+          ? String(fields.voice_type).trim().toLowerCase()
+          : null,
+        food_notes: fields.food_notes.trim(),
+        parent_phone: fields.parent_phone.trim(),
+        parent_name: fields.parent_name.trim(),
+        medical_situation: fields.medical_situation.trim(),
+        // Store hashed password hint — admin will create the Firebase Auth account on approval
+        _tempPassword: password,
+        status: "pending",
+        createdAt: serverTimestamp(),
+      });
+
+      return true;
+    } catch (e: any) {
+      console.log("JOIN REQUEST ERROR:", e.message);
+      return false;
+    }
+  };
+
   // ── Logout ────────────────────────────────────────────────────────────────
   const logout = async () => {
     await signOut(auth);
@@ -260,6 +302,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         isAuthenticated: !!user,
         isLoading,
         login,
+        submitJoinRequest,
         signupStudent,
         logout,
       }}
