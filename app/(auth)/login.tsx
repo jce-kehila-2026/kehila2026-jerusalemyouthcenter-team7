@@ -119,18 +119,23 @@ export default function LoginScreen() {
     }
     setError("");
     setLoading(true);
-    const ok = await login(identifier.trim(), password, role);
+    const result = await login(identifier.trim(), password, role);
     setLoading(false);
 
-    if (ok) {
-      // Each role goes to its own tab stack
-      router.replace(
-        role === "admin" ? ("/(tabs)" as any) : ("/(tabs)" as any),
+    if (result === true) {
+      router.replace("/(tabs)" as any);
+    } else if (result === "pending") {
+      setError(
+        "⏳ Your request is still pending admin approval.\nYou will be able to log in once approved.",
+      );
+    } else if (result === "rejected") {
+      setError(
+        "❌ Your join request was not approved.\nPlease contact the administrator for more information.",
       );
     } else {
       setError(
         role === "singer"
-          ? "No singer account found with this phone number.\nPlease check and try again."
+          ? "No account found for this phone number.\nPlease check your number or sign up."
           : "No admin account found with these credentials.\nCheck your email or role selection.",
       );
     }

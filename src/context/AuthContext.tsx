@@ -5,7 +5,7 @@ import {
   signOut,
   User,
 } from "firebase/auth";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from "firebase/firestore";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { auth, db } from "../firebase/firebase";
 
@@ -33,7 +33,7 @@ export type StudentSignupPayload = {
   address: string;
   neighborhood: string;
   gender: "male" | "female";
-  nationality: string;
+  nationality: "palestinian" | "israeli" | "other";
   age: number;
   school_name: string;
   shirt_size: "S" | "M" | "L" | "XL";
@@ -56,7 +56,7 @@ type AuthContextType = {
     identifier: string,
     password: string,
     role: UserRole,
-  ) => Promise<boolean>;
+  ) => Promise<boolean | "pending" | "rejected">;
   // Singers submit a join request; admins approve/reject from their side
   submitJoinRequest: (payload: StudentSignupPayload) => Promise<boolean>;
   signupStudent: (payload: StudentSignupPayload) => Promise<boolean>;
@@ -136,12 +136,34 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
     identifier: string,
     password: string,
     role: UserRole,
-  ): Promise<boolean> => {
+  ): Promise<boolean | "pending" | "rejected"> => {
     try {
       // Students use phone (mapped to email), Admins use direct email
       const email = role === "singer" ? phoneToEmail(identifier) : identifier;
       const result = await signInWithEmailAndPassword(auth, email, password);
       const fbUser = result.user;
+
+      // For singers: first check if they have a pending/rejected join request
+      if (role === "singer") {
+        const email = phoneToEmail(identifier);
+        // Check join_requests by phone
+        const reqQ = query(
+          collection(db, "join_requests"),
+          where("phone", "==", identifier.trim()),
+        );
+        const reqSnap = await getDocs(reqQ);
+        if (!reqSnap.empty) {
+          const reqData = reqSnap.docs[0].data();
+          if (reqData.status === "pending") {
+            await signOut(auth);
+            return "pending"; // special signal
+          }
+          if (reqData.status === "rejected") {
+            await signOut(auth);
+            return "rejected"; // special signal
+          }
+        }
+      }
 
       // Check the appropriate collection based on the intended role
       const collectionName = role === "singer" ? "singers" : "admins";
@@ -251,36 +273,61 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
 
 
   // ── Submit join request (pending approval by admin) ──────────────────────
+  // NOTE: No Firebase Auth account is created here.
+  // The singer CANNOT log in until admin approves and creates their account.
   const submitJoinRequest = async (
     payload: StudentSignupPayload,
   ): Promise<boolean> => {
     try {
       const { password, ...fields } = payload;
 
-      // Save to join_requests collection with status "pending"
-      // Use phone as document ID to prevent duplicates
+      // Use phone digits as document ID to prevent duplicates
       const requestId = fields.phone.replace(/\D/g, "");
+
+      // Check for existing request
+      const existing = await getDoc(doc(db, "join_requests", requestId));
+      if (existing.exists()) {
+        const d = existing.data();
+        if (d.status === "pending" || d.status === "approved") {
+          // Already submitted
+          return false;
+        }
+      }
+
       await setDoc(doc(db, "join_requests", requestId), {
-        ...fields,
         full_name: fields.full_name.trim(),
         email: fields.email?.trim() || null,
         phone: fields.phone.trim(),
         birth_date: fields.birth_date.trim(),
         address: fields.address.trim(),
         neighborhood: fields.neighborhood.trim(),
+        gender: fields.gender,
         nationality: fields.nationality.trim(),
+        age: fields.age,
         school_name: fields.school_name.trim(),
+        shirt_size: fields.shirt_size,
         voice_type: fields.voice_type
           ? String(fields.voice_type).trim().toLowerCase()
           : null,
-        food_notes: fields.food_notes.trim(),
+        year_joined: fields.year_joined,
+        food_notes: fields.food_notes ? fields.food_notes.trim() : "",
+        parent_relation: fields.parent_relation,
         parent_phone: fields.parent_phone.trim(),
         parent_name: fields.parent_name.trim(),
         medical_situation: fields.medical_situation.trim(),
-        // Store hashed password hint — admin will create the Firebase Auth account on approval
-        _tempPassword: password,
+        _tempPassword: password, // used by admin to create the Auth account on approval
         status: "pending",
         createdAt: serverTimestamp(),
+      });
+
+      // Fire a notification so admin sees the bell badge immediately
+      await addDoc(collection(db, "notifications"), {
+        title: "New Singer Request 🎤",
+        body: `${fields.full_name.trim()} has submitted a join request.`,
+        type: "general",
+        is_read: false,
+        target_uid: "admin", // filtered to admins only
+        timestamp: new Date().toISOString(),
       });
 
       return true;

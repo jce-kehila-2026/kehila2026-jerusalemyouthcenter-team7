@@ -83,6 +83,7 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen name="explore" options={{ href: null }} />
+        <Tabs.Screen name="Join-requests" options={{ href: null }} />
         <Tabs.Screen name="admin" options={{ href: null }} />
         <Tabs.Screen name="student-events" options={{ href: null }} />
         <Tabs.Screen name="student-calender" options={{ href: null }} />

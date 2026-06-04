@@ -16,7 +16,7 @@ import { notifColor, notifIcon } from "@/src/utils/notifMeta";
 import { timeAgo } from "@/src/utils/timeUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, onSnapshot, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -86,6 +86,7 @@ export default function DashboardScreen() {
   const isAdmin = user?.role === "admin";
 
   const [loading, setLoading] = useState(true);
+  const [pendingRequestCount, setPendingRequestCount] = useState(0);
   const [studentCount, setStudentCount] = useState((mockStudents || []).length);
   const [eventList, setEventList] = useState<DashEvent[]>(mockEvents || []);
   const [formCount, setFormCount] = useState((mockForms || []).length);
@@ -129,6 +130,15 @@ export default function DashboardScreen() {
       return;
     }
 
+        // Real-time pending join requests count (admin only)
+    let unsubRequests = () => {};
+    if (isAdmin) {
+      const reqQ = query(collection(db, "join_requests"), where("status", "==", "pending"));
+      unsubRequests = onSnapshot(reqQ, (snap) => {
+        setPendingRequestCount(snap.size);
+      });
+    }
+    
     // One-time fetch for non-realtime collections
     const fetchStatic = async () => {
       try {
@@ -198,6 +208,7 @@ export default function DashboardScreen() {
     return () => {
       unsubNotif();
       unsubMessages();
+      unsubRequests();
     };
   }, [user?.uid]);
 

@@ -38,9 +38,16 @@ export const notificationService = {
           ...(d.data() as Omit<FirestoreNotification, 'id'>),
         }));
 
-        // Students only see notifications aimed at them or at everyone
+        // Filter based on role:
+        // - Admin (no targetUid passed): sees notifs with no target_uid OR target_uid === "admin"
+        // - Singer (targetUid = their uid): sees notifs with no target_uid OR target_uid === their uid
         if (targetUid) {
+          // Singer: only their own + global (no target)
           notifs = notifs.filter(n => !n.target_uid || n.target_uid === targetUid);
+        }else {
+          // Admin: global (no target) + admin-targeted ones
+          notifs = notifs.filter(
+            n => !n.target_uid || n.target_uid === 'admin');
         }
 
         callback(notifs);
@@ -73,6 +80,7 @@ export const notificationService = {
   },
 
   async markAllRead(ids: string[]): Promise<void> {
-    await Promise.all(ids.map(id => updateDoc(doc(db, 'notifications', id), { is_read: true })));
+    await Promise.all(ids.map(id => 
+      updateDoc(doc(db, 'notifications', id), { is_read: true })));
   },
 };
