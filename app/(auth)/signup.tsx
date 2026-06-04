@@ -13,7 +13,6 @@ import {
   TextInput,
   View,
   Image,
-  Alert,
 } from "react-native";
 import Svg, {
   Circle,
@@ -216,10 +215,11 @@ const EMPTY: FormState = {
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 export default function SignupScreen() {
-  const { signupStudent, submitJoinRequest } = useAuth();
+  const { submitJoinRequest } = useAuth();
   const router = useRouter();
 
   const [step, setStep] = useState(1);
+  const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -311,7 +311,7 @@ export default function SignupScreen() {
       address: form.address.trim(),
       neighborhood: form.neighborhood.trim(),
       gender: form.gender as "male" | "female",
-      nationality: form.nationality as "Palestinian" | "Israeli" | "Other",
+      nationality: form.nationality.toLowerCase() as "palestinian" | "israeli" | "other",
       age: parseInt(form.age, 10),
       school_name: form.school_name.trim(),
       shirt_size: form.shirt_size as "S" | "M" | "L" | "XL",
@@ -330,15 +330,11 @@ export default function SignupScreen() {
       password: form.password,
     };
 
-    const ok = await signupStudent(payload);
+    const ok = await submitJoinRequest(payload);
     setLoading(false);
 
      if (ok) {
-      Alert.alert(
-        "Request Sent! 🎶",
-        "Your request to join has been sent to the admin.\nYou will be notified once your account is approved.",
-        [{ text: "OK", onPress: () => router.replace("/(auth)/login" as any) }]
-      );
+      setSubmitted(true);
     } else {
       setError(
         "Could not send join request. This phone number may already be registered.",
@@ -575,6 +571,33 @@ export default function SignupScreen() {
       );
   };
 
+  if (submitted) {
+    return (
+      <View style={s.successContainer}>
+        <View style={s.successCard}>
+          <View style={s.successIconWrap}>
+            <Text style={s.successEmoji}>🎶</Text>
+          </View>
+          <Text style={s.successTitle}>Request Sent!</Text>
+          <Text style={s.successBody}>
+            {"Your request to join Jerusalem Youth Chorus has been sent to the admin.\n\nYou will be notified once your account is approved."}
+          </Text>
+          <View style={s.successDots}>
+            {["#0fb8b8", "#c0342c", "#e8a820"].map((c) => (
+              <View key={c} style={[s.successDot, { backgroundColor: c }]} />
+            ))}
+          </View>
+          <Pressable
+            style={s.successBtn}
+            onPress={() => router.replace("/(auth)/login" as any)}
+          >
+            <Text style={s.successBtnTxt}>Back to Login</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={s.container}
@@ -788,4 +811,15 @@ const s = StyleSheet.create({
     gap: 8,
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
+
+  successContainer: { flex: 1, backgroundColor: "#f0fafa", alignItems: "center", justifyContent: "center", padding: 24 },
+  successCard: { backgroundColor: "#fff", borderRadius: 24, padding: 32, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 6, width: "100%" },
+  successIconWrap: { width: 90, height: 90, borderRadius: 45, backgroundColor: "#e6fafa", alignItems: "center", justifyContent: "center", marginBottom: 20 },
+  successEmoji: { fontSize: 44 },
+  successTitle: { fontSize: 26, fontWeight: "800", color: "#0d1717", marginBottom: 12, textAlign: "center" },
+  successBody: { fontSize: 15, color: "#687076", textAlign: "center", lineHeight: 22, marginBottom: 24 },
+  successDots: { flexDirection: "row", gap: 8, marginBottom: 28 },
+  successDot: { width: 10, height: 10, borderRadius: 5 },
+  successBtn: { backgroundColor: "#0fb8b8", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 40, shadowColor: "#0fb8b8", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  successBtnTxt: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });
