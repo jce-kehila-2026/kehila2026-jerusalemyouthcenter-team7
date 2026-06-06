@@ -7,6 +7,7 @@ import { notifColor, notifIcon } from '@/src/utils/notifMeta';
 import { timeAgo } from '@/src/utils/timeUtils';
 import { Ionicons } from '@expo/vector-icons';
 import {
+  addDoc,
   collection,
   doc,
   onSnapshot,
@@ -16,7 +17,6 @@ import {
   setDoc,
   updateDoc,
   where,
-  addDoc,
 } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
 import React, { useEffect, useState } from 'react';
@@ -34,6 +34,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
+type Tab = 'alerts' | 'messages' | 'requests';
+
 type JoinRequest = {
   id: string;
   full_name: string;
@@ -220,17 +222,21 @@ export default function NotificationsScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
 
-  const [activeTab, setActiveTab] = useState<'notifications' | 'requests'>('notifications');
+  const isAdmin = user?.role === 'admin';
+  const [activeTab, setActiveTab] = useState<Tab>('alerts');
+
+  // Notifications state
   const [notifs, setNotifs] = useState<FirestoreNotification[]>([]);
   const [notifsLoading, setNotifsLoading] = useState(true);
+
+  // Join requests state (admin only)
   const [requests, setRequests] = useState<JoinRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<JoinRequest | null>(null);
 
-  // Notifications: exclude admin-targeted singer-request notifs (those live in Join Requests tab)
+  // Real-time notifications subscription
   useEffect(() => {
     if (!user) { setNotifsLoading(false); return; }
     const unsub = notificationService.subscribe(
@@ -246,7 +252,7 @@ export default function NotificationsScreen() {
     return unsub;
   }, [user?.uid]);
 
-  // Pending join requests (admin only, real-time)
+  // Real-time join requests subscription (admin only)
   useEffect(() => {
     if (!isAdmin) { setRequestsLoading(false); return; }
     const q = query(
@@ -261,8 +267,15 @@ export default function NotificationsScreen() {
     return unsub;
   }, [isAdmin]);
 
-  const unreadCount = notifs.filter(n => !n.is_read).length;
+  // Split notifications by type
+  const alertItems = notifs.filter(n => n.type !== 'message');
+  const messageItems = notifs.filter(n => n.type === 'message');
+  const visibleNotifs = activeTab === 'alerts' ? alertItems : messageItems;
+
+  const alertUnread = alertItems.filter(n => !n.is_read).length;
+  const msgUnread = messageItems.filter(n => !n.is_read).length;
   const pendingCount = requests.length;
+  const activeUnread = activeTab === 'alerts' ? alertUnread : msgUnread;
 
   async function markRead(id: string) {
     setNotifs(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
@@ -270,8 +283,8 @@ export default function NotificationsScreen() {
   }
 
   async function markAllRead() {
-    const ids = notifs.filter(n => !n.is_read).map(n => n.id);
-    setNotifs(prev => prev.map(n => ({ ...n, is_read: true })));
+    const ids = visibleNotifs.filter(n => !n.is_read).map(n => n.id);
+    setNotifs(prev => prev.map(n => ids.includes(n.id) ? { ...n, is_read: true } : n));
     try { await notificationService.markAllRead(ids); } catch (e) { console.error(e); }
   }
 
@@ -287,13 +300,11 @@ export default function NotificationsScreen() {
             setProcessingId(req.id);
             setSelectedRequest(null);
             try {
-              // 1. Create Firebase Auth account
               const credential = await createUserWithEmailAndPassword(
                 getAuth(), phoneToEmail(req.phone), req._tempPassword,
               );
               const uid = credential.user.uid;
 
-              // 2. Save singer to Firestore
               await setDoc(doc(db, 'singers', uid), {
                 uid, role: 'singer',
                 full_name: req.full_name, email: req.email || null, phone: req.phone,
@@ -306,10 +317,8 @@ export default function NotificationsScreen() {
                 year_id: 1, group_id: null, createdAt: serverTimestamp(),
               });
 
-              // 3. Mark request as approved (removes it from pending list immediately)
               await updateDoc(doc(db, 'join_requests', req.id), { status: 'approved' });
 
-              // 4. Send approval notification to the singer (informational only)
               await addDoc(collection(db, 'notifications'), {
                 title: '🎉 Welcome to Jerusalem Youth Chorus!',
                 body: 'Your request to join has been approved. You can now log in with your phone number.',
@@ -343,7 +352,6 @@ export default function NotificationsScreen() {
             setProcessingId(req.id);
             setSelectedRequest(null);
             try {
-              // Update status — request disappears from pending list immediately
               await updateDoc(doc(db, 'join_requests', req.id), { status: 'rejected' });
             } catch (e: any) {
               Alert.alert('Error', e.message);
@@ -370,88 +378,116 @@ export default function NotificationsScreen() {
       {/* Header */}
       <View style={s.header}>
         <Text style={[s.title, { color: theme.text }]}>Notifications</Text>
-        {activeTab === 'notifications' && unreadCount > 0 && (
+        {activeTab !== 'requests' && activeUnread > 0 && (
           <Pressable style={s.markAllBtn} onPress={markAllRead}>
             <Text style={s.markAllTxt}>Mark all read</Text>
           </Pressable>
         )}
       </View>
 
-      {/* Tab bar — admin only */}
-      {isAdmin && (
-        <View style={[s.tabBar, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      {/* Tab bar */}
+      <View style={[s.tabBar, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <Pressable
+          style={[s.tabPill, activeTab === 'alerts' && { backgroundColor: AppColors.primary }]}
+          onPress={() => setActiveTab('alerts')}
+        >
+          <Ionicons name="notifications-outline" size={15} color={activeTab === 'alerts' ? '#fff' : theme.subtext} />
+          <Text style={[s.tabTxt, activeTab === 'alerts' && { color: '#fff' }]}>Alerts</Text>
+          {alertUnread > 0 && (
+            <View style={[s.tabBadge, { backgroundColor: activeTab === 'alerts' ? 'rgba(255,255,255,0.25)' : AppColors.danger }]}>
+              <Text style={s.tabBadgeTxt}>{alertUnread}</Text>
+            </View>
+          )}
+        </Pressable>
+
+        <Pressable
+          style={[s.tabPill, activeTab === 'messages' && { backgroundColor: AppColors.purple }]}
+          onPress={() => setActiveTab('messages')}
+        >
+          <Ionicons name="chatbubble-outline" size={15} color={activeTab === 'messages' ? '#fff' : theme.subtext} />
+          <Text style={[s.tabTxt, activeTab === 'messages' && { color: '#fff' }]}>Messages</Text>
+          {msgUnread > 0 && (
+            <View style={[s.tabBadge, { backgroundColor: activeTab === 'messages' ? 'rgba(255,255,255,0.25)' : AppColors.purple }]}>
+              <Text style={s.tabBadgeTxt}>{msgUnread}</Text>
+            </View>
+          )}
+        </Pressable>
+
+        {isAdmin && (
           <Pressable
-            style={[s.tabPill, activeTab === 'notifications' && { backgroundColor: AppColors.primary }]}
-            onPress={() => setActiveTab('notifications')}
-          >
-            <Ionicons name="notifications-outline" size={15} color={activeTab === 'notifications' ? '#fff' : theme.subtext} />
-            <Text style={[s.tabTxt, activeTab === 'notifications' && { color: '#fff' }]}>
-              {`Notifications${unreadCount > 0 ? ` (${unreadCount})` : ''}`}
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[s.tabPill, activeTab === 'requests' && { backgroundColor: AppColors.primary }]}
+            style={[s.tabPill, activeTab === 'requests' && { backgroundColor: AppColors.secondary }]}
             onPress={() => setActiveTab('requests')}
           >
             <Ionicons name="person-add-outline" size={15} color={activeTab === 'requests' ? '#fff' : theme.subtext} />
-            <Text style={[s.tabTxt, activeTab === 'requests' && { color: '#fff' }]}>
-              {`Join Requests${pendingCount > 0 ? ` (${pendingCount})` : ''}`}
-            </Text>
-            {pendingCount > 0 && activeTab !== 'requests' && (
-              <View style={s.tabBadge}><Text style={s.tabBadgeTxt}>{pendingCount}</Text></View>
+            <Text style={[s.tabTxt, activeTab === 'requests' && { color: '#fff' }]}>Requests</Text>
+            {pendingCount > 0 && (
+              <View style={[s.tabBadge, { backgroundColor: activeTab === 'requests' ? 'rgba(255,255,255,0.25)' : AppColors.danger }]}>
+                <Text style={s.tabBadgeTxt}>{pendingCount}</Text>
+              </View>
             )}
           </Pressable>
-        </View>
-      )}
+        )}
+      </View>
 
-      {/* Notifications list */}
-      {activeTab === 'notifications' && (
+      {/* Alerts / Messages list */}
+      {activeTab !== 'requests' && (
         <FlatList
-          data={notifs}
+          data={visibleNotifs}
           keyExtractor={item => item.id}
           contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
             const color = notifColor(item.type);
-            // Approval/welcome notifs are informational — cannot be tapped
-            const isInfoOnly = item.title.includes('Welcome') || item.title.includes('approved');
+            const accentColor = activeTab === 'messages' ? AppColors.purple : AppColors.primary;
             return (
               <Pressable
                 style={[
                   s.card,
                   { backgroundColor: theme.card, borderColor: theme.border },
-                  !item.is_read && !isInfoOnly && [s.cardUnread, { borderLeftColor: AppColors.primary }],
-                  isInfoOnly && s.cardInfoOnly,
+                  !item.is_read && [s.cardUnread, { borderLeftColor: accentColor }],
                 ]}
-                onPress={isInfoOnly ? undefined : () => markRead(item.id)}
-                disabled={isInfoOnly}
+                onPress={() => markRead(item.id)}
               >
                 <View style={[s.iconWrap, { backgroundColor: color + '20' }]}>
                   <Ionicons name={notifIcon(item.type)} size={18} color={color} />
                 </View>
                 <View style={s.cardBody}>
                   <View style={s.cardTop}>
-                    <Text style={[s.cardTitle, { color: theme.text }, !item.is_read && !isInfoOnly && s.cardTitleBold]} numberOfLines={1}>
+                    <Text
+                      style={[s.cardTitle, { color: theme.text }, !item.is_read && s.cardTitleBold]}
+                      numberOfLines={1}
+                    >
                       {item.title}
                     </Text>
                     <Text style={[s.cardTime, { color: theme.subtext }]}>{timeAgo(item.timestamp)}</Text>
                   </View>
                   <Text style={[s.cardBodyTxt, { color: theme.subtext }]} numberOfLines={2}>{item.body}</Text>
                 </View>
-                {!item.is_read && !isInfoOnly && <View style={s.unreadDot} />}
+                {!item.is_read && <View style={[s.unreadDot, { backgroundColor: accentColor }]} />}
               </Pressable>
             );
           }}
           ListEmptyComponent={
             <View style={s.empty}>
-              <Ionicons name="notifications-off-outline" size={48} color={theme.subtext} />
-              <Text style={[s.emptyTxt, { color: theme.subtext }]}>No notifications</Text>
+              <Ionicons
+                name={activeTab === 'alerts' ? 'notifications-off-outline' : 'chatbubble-ellipses-outline'}
+                size={48}
+                color={theme.subtext}
+              />
+              <Text style={[s.emptyTxt, { color: theme.text }]}>
+                {activeTab === 'alerts' ? 'No alerts' : 'No message notifications'}
+              </Text>
+              <Text style={[s.emptySubtxt, { color: theme.subtext }]}>
+                {activeTab === 'alerts'
+                  ? 'Event and form notifications will appear here'
+                  : 'Notifications from messages will appear here'}
+              </Text>
             </View>
           }
         />
       )}
 
-      {/* Join Requests list — admin only */}
+      {/* Join Requests list (admin only) */}
       {activeTab === 'requests' && isAdmin && (
         requestsLoading ? (
           <View style={s.center}><ActivityIndicator size="large" color={AppColors.primary} /></View>
@@ -474,7 +510,7 @@ export default function NotificationsScreen() {
             ListEmptyComponent={
               <View style={s.empty}>
                 <Ionicons name="checkmark-done-circle-outline" size={52} color={theme.subtext} />
-                <Text style={[s.emptyTxt, { color: theme.subtext }]}>No pending requests</Text>
+                <Text style={[s.emptyTxt, { color: theme.text }]}>No pending requests</Text>
                 <Text style={[s.emptySubtxt, { color: theme.subtext }]}>All caught up! 🎉</Text>
               </View>
             }
@@ -495,6 +531,7 @@ export default function NotificationsScreen() {
   );
 }
 
+// ── Styles ─────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -503,23 +540,22 @@ const s = StyleSheet.create({
   markAllBtn: { backgroundColor: AppColors.primaryLight, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
   markAllTxt: { color: AppColors.primary, fontSize: 13, fontWeight: '600' },
   tabBar: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 12, borderRadius: 12, borderWidth: 1, padding: 4, gap: 4 },
-  tabPill: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, borderRadius: 9, position: 'relative' },
-  tabTxt: { fontSize: 13, fontWeight: '600', color: '#6b7280' },
-  tabBadge: { position: 'absolute', top: 3, right: 6, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: AppColors.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+  tabPill: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, borderRadius: 9 },
+  tabTxt: { fontSize: 12, fontWeight: '600', color: '#6b7280' },
+  tabBadge: { minWidth: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   tabBadgeTxt: { color: '#fff', fontSize: 9, fontWeight: '800' },
   list: { padding: 16, gap: 10, paddingBottom: 100 },
   card: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 14, borderWidth: 1, gap: 12 },
   cardUnread: { borderLeftWidth: 3 },
-  cardInfoOnly: { opacity: 0.85 },
   iconWrap: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   cardBody: { flex: 1 },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 },
-  cardTitle: { fontSize: 14, color: '#11181C', flex: 1, marginRight: 8 },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3, gap: 8 },
+  cardTitle: { fontSize: 14, flex: 1 },
   cardTitleBold: { fontWeight: '700' },
-  cardTime: { fontSize: 11 },
+  cardTime: { fontSize: 11, flexShrink: 0 },
   cardBodyTxt: { fontSize: 13, lineHeight: 18 },
-  unreadDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: AppColors.primary, flexShrink: 0 },
+  unreadDot: { width: 9, height: 9, borderRadius: 5, flexShrink: 0 },
   empty: { alignItems: 'center', paddingTop: 70, gap: 10 },
   emptyTxt: { fontSize: 16, fontWeight: '600' },
-  emptySubtxt: { fontSize: 13 },
+  emptySubtxt: { fontSize: 13, textAlign: 'center', lineHeight: 18, paddingHorizontal: 32 },
 });
