@@ -177,6 +177,12 @@ export default function StudentsListScreen() {
 
   const renderStudent = ({ item }: { item: StudentWithGroup }) => {
     const groupColor = getGroupColor(item.group_name);
+    const initials = item.full_name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .substring(0, 2)
+      .toUpperCase();
 
     return (
       <Pressable
@@ -189,25 +195,42 @@ export default function StudentsListScreen() {
       >
         <View style={[s.cardAccent, { backgroundColor: groupColor }]} />
         <View style={s.cardContent}>
-          <View style={s.cardHeader}>
-            <View
-              style={[s.groupBadge, { backgroundColor: groupColor + "30" }]}
-            >
-              <Text style={[s.groupBadgeText, { color: groupColor }]}>
-                {item.group_name}
+          <View
+            style={[
+              s.avatar,
+              { backgroundColor: groupColor + "20", borderColor: groupColor },
+            ]}
+          >
+            <Text style={[s.avatarText, { color: groupColor }]}>
+              {initials}
+            </Text>
+          </View>
+
+          <View style={s.studentInfo}>
+            <View style={s.cardHeader}>
+              <Text style={s.cardTitle} numberOfLines={1}>
+                {item.full_name}
               </Text>
+              <View
+                style={[s.groupBadge, { backgroundColor: groupColor + "30" }]}
+              >
+                <Text style={[s.groupBadgeText, { color: groupColor }]}>
+                  {item.group_name}
+                </Text>
+              </View>
+            </View>
+
+            <View style={s.detailsRow}>
+              <Text style={s.cardDetail}>
+                🎤{" "}
+                {item.voice_type
+                  ? item.voice_type.charAt(0).toUpperCase() +
+                    item.voice_type.slice(1)
+                  : "N/A"}
+              </Text>
+              <Text style={s.cardDetail}>📞 {item.phone || "N/A"}</Text>
             </View>
           </View>
-          <Text style={s.cardTitle}>{item.full_name}</Text>
-          <Text style={s.cardDetail}>📧 {item.email}</Text>
-          <Text style={s.cardDetail}>
-            🎤{" "}
-            {item.voice_type
-              ? item.voice_type.charAt(0).toUpperCase() +
-                item.voice_type.slice(1)
-              : "N/A"}
-          </Text>
-          <Text style={s.cardDetail}>📞 {item.phone}</Text>
         </View>
       </Pressable>
     );
@@ -224,7 +247,7 @@ export default function StudentsListScreen() {
         <View style={s.searchContainer}>
           <TextInput
             style={s.searchInput}
-            placeholder="Search students by name or email..."
+            placeholder="Search students..."
             placeholderTextColor={COLORS.gray}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -424,12 +447,30 @@ const s = StyleSheet.create({
   cardContent: {
     flex: 1,
     padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  avatarText: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  studentInfo: {
+    flex: 1,
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   groupBadge: {
     paddingHorizontal: 10,
@@ -444,7 +485,13 @@ const s = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
     color: COLORS.black,
-    marginBottom: 4,
+    flex: 1,
+    marginRight: 8,
+  },
+  detailsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   cardDetail: {
     fontSize: 13,
