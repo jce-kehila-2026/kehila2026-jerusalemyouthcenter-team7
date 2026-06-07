@@ -119,7 +119,7 @@ export default function FormsScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={() => (
             <Text style={{ textAlign: "center", marginTop: 20, color: "#888" }}>
-              لا يوجد فورمات حالياً
+              لا يوجد فورمات ح
             </Text>
           )}
           renderItem={({ item, index }) => {
