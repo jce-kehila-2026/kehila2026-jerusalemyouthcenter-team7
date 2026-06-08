@@ -76,8 +76,17 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Students auth email is derived from their phone number
-const phoneToEmail = (phone: string) =>
-  `${phone.replace(/\D/g, "")}@kehila.app`;
+const normalizeSingerPhone = (phone: string) => {
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("0") || digits.startsWith("972")) return digits;
+  return digits;
+};
+
+const phoneToEmail = (phone: string) => {
+  const digits = normalizeSingerPhone(phone);
+  return digits ? `${digits}@kehila.app` : "";
+};
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 export function AuthProvider({ children }: React.PropsWithChildren) {
@@ -89,13 +98,14 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
     const unsubscribe = onAuthStateChanged(auth, async (fb: User | null) => {
       if (fb) {
         try {
-          // Check students collection first
-          let snap = await getDoc(doc(db, "singers", fb.uid));
+          // Check users collection and load user by role
+          const snap = await getDoc(doc(db, "users", fb.uid));
           if (snap.exists()) {
             const d = snap.data();
+            const userRole = d.role as UserRole;
             setUser({
               uid: fb.uid,
-              role: "singer",
+              role: userRole,
               full_name: d.full_name,
               email: d.email ?? null,
               phone: d.phone ?? null,
@@ -107,27 +117,14 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
               current_year_id:
                 d.year_id !== undefined
                   ? Number(d.year_id)
-                  : d.year !== undefined && d.year !== null // Ensure d.year is not null
+                  : d.year !== undefined && d.year !== null
                     ? Number(d.year)
-                    : null, // Default to null if no year is found
+                    : null,
             });
           } else {
-            // Check admins collection
-            snap = await getDoc(doc(db, "admins", fb.uid));
-            if (snap.exists()) {
-              const d = snap.data();
-              setUser({
-                uid: fb.uid,
-                role: "admin",
-                full_name: d.full_name,
-                email: d.email ?? null,
-                phone: d.phone ?? null,
-              });
-            } else {
-              // UID in Auth but no Firestore doc — sign out for safety
-              await signOut(auth);
-              setUser(null);
-            }
+            // UID in Auth but no Firestore doc — sign out for safety
+            await signOut(auth);
+            setUser(null);
           }
         } catch (e) {
           console.log("Auth restore error:", e);
@@ -147,77 +144,152 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
     password: string,
     role: UserRole,
   ): Promise<boolean | "pending" | "rejected"> => {
+    let email = identifier;
+    let singerPhone = "";
     try {
-      // Students use phone (mapped to email), Admins use direct email
-      const email = role === "singer" ? phoneToEmail(identifier) : identifier;
+      if (role === "singer") {
+        singerPhone = normalizeSingerPhone(identifier);
+        if (!singerPhone) {
+          console.log("LOGIN ERROR: invalid singer phone", identifier);
+          return false;
+        }
+
+        // If the phone request already exists, return pending/rejected state before trying auth
+        const requestDoc = await getDoc(doc(db, "join_requests", singerPhone));
+        if (requestDoc.exists()) {
+          const requestData = requestDoc.data();
+          if (requestData.status === "pending") {
+            return "pending";
+          }
+          if (requestData.status === "rejected") {
+            return "rejected";
+          }
+        }
+
+        email = phoneToEmail(singerPhone);
+      }
+
+      console.log("LOGIN: attempting signInWithEmailAndPassword ->", email);
       const result = await signInWithEmailAndPassword(auth, email, password);
       const fbUser = result.user;
 
-      // For singers: first check if they have a pending/rejected join request
+      // For singers: if a join request still exists, do not allow login until approved
       if (role === "singer") {
-        const email = phoneToEmail(identifier);
-        // Check join_requests by phone
-        const reqQ = query(
-          collection(db, "join_requests"),
-          where("phone", "==", identifier.trim()),
-        );
-        const reqSnap = await getDocs(reqQ);
-        if (!reqSnap.empty) {
-          const reqData = reqSnap.docs[0].data();
-          if (reqData.status === "pending") {
+        const requestDoc = await getDoc(doc(db, "join_requests", singerPhone));
+        if (requestDoc.exists()) {
+          const requestData = requestDoc.data();
+          if (requestData.status === "pending") {
             await signOut(auth);
-            return "pending"; // special signal
+            return "pending";
           }
-          if (reqData.status === "rejected") {
+          if (requestData.status === "rejected") {
             await signOut(auth);
-            return "rejected"; // special signal
+            return "rejected";
           }
         }
       }
 
-      // Check the appropriate collection based on the intended role
-      // const collectionName = role === "singer" ? "singers" : "admins";
-
+      // Check users collection and verify role matches
       const snap = await getDoc(doc(db, "users", fbUser.uid));
 
       if (snap.exists()) {
         const d = snap.data();
-        if (role === "singer") {
-          setUser({
-            uid: fbUser.uid,
-            role: "singer",
-            full_name: d.full_name,
-            email: d.email ?? null,
-            phone: d.phone ?? null,
-            school_name: d.school_name ?? null,
-            voice_type: d.voice_type
-              ? String(d.voice_type).trim().toLowerCase()
-              : null,
-            group_id: d.group_id ?? null,
-            current_year_id:
-              d.group_id !== undefined && d.group_id !== null
-                ? Number(d.group_id)
-                : d.year_id !== undefined
-                  ? Number(d.year_id)
-                  : null,
-          });
-        } else {
-          setUser({
-            uid: fbUser.uid,
-            role: "admin",
-            full_name: d.full_name,
-            email: d.email ?? null,
-            phone: d.phone ?? null,
-          });
+        const userRole = d.role as UserRole;
+
+        // Verify the user has the expected role
+        if (userRole !== role) {
+          console.log(`Role mismatch: expected ${role}, got ${userRole}`);
+          await signOut(auth);
+          return false;
         }
+
+        setUser({
+          uid: fbUser.uid,
+          role: userRole,
+          full_name: d.full_name,
+          email: d.email ?? null,
+          phone: d.phone ?? null,
+          school_name: d.school_name ?? null,
+          voice_type: d.voice_type
+            ? String(d.voice_type).trim().toLowerCase()
+            : null,
+          group_id: d.group_id ?? null,
+          current_year_id:
+            d.year_id !== undefined
+              ? Number(d.year_id)
+              : d.year !== undefined && d.year !== null
+                ? Number(d.year)
+                : null,
+        });
         return true;
       } else {
-        // Profile doesn't exist in the selected role's collection
+        // Profile doesn't exist in users collection
         await signOut(auth);
         return false;
       }
     } catch (e: any) {
-      console.log("LOGIN ERROR:", e.message);
+      console.log("LOGIN ERROR:", e.code ?? e.message ?? e);
+
+      if (role === "singer") {
+        const digits = normalizeSingerPhone(identifier);
+        if (!digits) {
+          return false;
+        }
+
+        const variants = new Set<string>([digits]);
+        if (digits.startsWith("0")) {
+          variants.add("972" + digits.slice(1));
+        }
+        if (digits.startsWith("972")) {
+          variants.add("0" + digits.slice(3));
+        }
+
+        for (const v of variants) {
+          const tryEmail = `${v}@kehila.app`;
+          if (tryEmail === email) continue;
+          try {
+            console.log("LOGIN: retrying with variant ->", tryEmail);
+            const res = await signInWithEmailAndPassword(
+              auth,
+              tryEmail,
+              password,
+            );
+            const fbUser = res.user;
+
+            const snap = await getDoc(doc(db, "users", fbUser.uid));
+            if (snap.exists()) {
+              const d = snap.data();
+              setUser({
+                uid: fbUser.uid,
+                role: "singer",
+                full_name: d.full_name,
+                email: d.email ?? null,
+                phone: d.phone ?? null,
+                school_name: d.school_name ?? null,
+                voice_type: d.voice_type
+                  ? String(d.voice_type).trim().toLowerCase()
+                  : null,
+                group_id: d.group_id ?? null,
+                current_year_id:
+                  d.year_id !== undefined
+                    ? Number(d.year_id)
+                    : d.year !== undefined && d.year !== null
+                      ? Number(d.year)
+                      : null,
+              });
+              return true;
+            } else {
+              await signOut(auth);
+            }
+          } catch (err: any) {
+            console.log(
+              "variant login failed:",
+              err?.code ?? err?.message ?? err,
+            );
+          }
+        }
+      }
+
       return false;
     }
   };
@@ -236,7 +308,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
       );
       const uid = result.user.uid;
 
-      await setDoc(doc(db, "singers", uid), {
+      await setDoc(doc(db, "users", uid), {
         uid,
         role: "singer",
         full_name: fields.full_name.trim(),
@@ -253,7 +325,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         voice_type: fields.voice_type
           ? String(fields.voice_type).trim().toLowerCase()
           : null,
-        year_id: 1, // Ensure year_id is saved to Firestore
+        year_id: 1,
         year_joined: fields.year_joined,
         food_notes: fields.food_notes.trim(),
         parent_relation: fields.parent_relation,
@@ -272,7 +344,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
           ? String(fields.voice_type).trim().toLowerCase()
           : null,
         group_id: null,
-        current_year_id: 1, // Default to Year 1 for new signups
+        current_year_id: 1,
       });
 
       return true;
@@ -330,15 +402,24 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         createdAt: serverTimestamp(),
       });
 
-      // Fire a notification so admin sees the bell badge immediately
-      await addDoc(collection(db, "notifications"), {
-        title: "New Singer Request 🎤",
-        body: `${fields.full_name.trim()} has submitted a join request.`,
-        type: "general",
-        is_read: false,
-        target_uid: "admin", // filtered to admins only
-        timestamp: new Date().toISOString(),
-      });
+      // Fire a notification so admins see the bell badge immediately
+      // Query for all admin users and send them the notification
+      const adminQ = query(
+        collection(db, "users"),
+        where("role", "==", "admin"),
+      );
+      const adminSnap = await getDocs(adminQ);
+
+      for (const adminDoc of adminSnap.docs) {
+        await addDoc(collection(db, "notifications"), {
+          title: "New Singer Request 🎤",
+          body: `${fields.full_name.trim()} has submitted a join request.`,
+          type: "general",
+          is_read: false,
+          target_uid: adminDoc.id, // send to each admin
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       return true;
     } catch (e: any) {

@@ -1,11 +1,12 @@
 import { AppColors, Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/src/context/AuthContext";
+import { notificationService } from "@/src/data/notificationService";
 import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
+import { createUserWithEmailAndPassword, getAuth } from "firebase/auth";
 import {
   collection,
-  deleteDoc,
   doc,
   onSnapshot,
   orderBy,
@@ -14,21 +15,19 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
-import { createUserWithEmailAndPassword, getAuth } from "firebase/auth";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  Modal,
 } from "react-native";
-import { notificationService } from "@/src/data/notificationService";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 export type JoinRequest = {
@@ -94,17 +93,26 @@ function RequestDetail({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={[m.container, { backgroundColor: theme.background }]}>
+      <SafeAreaView
+        style={[m.container, { backgroundColor: theme.background }]}
+      >
         <View style={m.header}>
-          <Text style={[m.title, { color: theme.text }]}>{request.full_name}</Text>
+          <Text style={[m.title, { color: theme.text }]}>
+            {request.full_name}
+          </Text>
           <Pressable onPress={onClose} style={m.closeBtn}>
             <Ionicons name="close" size={22} color={theme.text} />
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={m.body}>
           {rows.map(([label, value]) => (
-            <View key={label} style={[m.row, { borderBottomColor: theme.border }]}>
-              <Text style={[m.rowLabel, { color: theme.subtext }]}>{label}</Text>
+            <View
+              key={label}
+              style={[m.row, { borderBottomColor: theme.border }]}
+            >
+              <Text style={[m.rowLabel, { color: theme.subtext }]}>
+                {label}
+              </Text>
               <Text style={[m.rowValue, { color: theme.text }]}>{value}</Text>
             </View>
           ))}
@@ -152,11 +160,14 @@ export default function JoinRequestsScreen() {
 
   // Real-time subscription to join_requests
   useEffect(() => {
-    const q = query(collection(db, "join_requests"), orderBy("createdAt", "desc"));
+    const q = query(
+      collection(db, "join_requests"),
+      orderBy("createdAt", "desc"),
+    );
     const unsub = onSnapshot(q, (snap) => {
-        const data = snap.docs
-          .map((d) => ({ id: d.id, ...(d.data() as Omit<JoinRequest, "id">)}))
-          .filter((r) => r.status !== "rejected");
+      const data = snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as Omit<JoinRequest, "id">) }))
+        .filter((r) => r.status !== "rejected");
       setRequests(data);
       setLoading(false);
     });
@@ -180,7 +191,6 @@ export default function JoinRequestsScreen() {
         {
           text: "Approve",
           onPress: async () => {
-            
             setProcessingId(req.target_uid);
             try {
               const firebaseAuth = getAuth();
@@ -191,8 +201,8 @@ export default function JoinRequestsScreen() {
               );
               const uid = credential.user.uid;
 
-              // Create singer document
-              await setDoc(doc(db, "singers", uid), {
+              // Create user document in unified users collection
+              await setDoc(doc(db, "users", uid), {
                 uid,
                 role: "singer",
                 full_name: req.full_name,
@@ -233,7 +243,10 @@ export default function JoinRequestsScreen() {
                 timestamp: serverTimestamp() as any,
               });
 
-              Alert.alert("✅ Approved", `${req.full_name}'s account has been created.`);
+              Alert.alert(
+                "✅ Approved",
+                `${req.full_name}'s account has been created.`,
+              );
             } catch (e: any) {
               console.error("Approve error:", e);
               Alert.alert("Error", e.message || "Could not approve request.");
@@ -248,29 +261,25 @@ export default function JoinRequestsScreen() {
 
   // ── Reject ───────────────────────────────────────────────────────────────────
   const handleReject = async (req: JoinRequest) => {
-    Alert.alert(
-      "Reject Request",
-      `Reject ${req.full_name}'s join request?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reject",
-          style: "destructive",
-          onPress: async () => {
-            setProcessingId(req.target_uid);
-            try {
-              await updateDoc(doc(db, "join_requests", req.target_uid), {
-                status: "rejected",
-              });
-            } catch (e: any) {
-              Alert.alert("Error", e.message);
-            } finally {
-              setProcessingId(null);
-            }
-          },
+    Alert.alert("Reject Request", `Reject ${req.full_name}'s join request?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Reject",
+        style: "destructive",
+        onPress: async () => {
+          setProcessingId(req.target_uid);
+          try {
+            await updateDoc(doc(db, "join_requests", req.target_uid), {
+              status: "rejected",
+            });
+          } catch (e: any) {
+            Alert.alert("Error", e.message);
+          } finally {
+            setProcessingId(null);
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   // ── Card ─────────────────────────────────────────────────────────────────────
@@ -282,27 +291,44 @@ export default function JoinRequestsScreen() {
       alto: "#f59e0b",
       soprano: "#ec4899",
     };
-    const voiceColor = voiceColors[item.voice_type?.toLowerCase()] ?? AppColors.primary;
+    const voiceColor =
+      voiceColors[item.voice_type?.toLowerCase()] ?? AppColors.primary;
 
     return (
       <Pressable
         onPress={() => setSelected(item)}
-        style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}
+        style={[
+          s.card,
+          { backgroundColor: theme.card, borderColor: theme.border },
+        ]}
       >
         <View style={[s.cardAccent, { backgroundColor: voiceColor }]} />
         <View style={s.cardBody}>
           <View style={s.cardTop}>
-            <Text style={[s.name, { color: theme.text }]}>{item.full_name}</Text>
-            <View style={[s.voiceBadge, { backgroundColor: voiceColor + "22" }]}>
+            <Text style={[s.name, { color: theme.text }]}>
+              {item.full_name}
+            </Text>
+            <View
+              style={[s.voiceBadge, { backgroundColor: voiceColor + "22" }]}
+            >
               <Text style={[s.voiceText, { color: voiceColor }]}>
-                {item.voice_type ? item.voice_type.charAt(0).toUpperCase() + item.voice_type.slice(1) : "—"}
+                {item.voice_type
+                  ? item.voice_type.charAt(0).toUpperCase() +
+                    item.voice_type.slice(1)
+                  : "—"}
               </Text>
             </View>
           </View>
 
-          <Text style={[s.detail, { color: theme.subtext }]}>📞 {item.phone}</Text>
-          <Text style={[s.detail, { color: theme.subtext }]}>🏫 {item.school_name}</Text>
-          <Text style={[s.detail, { color: theme.subtext }]}>🏘 {item.neighborhood}</Text>
+          <Text style={[s.detail, { color: theme.subtext }]}>
+            📞 {item.phone}
+          </Text>
+          <Text style={[s.detail, { color: theme.subtext }]}>
+            🏫 {item.school_name}
+          </Text>
+          <Text style={[s.detail, { color: theme.subtext }]}>
+            🏘 {item.neighborhood}
+          </Text>
 
           {item.status === "pending" && (
             <View style={s.actions}>
@@ -315,7 +341,11 @@ export default function JoinRequestsScreen() {
                   <ActivityIndicator size="small" color="#ef4444" />
                 ) : (
                   <>
-                    <Ionicons name="close-circle-outline" size={16} color="#ef4444" />
+                    <Ionicons
+                      name="close-circle-outline"
+                      size={16}
+                      color="#ef4444"
+                    />
                     <Text style={s.rejectTxt}>Reject</Text>
                   </>
                 )}
@@ -329,7 +359,11 @@ export default function JoinRequestsScreen() {
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <>
-                    <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
+                    <Ionicons
+                      name="checkmark-circle-outline"
+                      size={16}
+                      color="#fff"
+                    />
                     <Text style={s.approveTxt}>Approve</Text>
                   </>
                 )}
@@ -369,16 +403,26 @@ export default function JoinRequestsScreen() {
     <SafeAreaView style={[s.safe, { backgroundColor: theme.background }]}>
       {/* Header */}
       <View style={s.header}>
-        <Text style={[s.orgName, { color: AppColors.primary }]}>Jerusalem Youth Chorus</Text>
+        <Text style={[s.orgName, { color: AppColors.primary }]}>
+          Jerusalem Youth Chorus
+        </Text>
         <Text style={[s.pageTitle, { color: theme.text }]}>Join Requests</Text>
       </View>
 
       {/* Filter Tabs */}
-      <View style={[s.filterRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      <View
+        style={[
+          s.filterRow,
+          { backgroundColor: theme.card, borderColor: theme.border },
+        ]}
+      >
         {(["pending", "approved"] as const).map((f) => (
           <Pressable
             key={f}
-            style={[s.filterPill, filter === f && { backgroundColor: AppColors.primary }]}
+            style={[
+              s.filterPill,
+              filter === f && { backgroundColor: AppColors.primary },
+            ]}
             onPress={() => setFilter(f)}
           >
             <Text style={[s.filterTxt, filter === f && { color: "#fff" }]}>
@@ -480,7 +524,12 @@ const s = StyleSheet.create({
   },
   approveTxt: { color: "#fff", fontSize: 14, fontWeight: "700" },
 
-  statusRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 10 },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 10,
+  },
   statusTxt: { fontSize: 13, fontWeight: "600" },
 
   empty: { alignItems: "center", paddingTop: 60, gap: 12 },

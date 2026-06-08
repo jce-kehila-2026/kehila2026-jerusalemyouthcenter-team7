@@ -4,6 +4,7 @@ import { Link, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,21 +13,12 @@ import {
   Text,
   TextInput,
   View,
-  Image,
 } from "react-native";
-import Svg, {
-  Circle,
-  Defs,
-  Ellipse,
-  Path,
-  RadialGradient,
-  Stop,
-} from "react-native-svg";
 
 // ── Bird logo ─────────────────────────────────────────────────────────────────
 function BirdLogo({ size = 80 }: { size?: number }) {
   return (
-        <View
+    <View
       style={{
         width: size,
         height: size,
@@ -37,11 +29,10 @@ function BirdLogo({ size = 80 }: { size?: number }) {
         backgroundColor: "black", // important
       }}
     >
-     <Image
-      source={require("../../assets/images/bird-logo.jpeg")}
-      style={{ width: size * 0.9, height: size * 0.9, resizeMode: "contain" }}
-
-    />
+      <Image
+        source={require("../../assets/images/bird-logo.jpeg")}
+        style={{ width: size * 0.9, height: size * 0.9, resizeMode: "contain" }}
+      />
     </View>
   );
 }
@@ -248,7 +239,7 @@ export default function SignupScreen() {
     if (step === 1) {
       if (!form.full_name.trim()) return "Full name is required";
       if (!form.phone.trim()) return "Phone number is required";
-      if(!form.email.trim()) return "Email is required";
+      if (!form.email.trim()) return "Email is required";
       if (!form.birth_date.trim()) return "Date of birth is required";
       if (!form.gender) return "Please select your gender";
       if (!form.nationality) return "Please select your nationality";
@@ -305,13 +296,16 @@ export default function SignupScreen() {
 
     const payload: StudentSignupPayload = {
       full_name: form.full_name.trim(),
-      email: form.email.trim() ,
+      email: form.email.trim(),
       phone: form.phone.trim(),
       birth_date: form.birth_date.trim(),
       address: form.address.trim(),
       neighborhood: form.neighborhood.trim(),
       gender: form.gender as "male" | "female",
-      nationality: form.nationality.toLowerCase() as "palestinian" | "israeli" | "other",
+      nationality: form.nationality.toLowerCase() as
+        | "palestinian"
+        | "israeli"
+        | "other",
       age: parseInt(form.age, 10),
       school_name: form.school_name.trim(),
       shirt_size: form.shirt_size as "S" | "M" | "L" | "XL",
@@ -333,7 +327,7 @@ export default function SignupScreen() {
     const ok = await submitJoinRequest(payload);
     setLoading(false);
 
-     if (ok) {
+    if (ok) {
       setSubmitted(true);
     } else {
       setError(
@@ -341,7 +335,6 @@ export default function SignupScreen() {
       );
     }
   };
-
 
   // ── Step content ──────────────────────────────────────────────────────────
   const renderStep = () => {
@@ -518,7 +511,7 @@ export default function SignupScreen() {
             placeholder="Parent full name"
             placeholderTextColor="#aab"
           />
-           <FL text="Parent Phone Number" req />
+          <FL text="Parent Phone Number" req />
           <TextInput
             style={inp("parent_phone")}
             {...fld("parent_phone")}
@@ -539,7 +532,6 @@ export default function SignupScreen() {
             numberOfLines={3}
           />
 
-
           <FL text="Password" req />
           <TextInput
             style={inp("password")}
@@ -548,7 +540,6 @@ export default function SignupScreen() {
             placeholderTextColor="#aab"
             secureTextEntry
           />
-
 
           <FL text="Confirm Password" req />
           <TextInput
@@ -580,7 +571,9 @@ export default function SignupScreen() {
           </View>
           <Text style={s.successTitle}>Request Sent!</Text>
           <Text style={s.successBody}>
-            {"Your request to join Jerusalem Youth Chorus has been sent to the admin.\n\nYou will be notified once your account is approved."}
+            {
+              "Your request to join Jerusalem Youth Chorus has been sent to the admin.\n\nYou will be notified once your account is approved."
+            }
           </Text>
           <View style={s.successDots}>
             {["#0fb8b8", "#c0342c", "#e8a820"].map((c) => (
@@ -812,14 +805,61 @@ const s = StyleSheet.create({
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
 
-  successContainer: { flex: 1, backgroundColor: "#f0fafa", alignItems: "center", justifyContent: "center", padding: 24 },
-  successCard: { backgroundColor: "#fff", borderRadius: 24, padding: 32, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 6, width: "100%" },
-  successIconWrap: { width: 90, height: 90, borderRadius: 45, backgroundColor: "#e6fafa", alignItems: "center", justifyContent: "center", marginBottom: 20 },
+  successContainer: {
+    flex: 1,
+    backgroundColor: "#f0fafa",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  successCard: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 32,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 6,
+    width: "100%",
+  },
+  successIconWrap: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "#e6fafa",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
   successEmoji: { fontSize: 44 },
-  successTitle: { fontSize: 26, fontWeight: "800", color: "#0d1717", marginBottom: 12, textAlign: "center" },
-  successBody: { fontSize: 15, color: "#687076", textAlign: "center", lineHeight: 22, marginBottom: 24 },
+  successTitle: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#0d1717",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  successBody: {
+    fontSize: 15,
+    color: "#687076",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 24,
+  },
   successDots: { flexDirection: "row", gap: 8, marginBottom: 28 },
   successDot: { width: 10, height: 10, borderRadius: 5 },
-  successBtn: { backgroundColor: "#0fb8b8", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 40, shadowColor: "#0fb8b8", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  successBtn: {
+    backgroundColor: "#0fb8b8",
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    shadowColor: "#0fb8b8",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
   successBtnTxt: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });

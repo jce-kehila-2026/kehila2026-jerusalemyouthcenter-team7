@@ -112,6 +112,15 @@ export default function LoginScreen() {
       setError("Please fill in all fields");
       return;
     }
+
+    if (role === "singer") {
+      const phoneDigits = identifier.replace(/\D/g, "");
+      if (phoneDigits.length < 5) {
+        setError("Please enter a valid phone number.");
+        return;
+      }
+    }
+
     setError("");
     setLoading(true);
     console.log("Attempting login with", { identifier, password, role });
@@ -205,7 +214,7 @@ export default function LoginScreen() {
             value={identifier}
             onChangeText={setIdentifier}
             placeholder={
-              role === "singer" ? "+972-50-000-0000" : "admin@kehila.org"
+              role === "singer" ? "+972-50-000-0000" : "admin@example.org"
             }
             placeholderTextColor="#aab"
             keyboardType={role === "singer" ? "phone-pad" : "email-address"}
