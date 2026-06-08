@@ -4,6 +4,7 @@ import { Link, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,14 +13,12 @@ import {
   Text,
   TextInput,
   View,
-  Image,   
 } from "react-native";
 // remove this entire line if not using SVG
-import Svg, { Circle, Defs, Ellipse, Path, RadialGradient, Stop } from "react-native-svg";
 
 function BirdLogo({ size = 80 }: { size?: number }) {
   return (
-        <View
+    <View
       style={{
         width: size,
         height: size,
@@ -30,11 +29,10 @@ function BirdLogo({ size = 80 }: { size?: number }) {
         backgroundColor: "black", // important
       }}
     >
-     <Image
-      source={require("../../assets/images/bird-logo.jpeg")}
-      style={{ width: size * 0.8, height: size * 0.8, resizeMode: "contain" }}
-
-    />
+      <Image
+        source={require("../../assets/images/bird-logo.jpeg")}
+        style={{ width: size * 0.8, height: size * 0.8, resizeMode: "contain" }}
+      />
     </View>
   );
 }
@@ -49,10 +47,7 @@ function RoleToggle({
   return (
     <View style={rt.wrapper}>
       <Pressable
-        style={[
-          rt.pill,
-          role === "singer" && { backgroundColor: COLORS.teal },
-        ]}
+        style={[rt.pill, role === "singer" && { backgroundColor: COLORS.teal }]}
         onPress={() => onChange("singer")}
       >
         <Text style={rt.icon}>🎤</Text>
@@ -119,6 +114,7 @@ export default function LoginScreen() {
     }
     setError("");
     setLoading(true);
+    console.log("Attempting login with", { identifier, password, role });
     const result = await login(identifier.trim(), password, role);
     setLoading(false);
 
@@ -160,7 +156,9 @@ export default function LoginScreen() {
           <View style={[s.ring, { shadowColor: accent }]}>
             <BirdLogo size={88} />
           </View>
-          <Text style={[s.appName, { color: accent }]}>Jerusalem Youth Chorus</Text>
+          <Text style={[s.appName, { color: accent }]}>
+            Jerusalem Youth Chorus
+          </Text>
           <View style={s.accentBar}>
             {[COLORS.teal, COLORS.red, COLORS.yellow].map((c) => (
               <View key={c} style={[s.accentSeg, { backgroundColor: c }]} />

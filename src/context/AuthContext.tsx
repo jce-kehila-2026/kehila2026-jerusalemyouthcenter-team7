@@ -5,7 +5,17 @@ import {
   signOut,
   User,
 } from "firebase/auth";
-import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
+} from "firebase/firestore";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { auth, db } from "../firebase/firebase";
 
@@ -166,8 +176,9 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
       }
 
       // Check the appropriate collection based on the intended role
-      const collectionName = role === "singer" ? "singers" : "admins";
-      const snap = await getDoc(doc(db, collectionName, fbUser.uid));
+      // const collectionName = role === "singer" ? "singers" : "admins";
+
+      const snap = await getDoc(doc(db, "users", fbUser.uid));
 
       if (snap.exists()) {
         const d = snap.data();
@@ -270,7 +281,6 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
       return false;
     }
   };
-
 
   // ── Submit join request (pending approval by admin) ──────────────────────
   // NOTE: No Firebase Auth account is created here.
