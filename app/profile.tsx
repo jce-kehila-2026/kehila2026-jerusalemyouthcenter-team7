@@ -5,6 +5,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import {
   doc,
+  getDoc,
   updateDoc
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
