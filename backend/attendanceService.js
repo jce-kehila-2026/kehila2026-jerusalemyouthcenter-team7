@@ -1,5 +1,5 @@
-import { db } from "@/src/firebase/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "./firebase";
 
 export const saveAttendance = async (eventId, attendanceData) => {
   try {

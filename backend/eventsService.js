@@ -1,12 +1,12 @@
-import { db } from "@/src/firebase/firebase";
 import {
-    addDoc,
-    collection,
-    deleteDoc,
-    doc,
-    getDocs,
-    updateDoc,
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  updateDoc,
 } from "firebase/firestore";
+import { db } from "./firebase";
 
 const EVENTS_COLLECTION = "events";
 const STUDENTS_COLLECTION = "students";

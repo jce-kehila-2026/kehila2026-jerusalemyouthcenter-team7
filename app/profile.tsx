@@ -4,12 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import {
-  collection,
   doc,
-  getDocs,
-  query,
-  updateDoc,
-  where,
+  updateDoc
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
@@ -134,16 +130,12 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     const getFullData = async () => {
-      if (!user?.email) return;
+      if (!user?.uid) return;
       try {
-        const collectionName = user?.role === "admin" ? "admins" : "students";
-        const q = query(
-          collection(db, collectionName),
-          where("email", "==", user.email),
-        );
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          setFullData(snapshot.docs[0].data());
+        // Use UID-based lookup from unified users collection
+        const snap = await getDoc(doc(db, "users", user.uid));
+        if (snap.exists()) {
+          setFullData(snap.data());
         }
       } catch (error) {
         console.error("Error fetching full data:", error);
@@ -173,15 +165,9 @@ export default function ProfileScreen() {
         setUploading(true);
         const base64Image = "data:image/jpeg;base64," + result.assets[0].base64;
 
-        const collectionName = user?.role === "admin" ? "admins" : "students";
-        const q = query(
-          collection(db, collectionName),
-          where("email", "==", user.email),
-        );
-        const snapshot = await getDocs(q);
-
-        if (!snapshot.empty) {
-          const docRef = doc(db, collectionName, snapshot.docs[0].id);
+        // Update user document in unified users collection
+        if (user?.uid) {
+          const docRef = doc(db, "users", user.uid);
           await updateDoc(docRef, { photoURL: base64Image });
           setFullData((prev: any) => ({ ...prev, photoURL: base64Image }));
         }
