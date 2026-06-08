@@ -534,7 +534,8 @@ export default function EventsScreen() {
             <Text style={s.confirmMsg}>
               Are you sure you want to delete{"\n"}
               <Text style={{ color: "#111", fontWeight: "700" }}>
-                "{deleteTarget?.title}"
+                {""} {deleteTarget?.title}
+                {""}
               </Text>
               ?
             </Text>
