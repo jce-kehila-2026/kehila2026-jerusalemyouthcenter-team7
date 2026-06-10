@@ -18,9 +18,11 @@ const COLORS = {
 };
 
 export default function EventDetail() {
-  const { title, description, date, location, group } = useLocalSearchParams();
+  const { title, description, date, time, location, group } =
+    useLocalSearchParams();
 
-  const formattedDate = new Date(date).toLocaleString();
+  const formattedDate =
+    date && date.includes("-") ? date.split("-").reverse().join("/") : date;
 
   return (
     <SafeAreaView
@@ -81,7 +83,9 @@ export default function EventDetail() {
               marginBottom: 12,
             }}
           >
-            📅 {formattedDate}
+            {formattedDate}
+
+            {time}
           </Text>
 
           {/* Location */}
@@ -92,7 +96,7 @@ export default function EventDetail() {
               marginBottom: 25,
             }}
           >
-            📍 {location || "Jerusalem Community Center"}
+            {location || "Jerusalem Community Center"}
           </Text>
 
           {/* Divider */}
@@ -134,9 +138,7 @@ export default function EventDetail() {
               alignItems: "center",
             }}
           >
-            <Text
-              style={{ color: "#111", fontWeight: "bold", fontSize: 16 }}
-            >
+            <Text style={{ color: "#111", fontWeight: "bold", fontSize: 16 }}>
               Join Event
             </Text>
           </TouchableOpacity>
@@ -152,9 +154,7 @@ export default function EventDetail() {
               alignItems: "center",
             }}
           >
-            <Text
-              style={{ color: "#111", fontWeight: "bold", fontSize: 16 }}
-            >
+            <Text style={{ color: "#111", fontWeight: "bold", fontSize: 16 }}>
               Save Event
             </Text>
           </TouchableOpacity>

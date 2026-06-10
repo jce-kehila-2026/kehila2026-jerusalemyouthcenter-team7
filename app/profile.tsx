@@ -2,13 +2,11 @@ import { useAuth } from "@/src/context/AuthContext";
 import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
 import {
-  collection,
   doc,
-  getDocs,
-  query,
-  updateDoc,
-  where,
+  getDoc,
+  updateDoc
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
@@ -126,22 +124,19 @@ const InfoCard = ({
 // ── الشاشة الرئيسية (Main Screen) ──────────────────────────────────────────────
 export default function ProfileScreen() {
   // 1. جلب بيانات المستخدم الحقيقي اللي مسجل دخول
-  const { user } = useAuth() as any;
+  const { user, logout } = useAuth() as any;
+  const router = useRouter();
   const [fullData, setFullData] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     const getFullData = async () => {
-      if (!user?.email) return;
+      if (!user?.uid) return;
       try {
-        const collectionName = user?.role === "admin" ? "admins" : "students";
-        const q = query(
-          collection(db, collectionName),
-          where("email", "==", user.email),
-        );
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          setFullData(snapshot.docs[0].data());
+        // Use UID-based lookup from unified users collection
+        const snap = await getDoc(doc(db, "users", user.uid));
+        if (snap.exists()) {
+          setFullData(snap.data());
         }
       } catch (error) {
         console.error("Error fetching full data:", error);
@@ -171,15 +166,9 @@ export default function ProfileScreen() {
         setUploading(true);
         const base64Image = "data:image/jpeg;base64," + result.assets[0].base64;
 
-        const collectionName = user?.role === "admin" ? "admins" : "students";
-        const q = query(
-          collection(db, collectionName),
-          where("email", "==", user.email),
-        );
-        const snapshot = await getDocs(q);
-
-        if (!snapshot.empty) {
-          const docRef = doc(db, collectionName, snapshot.docs[0].id);
+        // Update user document in unified users collection
+        if (user?.uid) {
+          const docRef = doc(db, "users", user.uid);
           await updateDoc(docRef, { photoURL: base64Image });
           setFullData((prev: any) => ({ ...prev, photoURL: base64Image }));
         }
@@ -352,6 +341,19 @@ export default function ProfileScreen() {
             )}
           </InfoCard>
         )}
+
+        {/* ── Sign Out ── */}
+        <TouchableOpacity
+          style={styles.signOutBtn}
+          onPress={async () => {
+            await logout();
+            router.replace("/(auth)/login" as any);
+          }}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="log-out-outline" size={20} color={themeColors.red} />
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -480,5 +482,23 @@ const styles = StyleSheet.create({
     padding: 6,
     backgroundColor: "#E5E7EB",
     borderRadius: 8,
+  },
+  signOutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: themeColors.red + "55",
+    backgroundColor: themeColors.red + "0D",
+  },
+  signOutText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: themeColors.red,
   },
 });

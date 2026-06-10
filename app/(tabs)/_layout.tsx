@@ -71,15 +71,8 @@ export default function TabLayout() {
             ),
           }}
         />
-        <Tabs.Screen
-          name="messages"
-          options={{
-            title: "Messages",
-            tabBarIcon: ({ color, size }) => (
-              <TabIcon name="chatbubbles-outline" color={color} size={size} />
-            ),
-          }}
-        />
+        <Tabs.Screen name="messages" options={{ href: null }} />
+        <Tabs.Screen name="notifications" options={{ href: null }} />
         <Tabs.Screen
           name="library"
           options={{
@@ -90,18 +83,11 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen name="explore" options={{ href: null }} />
+        <Tabs.Screen name="Join-requests" options={{ href: null }} />
         <Tabs.Screen name="admin" options={{ href: null }} />
         <Tabs.Screen name="student-events" options={{ href: null }} />
         <Tabs.Screen name="student-calender" options={{ href: null }} />
-        <Tabs.Screen
-          name="calendar"
-          options={{
-            title: "Calendar",
-            tabBarIcon: ({ color, size }) => (
-              <TabIcon name="calendar-outline" color={color} size={size} />
-            ),
-          }}
-        />
+        <Tabs.Screen name="calendar" options={{ href: null }} />
       </Tabs>
     </EventsProvider>
   );

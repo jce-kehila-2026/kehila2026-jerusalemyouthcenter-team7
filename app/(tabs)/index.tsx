@@ -9,15 +9,15 @@ import {
   forms as mockForms,
   messages as mockMessages,
   students as mockStudents,
-} from "@/src/data/mockData";
-import { notificationService } from "@/src/data/notificationService";
-import { db } from "@/src/firebase/firebase";
-import { notifColor, notifIcon } from "@/src/utils/notifMeta";
-import { timeAgo } from "@/src/utils/timeUtils";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { collection, doc, getDoc, getDocs } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+} from '@/src/data/mockData';
+import { notificationService } from '@/src/data/notificationService';
+import { db } from '@/src/firebase/firebase';
+import { notifColor, notifIcon } from '@/src/utils/notifMeta';
+import { timeAgo } from '@/src/utils/timeUtils';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from "firebase/firestore";
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -86,6 +86,7 @@ export default function DashboardScreen() {
   const isAdmin = user?.role === "admin";
 
   const [loading, setLoading] = useState(true);
+  const [pendingRequestCount, setPendingRequestCount] = useState(0);
   const [studentCount, setStudentCount] = useState((mockStudents || []).length);
   const [eventList, setEventList] = useState<DashEvent[]>(mockEvents || []);
   const [formCount, setFormCount] = useState((mockForms || []).length);
@@ -96,9 +97,7 @@ export default function DashboardScreen() {
   const [messageList, setMessageList] = useState<DashMsg[]>(
     (mockMessages || []).map((m) => ({ ...m, id: String(m.id) })),
   );
-  const [myRegisteredEventIds, setMyRegisteredEventIds] = useState<
-    (string | number)[]
-  >([]);
+  const [myRegisteredEventIds, setMyRegisteredEventIds] = useState<(string | number)[]>([]);
   const [adminData, setAdminData] = useState<any>(null);
 
   // Derived values
@@ -134,25 +133,7 @@ export default function DashboardScreen() {
 
   // ── Firebase loading ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    const fetchAdminData = async () => {
-      if (isAdmin && user.uid) {
-        try {
-          const docRef = doc(db, "admins", user.uid);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            setAdminData(docSnap.data());
-          }
-        } catch (error) {
-          console.error("Error fetching admin data:", error);
-        }
-      }
-    };
-    fetchAdminData();
+    if (!user) { setLoading(false); return; }
 
     // One-time fetch for non-realtime collections
     const fetchStatic = async () => {
@@ -200,12 +181,26 @@ export default function DashboardScreen() {
 
     fetchStatic();
 
+    // Fetch admin profile data
+    const fetchAdminData = async () => {
+      if (user?.uid) {
+        const adminDoc = await getDoc(doc(db, "admins", user.uid));
+        if (adminDoc.exists()) setAdminData(adminDoc.data());
+      }
+    };
+    fetchAdminData();
+
+    // Real-time pending join requests
+    const unsubRequests = onSnapshot(
+      query(collection(db, "requests"), where("status", "==", "pending")),
+      (snap) => setPendingRequestCount(snap.size),
+    );
+
     // Real-time notifications
     const unsubNotif = notificationService.subscribe(
-      (notifs) => {
-        if (notifs.length > 0 || !loading) setNotifList(notifs);
-      },
-      isAdmin ? undefined : user.uid,
+      notifs => { if (notifs.length > 0 || !loading) setNotifList(notifs); },
+      user.uid,
+      isAdmin ? "admin" : "singer",
     );
 
     // Real-time messages
@@ -223,6 +218,7 @@ export default function DashboardScreen() {
     return () => {
       unsubNotif();
       unsubMessages();
+      unsubRequests();
     };
   }, [user?.uid]);
 
@@ -246,12 +242,8 @@ export default function DashboardScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={[styles.greeting, { color: theme.subtext }]}>
-              Good day,
-            </Text>
-            <Text style={[styles.name, { color: theme.text }]}>
-              {displayName}
-            </Text>
+            <Text style={[styles.greeting, { color: theme.subtext }]}>Good day,</Text>
+            <Text style={[styles.name, { color: theme.text }]}>{displayName}</Text>
           </View>
           <View style={styles.headerActions}>
             <Pressable

@@ -1,4 +1,11 @@
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  updateDoc,
+} from "firebase/firestore";
 import { db } from "./firebase";
 
 const EVENTS_COLLECTION = "events";
@@ -7,7 +14,7 @@ const STUDENTS_COLLECTION = "students";
 export const getEvents = async () => {
   try {
     const snapshot = await getDocs(collection(db, EVENTS_COLLECTION));
-    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
   } catch (error) {
     console.error("Error getting events:", error);
     return [];
@@ -17,7 +24,7 @@ export const getEvents = async () => {
 export const getStudents = async () => {
   try {
     const snapshot = await getDocs(collection(db, STUDENTS_COLLECTION));
-    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
   } catch (error) {
     console.error("Error getting students:", error);
     return [];

@@ -4,6 +4,7 @@ import { Link, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,58 +14,26 @@ import {
   TextInput,
   View,
 } from "react-native";
-import Svg, {
-  Circle,
-  Defs,
-  Ellipse,
-  Path,
-  RadialGradient,
-  Stop,
-} from "react-native-svg";
 
 // ── Bird logo ─────────────────────────────────────────────────────────────────
-function BirdLogo({ size = 56 }: { size?: number }) {
+function BirdLogo({ size = 80 }: { size?: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 100 100">
-      <Defs>
-        <RadialGradient id="birdGradS" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor={COLORS.teal} stopOpacity="1" />
-          <Stop offset="100%" stopColor={COLORS.tealDark} stopOpacity="1" />
-        </RadialGradient>
-      </Defs>
-      <Path
-        d="M18 38 Q10 20 28 14 Q38 10 45 22 Q35 26 30 35 Z"
-        fill={COLORS.teal}
-        opacity={0.9}
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        overflow: "hidden",
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "black", // important
+      }}
+    >
+      <Image
+        source={require("../../assets/images/bird-logo.jpeg")}
+        style={{ width: size * 0.9, height: size * 0.9, resizeMode: "contain" }}
       />
-      <Path
-        d="M22 52 Q12 48 14 36 Q22 28 34 38 Q28 44 26 54 Z"
-        fill={COLORS.teal}
-        opacity={0.75}
-      />
-      <Path
-        d="M30 70 Q18 72 16 60 Q20 52 32 56 Q30 62 30 70 Z"
-        fill={COLORS.teal}
-        opacity={0.65}
-      />
-      <Ellipse cx="52" cy="50" rx="16" ry="20" fill="url(#birdGradS)" />
-      <Circle cx="58" cy="34" r="10" fill={COLORS.teal} />
-      <Path d="M67 33 L76 31 L68 36 Z" fill={COLORS.yellow} />
-      <Circle cx="61" cy="32" r="2" fill={COLORS.black} />
-      <Circle cx="62" cy="31" r="0.7" fill={COLORS.white} />
-      <Path
-        d="M44 58 Q40 68 46 76 Q52 80 56 72 Q50 68 48 58 Z"
-        fill={COLORS.red}
-        opacity={0.85}
-      />
-      <Path
-        d="M62 46 Q78 38 84 50 Q80 60 68 58"
-        fill="none"
-        stroke={COLORS.yellow}
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
-    </Svg>
+    </View>
   );
 }
 
@@ -197,7 +166,7 @@ type FormState = {
   address: string;
   neighborhood: string;
   gender: "male" | "female" | "";
-  nationality: string;
+  nationality: "Palestinian" | "Israeli" | "Other" | "";
   age: string;
   school_name: string;
   shirt_size: "S" | "M" | "L" | "XL" | "";
@@ -237,10 +206,11 @@ const EMPTY: FormState = {
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 export default function SignupScreen() {
-  const { signupStudent } = useAuth();
+  const { submitJoinRequest } = useAuth();
   const router = useRouter();
 
   const [step, setStep] = useState(1);
+  const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -269,9 +239,10 @@ export default function SignupScreen() {
     if (step === 1) {
       if (!form.full_name.trim()) return "Full name is required";
       if (!form.phone.trim()) return "Phone number is required";
+      if (!form.email.trim()) return "Email is required";
       if (!form.birth_date.trim()) return "Date of birth is required";
       if (!form.gender) return "Please select your gender";
-      if (!form.nationality.trim()) return "Nationality is required";
+      if (!form.nationality) return "Please select your nationality";
       if (!form.age.trim()) return "Age is required";
       if (isNaN(Number(form.age))) return "Age must be a number";
       if (!form.address.trim()) return "Address is required";
@@ -325,13 +296,16 @@ export default function SignupScreen() {
 
     const payload: StudentSignupPayload = {
       full_name: form.full_name.trim(),
-      email: form.email.trim() || undefined,
+      email: form.email.trim(),
       phone: form.phone.trim(),
       birth_date: form.birth_date.trim(),
       address: form.address.trim(),
       neighborhood: form.neighborhood.trim(),
       gender: form.gender as "male" | "female",
-      nationality: form.nationality.trim(),
+      nationality: form.nationality.toLowerCase() as
+        | "palestinian"
+        | "israeli"
+        | "other",
       age: parseInt(form.age, 10),
       school_name: form.school_name.trim(),
       shirt_size: form.shirt_size as "S" | "M" | "L" | "XL",
@@ -350,14 +324,14 @@ export default function SignupScreen() {
       password: form.password,
     };
 
-    const ok = await signupStudent(payload);
+    const ok = await submitJoinRequest(payload);
     setLoading(false);
 
     if (ok) {
-      router.replace("/(tabs)" as any);
+      setSubmitted(true);
     } else {
       setError(
-        "Could not create account. This phone number may already be registered.",
+        "Could not send join request. This phone number may already be registered.",
       );
     }
   };
@@ -387,7 +361,7 @@ export default function SignupScreen() {
             keyboardType="phone-pad"
           />
 
-          <FL text="Email" opt />
+          <FL text="Email" req />
           <TextInput
             style={inp("email")}
             {...fld("email")}
@@ -425,11 +399,14 @@ export default function SignupScreen() {
           />
 
           <FL text="Nationality" req />
-          <TextInput
-            style={inp("nationality")}
-            {...fld("nationality")}
-            placeholder="e.g. Israeli"
-            placeholderTextColor="#aab"
+          <Pills
+            options={[
+              { label: " Palestinian", value: "Palestinian" },
+              { label: " Israeli", value: "Israeli" },
+              { label: "🌍 Other", value: "Other" },
+            ]}
+            value={form.nationality}
+            onChange={(v) => setForm((p) => ({ ...p, nationality: v }))}
           />
 
           <FL text="Address" req />
@@ -453,7 +430,7 @@ export default function SignupScreen() {
     if (step === 2)
       return (
         <>
-          <Text style={s.stepTitle}>🎓 School & Preferences</Text>
+          <Text style={s.stepTitle}> School & Preferences</Text>
 
           <FL text="School Name" req />
           <TextInput
@@ -463,7 +440,7 @@ export default function SignupScreen() {
             placeholderTextColor="#aab"
           />
 
-          <FL text="Year Joined Kehila" req />
+          <FL text="Year Joined Jerusalem Youth Chorus" req />
           <TextInput
             style={inp("year_joined")}
             {...fld("year_joined")}
@@ -527,7 +504,6 @@ export default function SignupScreen() {
             onChange={(v) => setForm((p) => ({ ...p, parent_relation: v }))}
           />
 
-          {/* ← הוסיפי את זה */}
           <FL text="Parent Name" req />
           <TextInput
             style={inp("parent_name")}
@@ -535,8 +511,7 @@ export default function SignupScreen() {
             placeholder="Parent full name"
             placeholderTextColor="#aab"
           />
-           <FL text="Parent Phone Number" req />
-          {/* ← הוסיפי את זה */}
+          <FL text="Parent Phone Number" req />
           <TextInput
             style={inp("parent_phone")}
             {...fld("parent_phone")}
@@ -557,7 +532,6 @@ export default function SignupScreen() {
             numberOfLines={3}
           />
 
-
           <FL text="Password" req />
           <TextInput
             style={inp("password")}
@@ -566,7 +540,6 @@ export default function SignupScreen() {
             placeholderTextColor="#aab"
             secureTextEntry
           />
-
 
           <FL text="Confirm Password" req />
           <TextInput
@@ -589,6 +562,35 @@ export default function SignupScreen() {
       );
   };
 
+  if (submitted) {
+    return (
+      <View style={s.successContainer}>
+        <View style={s.successCard}>
+          <View style={s.successIconWrap}>
+            <Text style={s.successEmoji}>🎶</Text>
+          </View>
+          <Text style={s.successTitle}>Request Sent!</Text>
+          <Text style={s.successBody}>
+            {
+              "Your request to join Jerusalem Youth Chorus has been sent to the admin.\n\nYou will be notified once your account is approved."
+            }
+          </Text>
+          <View style={s.successDots}>
+            {["#0fb8b8", "#c0342c", "#e8a820"].map((c) => (
+              <View key={c} style={[s.successDot, { backgroundColor: c }]} />
+            ))}
+          </View>
+          <Pressable
+            style={s.successBtn}
+            onPress={() => router.replace("/(auth)/login" as any)}
+          >
+            <Text style={s.successBtnTxt}>Back to Login</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={s.container}
@@ -604,13 +606,13 @@ export default function SignupScreen() {
             <BirdLogo size={56} />
           </View>
           <View>
-            <Text style={s.appName}>Kehila</Text>
-            <Text style={s.tagline}>Student Registration</Text>
+            <Text style={s.appName}>Jerusalem Youth Chorus</Text>
+            <Text style={s.tagline}> 🎤 Singer Registration</Text>
           </View>
         </View>
 
         <View style={s.badge}>
-          <Text style={s.badgeText}>🎓 Student Sign Up</Text>
+          <Text style={s.badgeText}> 🎤 Singer Sign Up</Text>
         </View>
 
         <StepBar current={step} total={3} />
@@ -647,7 +649,7 @@ export default function SignupScreen() {
                 <ActivityIndicator color={COLORS.white} />
               ) : (
                 <Text style={s.nextTxt}>
-                  {step === 3 ? "Create Account ✓" : "Next →"}
+                  {step === 3 ? "Send Join Request 🎶" : "Next →"}
                 </Text>
               )}
             </Pressable>
@@ -802,4 +804,62 @@ const s = StyleSheet.create({
     gap: 8,
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
+
+  successContainer: {
+    flex: 1,
+    backgroundColor: "#f0fafa",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  successCard: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 32,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 6,
+    width: "100%",
+  },
+  successIconWrap: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "#e6fafa",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  successEmoji: { fontSize: 44 },
+  successTitle: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#0d1717",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  successBody: {
+    fontSize: 15,
+    color: "#687076",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  successDots: { flexDirection: "row", gap: 8, marginBottom: 28 },
+  successDot: { width: 10, height: 10, borderRadius: 5 },
+  successBtn: {
+    backgroundColor: "#0fb8b8",
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    shadowColor: "#0fb8b8",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  successBtnTxt: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });
