@@ -1,23 +1,25 @@
-import { AppColors, Colors } from "@/constants/theme";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { NotificationBell } from "@/src/components/NotificationBell";
 import { useAuth } from "@/src/context/AuthContext";
 import { FirestoreMsg, messageService } from "@/src/data/messageService";
 import {
-  attendance as mockAttendance,
   events as mockEvents,
   forms as mockForms,
   messages as mockMessages,
   students as mockStudents,
-} from '@/src/data/mockData';
-import { notificationService } from '@/src/data/notificationService';
-import { db } from '@/src/firebase/firebase';
-import { notifColor, notifIcon } from '@/src/utils/notifMeta';
-import { timeAgo } from '@/src/utils/timeUtils';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from "firebase/firestore";
-import React, { useEffect, useState } from 'react';
+} from "@/src/data/mockData";
+import { notificationService } from "@/src/data/notificationService";
+import { db } from "@/src/firebase/firebase";
+import { notifColor, notifIcon } from "@/src/utils/notifMeta";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import {
+  collection,
+  getDocs,
+  onSnapshot,
+  query,
+  where,
+} from "firebase/firestore";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -26,145 +28,176 @@ import {
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// ── Shared lightweight types ──────────────────────────────────────────────────
-type DashEvent = {
-  id: string | number;
-  title: string;
-  date: string;
-  location: string;
-  registered: number;
-  capacity: number;
-};
-type DashMsg = {
-  id: string;
-  sender_name: string;
-  content: string;
-  timestamp: string;
-  is_read: boolean;
-};
-type DashNotif = {
-  id: string | number;
-  title: string;
-  body: string;
-  timestamp: string;
-  is_read: boolean;
-  type: string;
-};
-type DashAttendance = { status: "attended" | "absent" | "registered" };
+// ── Brand Design System ────────────────────────────────────────────────────────
+const B = {
+  teal:       '#039899',
+  red:        '#c56451',
+  yellow:     '#cfad5d',
+  purple:     '#6b5ce7',
+  text:       '#1a1a2e',
+  sub:        '#5a6a7a',
+  muted:      '#9aa8b4',
+  bg:         '#f5fafe',
+  card:       '#ffffff',
+  border:     '#e8eef2',
+} as const;
 
-// ── Stat card ─────────────────────────────────────────────────────────────────
-function StatCard({
-  label,
-  value,
-  icon,
-  color,
+// ── Types ──────────────────────────────────────────────────────────────────────
+type DashEvent     = { id: string | number; title: string; date: string; location: string; registered: number; capacity: number };
+type DashMsg       = { id: string; sender_name: string; content: string; timestamp: string; is_read: boolean };
+type DashNotif     = { id: string | number; title: string; body: string; timestamp: string; is_read: boolean; type: string };
+
+// ── Shared card wrapper (4px colour bar + teal shadow) ────────────────────────
+function BrandCard({
+  barColor = B.teal,
+  style,
+  padStyle,
+  children,
 }: {
-  label: string;
-  value: number | string;
-  icon: React.ComponentProps<typeof Ionicons>["name"];
-  color: string;
+  barColor?: string;
+  style?: object;
+  padStyle?: object;
+  children: React.ReactNode;
 }) {
   return (
-    <View style={[styles.statCard, { borderLeftColor: color }]}>
-      <View style={[styles.statIcon, { backgroundColor: color + "22" }]}>
-        <Ionicons name={icon} size={20} color={color} />
+    <View style={[st.shadow, style]}>
+      <View style={st.cardOuter}>
+        <View style={[st.colorBar, { backgroundColor: barColor }]} />
+        <View style={[st.cardPad, padStyle]}>{children}</View>
       </View>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
 
-// ── Screen ────────────────────────────────────────────────────────────────────
-export default function DashboardScreen() {
-  const { user } = useAuth();
-  const router = useRouter();
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? "light"];
-  const isAdmin = user?.role === "admin";
-
-  const [loading, setLoading] = useState(true);
-  const [pendingRequestCount, setPendingRequestCount] = useState(0);
-  const [studentCount, setStudentCount] = useState((mockStudents || []).length);
-  const [eventList, setEventList] = useState<DashEvent[]>(mockEvents || []);
-  const [formCount, setFormCount] = useState((mockForms || []).length);
-  const [notifList, setNotifList] = useState<DashNotif[]>([]);
-  const [attendanceData, setAttendanceData] = useState<DashAttendance[]>(
-    mockAttendance || [],
+// ── Stat card ──────────────────────────────────────────────────────────────────
+function StatCard({
+  label,
+  value,
+  icon,
+  barColor,
+}: {
+  label: string;
+  value: number | string;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  barColor: string;
+}) {
+  return (
+    <BrandCard barColor={barColor} style={st.statWrap}>
+      <View style={[st.statIconWrap, { backgroundColor: barColor + "22" }]}>
+        <Ionicons name={icon} size={18} color={barColor} />
+      </View>
+      <Text style={st.statValue}>{value}</Text>
+      <Text style={st.statLabel}>{label}</Text>
+    </BrandCard>
   );
-  const [messageList, setMessageList] = useState<DashMsg[]>(
+}
+
+// ── Section label (uppercase) ──────────────────────────────────────────────────
+function SectionLabel({ children }: { children: string }) {
+  return <Text style={st.sectionLabel}>{children.toUpperCase()}</Text>;
+}
+
+// ── Event row ──────────────────────────────────────────────────────────────────
+function EventRow({ event, onPress }: { event: DashEvent; onPress: () => void }) {
+  const d = new Date(event.date);
+  return (
+    <Pressable onPress={onPress}>
+      <BrandCard barColor={B.teal} style={st.rowCard}>
+        <View style={st.rowInner}>
+          <View style={st.dateBox}>
+            <Text style={st.dateDay}>{d.getDate()}</Text>
+            <Text style={st.dateMon}>{d.toLocaleString("en", { month: "short" }).toUpperCase()}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={st.rowTitle} numberOfLines={1}>{event.title}</Text>
+            <Text style={st.rowSub} numberOfLines={1}>📍 {event.location}</Text>
+          </View>
+          <View style={st.capBadge}>
+            <Text style={st.capText}>{event.registered}/{event.capacity}</Text>
+          </View>
+        </View>
+      </BrandCard>
+    </Pressable>
+  );
+}
+
+// ── Notification row ───────────────────────────────────────────────────────────
+function NotifRow({ notif }: { notif: DashNotif }) {
+  const color = notifColor(notif.type as Parameters<typeof notifColor>[0]);
+  const icon  = notifIcon(notif.type as Parameters<typeof notifIcon>[0]);
+  return (
+    <BrandCard barColor={color} style={st.rowCard}>
+      <View style={st.rowInner}>
+        <View style={[st.notifIconWrap, { backgroundColor: color + "22" }]}>
+          <Ionicons name={icon} size={16} color={color} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={st.rowTitle}>{notif.title}</Text>
+          <Text style={st.rowSub} numberOfLines={1}>{notif.body}</Text>
+        </View>
+        {!notif.is_read && <View style={st.unreadDot} />}
+      </View>
+    </BrandCard>
+  );
+}
+
+// ── Main screen ────────────────────────────────────────────────────────────────
+export default function DashboardScreen() {
+  const { user }  = useAuth();
+  const router    = useRouter();
+  const insets    = useSafeAreaInsets();
+  const isAdmin   = user?.role === "admin";
+
+  const [loading, setLoading]                   = useState(true);
+  const [pendingRequestCount, setPendingRequestCount] = useState(0);
+  const [studentCount, setStudentCount]         = useState((mockStudents || []).length);
+  const [eventList, setEventList]               = useState<DashEvent[]>(mockEvents || []);
+  const [formCount, setFormCount]               = useState((mockForms || []).length);
+  const [notifList, setNotifList]               = useState<DashNotif[]>([]);
+  const [messageList, setMessageList]           = useState<DashMsg[]>(
     (mockMessages || []).map((m) => ({ ...m, id: String(m.id) })),
   );
   const [myRegisteredEventIds, setMyRegisteredEventIds] = useState<(string | number)[]>([]);
-  const [adminData, setAdminData] = useState<any>(null);
 
-  // Derived values
-  const now = new Date();
+  // ── Derived values ────────────────────────────────────────────────────────
+  const now               = new Date();
   const unreadNotifications = notifList.filter((n) => !n.is_read).length;
-  const unreadMessages = isAdmin
+  const unreadMessages    = isAdmin
     ? messageList.filter((m) => !m.is_read).length
-    : messageList.filter(
-        (m) => !m.is_read && (m as any).receiver_id === user?.uid,
-      ).length;
-  const presentCount = attendanceData.filter(
-    (a) => a.status === "attended",
-  ).length;
-  const absentCount = attendanceData.filter(
-    (a) => a.status === "absent",
-  ).length;
-  const pendingCount = attendanceData.filter(
-    (a) => a.status === "registered",
-  ).length;
-  const totalAttendance = attendanceData.length;
+    : messageList.filter((m) => !m.is_read && (m as any).receiver_id === user?.uid).length;
   const myUpcomingEvents = eventList.filter(
     (e) => myRegisteredEventIds.includes(e.id) && new Date(e.date) >= now,
   );
-
-  const displayName =
-    adminData?.full_name ||
-    adminData?.["full-name"] ||
-    user?.full_name ||
-    (user as any)?.["full-name"] ||
-    (user as any)?.name ||
-    "Admin";
-  const initials = displayName.charAt(0).toUpperCase();
 
   // ── Firebase loading ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!user) { setLoading(false); return; }
 
-    // One-time fetch for non-realtime collections
+    let unsubRequests = () => {};
+    if (isAdmin) {
+      const reqQ = query(collection(db, "join_requests"), where("status", "==", "pending"));
+      unsubRequests = onSnapshot(reqQ, (snap) => setPendingRequestCount(snap.size));
+    }
+
     const fetchStatic = async () => {
       try {
-        const [studsSnap, evtsSnap, formsSnap, attSnap, esSnap] =
-          await Promise.allSettled([
-            getDocs(collection(db, "students")),
-            getDocs(collection(db, "events")),
-            getDocs(collection(db, "forms")),
-            getDocs(collection(db, "attendance")),
-            getDocs(collection(db, "event_students")),
-          ]);
+        const [studsSnap, evtsSnap, formsSnap, esSnap] = await Promise.allSettled([
+          getDocs(collection(db, "students")),
+          getDocs(collection(db, "events")),
+          getDocs(collection(db, "forms")),
+          getDocs(collection(db, "event_students")),
+        ]);
 
         if (studsSnap.status === "fulfilled" && studsSnap.value.size > 0)
           setStudentCount(studsSnap.value.size);
 
         if (evtsSnap.status === "fulfilled" && evtsSnap.value.size > 0)
-          setEventList(
-            evtsSnap.value.docs.map((d) => ({
-              id: d.id,
-              ...(d.data() as Omit<DashEvent, "id">),
-            })),
-          );
+          setEventList(evtsSnap.value.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<DashEvent, "id">) })));
 
         if (formsSnap.status === "fulfilled" && formsSnap.value.size > 0)
           setFormCount(formsSnap.value.size);
-
-        if (attSnap.status === "fulfilled" && attSnap.value.size > 0)
-          setAttendanceData(
-            attSnap.value.docs.map((d) => d.data() as DashAttendance),
-          );
 
         if (esSnap.status === "fulfilled" && esSnap.value.size > 0) {
           const myIds = esSnap.value.docs
@@ -181,528 +214,243 @@ export default function DashboardScreen() {
 
     fetchStatic();
 
-    // Fetch admin profile data
-    const fetchAdminData = async () => {
-      if (user?.uid) {
-        const adminDoc = await getDoc(doc(db, "admins", user.uid));
-        if (adminDoc.exists()) setAdminData(adminDoc.data());
-      }
-    };
-    fetchAdminData();
-
-    // Real-time pending join requests
-    const unsubRequests = onSnapshot(
-      query(collection(db, "requests"), where("status", "==", "pending")),
-      (snap) => setPendingRequestCount(snap.size),
-    );
-
-    // Real-time notifications
     const unsubNotif = notificationService.subscribe(
-      notifs => { if (notifs.length > 0 || !loading) setNotifList(notifs); },
+      (notifs) => { if (notifs.length > 0 || !loading) setNotifList(notifs); },
       user.uid,
       isAdmin ? "admin" : "singer",
     );
 
-    // Real-time messages
     const unsubMessages = messageService.subscribe((msgs: FirestoreMsg[]) => {
       if (msgs.length > 0) {
         const relevant = isAdmin
           ? msgs.filter((m) => m.receiver_id === "admin")
-          : msgs.filter(
-              (m) => m.receiver_id === user.uid || m.sender_id === user.uid,
-            );
+          : msgs.filter((m) => m.receiver_id === user.uid || m.sender_id === user.uid);
         setMessageList(relevant.slice().reverse());
       }
     });
 
-    return () => {
-      unsubNotif();
-      unsubMessages();
-      unsubRequests();
-    };
+    return () => { unsubNotif(); unsubMessages(); unsubRequests(); };
   }, [user?.uid]);
 
+  // ── Loading state ─────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.background }]}
-      >
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={AppColors.primary} />
-        </View>
-      </SafeAreaView>
+      <View style={[st.screen, st.center]}>
+        <ActivityIndicator size="large" color={B.teal} />
+      </View>
     );
   }
 
+  const firstName = user?.full_name?.split(" ")[0] ?? "there";
+
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={[styles.greeting, { color: theme.subtext }]}>Good day,</Text>
-            <Text style={[styles.name, { color: theme.text }]}>{displayName}</Text>
-          </View>
-          <View style={styles.headerActions}>
-            <Pressable
-              onPress={() => router.push("/(tabs)/messages" as any)}
-              style={styles.headerIconWrap}
-              hitSlop={8}
-            >
-              <Ionicons
-                name="chatbubbles-outline"
-                size={24}
-                color={theme.icon}
-              />
-              {unreadMessages > 0 && (
-                <View style={styles.headerBadge}>
-                  <Text style={styles.headerBadgeText}>
-                    {unreadMessages > 9 ? "9+" : unreadMessages}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-            <NotificationBell
-              unreadCount={unreadNotifications}
-              color={theme.icon}
-              onPress={() => router.push("/(tabs)/notifications" as any)}
-            />
-            <Pressable onPress={() => router.push("/profile" as any)}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{initials}</Text>
-              </View>
-            </Pressable>
-          </View>
+    <View style={st.screen}>
+      {/* ── Teal Brand Header ─────────────────────────────────────────────── */}
+      <View style={[st.header, { paddingTop: insets.top + 16 }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={st.headerSub}>🎵 Jerusalem Youth Chorus</Text>
+          <Text style={st.headerTitle}>
+            {isAdmin ? "Dashboard" : `Hey, ${firstName} 👋`}
+          </Text>
         </View>
+        <View style={st.headerActions}>
+          <Pressable
+            onPress={() => router.push("/(tabs)/messages" as any)}
+            style={st.headerIconWrap}
+            hitSlop={8}
+          >
+            <Ionicons name="chatbubbles-outline" size={22} color="#fff" />
+            {unreadMessages > 0 && (
+              <View style={st.badge}>
+                <Text style={st.badgeText}>{unreadMessages > 9 ? "9+" : unreadMessages}</Text>
+              </View>
+            )}
+          </Pressable>
+          <NotificationBell
+            unreadCount={unreadNotifications}
+            color="#fff"
+            onPress={() => router.push("/(tabs)/notifications" as any)}
+          />
+          <Pressable onPress={() => router.push("/profile" as any)}>
+            <View style={st.avatar}>
+              <Text style={st.avatarText}>{user?.full_name?.charAt(0) ?? "?"}</Text>
+            </View>
+          </Pressable>
+        </View>
+      </View>
 
-        {/* ── ADMIN VIEW ── */}
+      {/* ── Scrollable content ────────────────────────────────────────────── */}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll}>
+
         {isAdmin ? (
+          /* ── ADMIN VIEW ─────────────────────────────────────────────────── */
           <>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>
-              Overview
-            </Text>
-            <View style={styles.statsGrid}>
-              <StatCard
-                label="Students"
-                value={studentCount}
-                icon="people"
-                color={AppColors.primary}
-              />
-              <StatCard
-                label="Events"
-                value={eventList.length}
-                icon="calendar"
-                color={AppColors.secondary}
-              />
-              <StatCard
-                label="Forms"
-                value={formCount}
-                icon="document-text"
-                color={AppColors.success}
-              />
-              <StatCard
-                label="Notifications"
-                value={unreadNotifications}
-                icon="notifications"
-                color={AppColors.danger}
-              />
+            <SectionLabel>Overview</SectionLabel>
+            <View style={st.grid}>
+              <StatCard label="Students"     value={studentCount}      icon="people"          barColor={B.teal}   />
+              <StatCard label="Events"        value={eventList.length}  icon="calendar"        barColor={B.yellow} />
+              <StatCard label="Forms"         value={formCount}         icon="document-text"   barColor={B.teal}   />
+              <StatCard label="Notifications" value={unreadNotifications} icon="notifications" barColor={B.red}    />
             </View>
 
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>
-              Attendance
-            </Text>
-            <View
-              style={[
-                styles.attCard,
-                { backgroundColor: theme.card, borderColor: theme.border },
-              ]}
+            {/* Our Statistics button */}
+            <Pressable
+              style={st.statsBtn}
+              onPress={() => router.push("/statistics" as any)}
             >
-              <View style={styles.attBar}>
-                {totalAttendance > 0 && (
-                  <>
-                    <View
-                      style={[
-                        styles.attSeg,
-                        {
-                          flex: presentCount || 0.01,
-                          backgroundColor: AppColors.success,
-                          borderTopLeftRadius: 4,
-                          borderBottomLeftRadius: 4,
-                        },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.attSeg,
-                        {
-                          flex: absentCount || 0.01,
-                          backgroundColor: AppColors.danger,
-                        },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.attSeg,
-                        {
-                          flex: pendingCount || 0.01,
-                          backgroundColor: AppColors.warning,
-                          borderTopRightRadius: 4,
-                          borderBottomRightRadius: 4,
-                        },
-                      ]}
-                    />
-                  </>
-                )}
+              <View style={st.statsBtnIcon}>
+                <Ionicons name="bar-chart" size={22} color="#fff" />
               </View>
-              <View style={styles.legend}>
-                {[
-                  {
-                    label: `${presentCount} Present`,
-                    color: AppColors.success,
-                  },
-                  { label: `${absentCount} Absent`, color: AppColors.danger },
-                  {
-                    label: `${pendingCount} Pending`,
-                    color: AppColors.warning,
-                  },
-                ].map((l) => (
-                  <View key={l.label} style={styles.legendItem}>
-                    <View
-                      style={[styles.legendDot, { backgroundColor: l.color }]}
-                    />
-                    <Text style={[styles.legendText, { color: theme.subtext }]}>
-                      {l.label}
-                    </Text>
-                  </View>
-                ))}
+              <View style={{ flex: 1 }}>
+                <Text style={st.statsBtnTitle}>Our Statistics</Text>
+                <Text style={st.statsBtnSub}>Attendance · Growth · Demographics</Text>
               </View>
-            </View>
+              <Ionicons name="chevron-forward" size={20} color="#fff" />
+            </Pressable>
 
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                Recent Messages
-              </Text>
-              <Pressable onPress={() => router.push("/(tabs)/messages" as any)}>
-                <Text style={styles.seeAll}>See all</Text>
-              </Pressable>
-            </View>
-            {messageList.length === 0 ? (
-              <View style={styles.emptyBox}>
-                <Text style={[styles.emptyText, { color: theme.subtext }]}>
-                  No messages yet
-                </Text>
+            <SectionLabel>Upcoming Events</SectionLabel>
+            {eventList.filter((e) => new Date(e.date) >= now).slice(0, 3).length === 0 ? (
+              <View style={st.emptyBox}>
+                <Ionicons name="calendar-outline" size={40} color={B.muted} />
+                <Text style={st.emptyText}>No upcoming events</Text>
               </View>
             ) : (
-              messageList.slice(0, 3).map((msg) => (
-                <Pressable
-                  key={msg.id}
-                  style={[
-                    styles.activityRow,
-                    { backgroundColor: theme.card, borderColor: theme.border },
-                  ]}
-                  onPress={() => router.push("/(tabs)/messages" as any)}
-                >
-                  <View
-                    style={[
-                      styles.activityAvatar,
-                      { backgroundColor: AppColors.primary + "20" },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.activityAvatarText,
-                        { color: AppColors.primary },
-                      ]}
-                    >
-                      {msg.sender_name.charAt(0)}
-                    </Text>
-                  </View>
-                  <View style={styles.activityBody}>
-                    <Text style={[styles.activityTitle, { color: theme.text }]}>
-                      {msg.sender_name}
-                    </Text>
-                    <Text
-                      style={[styles.activitySub, { color: theme.subtext }]}
-                      numberOfLines={1}
-                    >
-                      {msg.content}
-                    </Text>
-                  </View>
-                  <View style={styles.activityRight}>
-                    <Text
-                      style={[styles.activityTime, { color: theme.subtext }]}
-                    >
-                      {timeAgo(msg.timestamp)}
-                    </Text>
-                    {!msg.is_read && <View style={styles.unreadDot} />}
-                  </View>
-                </Pressable>
-              ))
+              eventList
+                .filter((e) => new Date(e.date) >= now)
+                .slice(0, 3)
+                .map((event) => (
+                  <EventRow
+                    key={String(event.id)}
+                    event={event}
+                    onPress={() => router.push(`/event/${event.id}` as any)}
+                  />
+                ))
             )}
-
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                Upcoming Events
-              </Text>
-              <Pressable onPress={() => router.push("/(tabs)/events")}>
-                <Text style={styles.seeAll}>See all</Text>
-              </Pressable>
-            </View>
-            {eventList
-              .filter((e) => new Date(e.date) >= now)
-              .slice(0, 3)
-              .map((event) => (
-                <EventRow
-                  key={String(event.id)}
-                  event={event}
-                  theme={theme}
-                  onPress={() => router.push(`/event/${event.id}` as any)}
-                />
-              ))}
           </>
         ) : (
-          /* ── STUDENT VIEW ── */
+          /* ── STUDENT VIEW ───────────────────────────────────────────────── */
           <>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>
-              Overview
-            </Text>
-            <View style={styles.statsGrid}>
-              <StatCard
-                label="My Events"
-                value={myRegisteredEventIds.length}
-                icon="calendar"
-                color={AppColors.primary}
-              />
-              <StatCard
-                label="Forms"
-                value={formCount}
-                icon="document-text"
-                color={AppColors.success}
-              />
-              <StatCard
-                label="Unread Notifs"
-                value={unreadNotifications}
-                icon="notifications"
-                color={AppColors.danger}
-              />
+            <SectionLabel>Overview</SectionLabel>
+            <View style={st.grid}>
+              <StatCard label="My Events"     value={myRegisteredEventIds.length} icon="calendar"      barColor={B.teal}   />
+              <StatCard label="Forms"          value={formCount}                   icon="document-text" barColor={B.yellow} />
+              <StatCard label="Unread Notifs"  value={unreadNotifications}         icon="notifications" barColor={B.red}    />
             </View>
 
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                My Upcoming Events
-              </Text>
-              <Pressable onPress={() => router.push("/(tabs)/events")}>
-                <Text style={styles.seeAll}>See all</Text>
-              </Pressable>
-            </View>
+            <SectionLabel>My Upcoming Events</SectionLabel>
             {myUpcomingEvents.length === 0 ? (
-              <View style={styles.emptyBox}>
-                <Ionicons
-                  name="calendar-outline"
-                  size={32}
-                  color={theme.subtext}
-                />
-                <Text style={[styles.emptyText, { color: theme.subtext }]}>
-                  No upcoming events
-                </Text>
+              <View style={st.emptyBox}>
+                <Ionicons name="calendar-outline" size={40} color={B.muted} />
+                <Text style={st.emptyText}>No upcoming events</Text>
               </View>
             ) : (
               myUpcomingEvents.map((event) => (
                 <EventRow
                   key={String(event.id)}
                   event={event}
-                  theme={theme}
                   onPress={() => router.push(`/event/${event.id}` as any)}
                 />
               ))
             )}
 
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                Recent Notifications
-              </Text>
-              <Pressable
-                onPress={() => router.push("/(tabs)/notifications" as any)}
-              >
-                <Text style={styles.seeAll}>See all</Text>
-              </Pressable>
-            </View>
+            <SectionLabel>Recent Notifications</SectionLabel>
             {notifList.slice(0, 3).map((notif) => (
-              <NotifRow key={String(notif.id)} notif={notif} theme={theme} />
+              <NotifRow key={String(notif.id)} notif={notif} />
             ))}
           </>
         )}
 
-        <View style={styles.spacer} />
+        <View style={{ height: 32 }} />
       </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-// ── Sub-components ─────────────────────────────────────────────────────────────
-function EventRow({
-  event,
-  theme,
-  onPress,
-}: {
-  event: DashEvent;
-  theme: typeof Colors.light;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      style={[
-        styles.eventRow,
-        { backgroundColor: theme.card, borderColor: theme.border },
-      ]}
-      onPress={onPress}
-    >
-      <View style={styles.eventDate}>
-        <Text style={styles.eventDay}>{new Date(event.date).getDate()}</Text>
-        <Text style={styles.eventMonth}>
-          {new Date(event.date).toLocaleString("en", { month: "short" })}
-        </Text>
-      </View>
-      <View style={styles.eventInfo}>
-        <Text
-          style={[styles.eventTitle, { color: theme.text }]}
-          numberOfLines={1}
-        >
-          {event.title}
-        </Text>
-        <Text
-          style={[styles.eventLocation, { color: theme.subtext }]}
-          numberOfLines={1}
-        >
-          {event.location}
-        </Text>
-      </View>
-      <View
-        style={[
-          styles.eventCapBadge,
-          { backgroundColor: AppColors.primaryLight },
-        ]}
-      >
-        <Text style={styles.eventCapText}>
-          {event.registered}/{event.capacity}
-        </Text>
-      </View>
-    </Pressable>
-  );
-}
-
-function NotifRow({
-  notif,
-  theme,
-}: {
-  notif: DashNotif;
-  theme: typeof Colors.light;
-}) {
-  const color = notifColor(notif.type as Parameters<typeof notifColor>[0]);
-  const icon = notifIcon(notif.type as Parameters<typeof notifIcon>[0]);
-  return (
-    <View
-      style={[
-        styles.notifRow,
-        { backgroundColor: theme.card, borderColor: theme.border },
-        !notif.is_read && {
-          borderLeftWidth: 3,
-          borderLeftColor: AppColors.primary,
-        },
-      ]}
-    >
-      <View style={[styles.notifIcon, { backgroundColor: color + "20" }]}>
-        <Ionicons name={icon} size={16} color={color} />
-      </View>
-      <View style={styles.notifBody}>
-        <Text style={[styles.notifTitle, { color: theme.text }]}>
-          {notif.title}
-        </Text>
-        <Text
-          style={[styles.notifSub, { color: theme.subtext }]}
-          numberOfLines={1}
-        >
-          {notif.body}
-        </Text>
-      </View>
-      {!notif.is_read && <View style={styles.unreadDot} />}
     </View>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+// ── Styles ─────────────────────────────────────────────────────────────────────
+const st = StyleSheet.create({
+  // ── Layout
+  screen:   { flex: 1, backgroundColor: B.bg },
+  center:   { flex: 1, alignItems: "center", justifyContent: "center" },
+
+  // ── Teal header
   header: {
+    backgroundColor: B.teal,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    paddingBottom: 8,
+    alignItems: "flex-end",
+    gap: 8,
   },
-  greeting: { fontSize: 13 },
-  name: { fontSize: 20, fontWeight: "700" },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 12 },
-  headerIconWrap: { position: "relative", padding: 4 },
-  headerBadge: {
+  headerSub:  { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "500" },
+  headerTitle:{ color: "#fff", fontSize: 32, fontWeight: "900", marginTop: 4 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 4 },
+  headerIconWrap: { position: "relative", padding: 6 },
+  badge: {
     position: "absolute",
-    top: 0,
-    right: 0,
+    top: 2,
+    right: 2,
     minWidth: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: AppColors.danger,
+    backgroundColor: B.red,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 3,
   },
-  headerBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
+  badgeText:  { color: "#fff", fontSize: 9, fontWeight: "800" },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: AppColors.primary,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.5)",
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { color: "#fff", fontSize: 18, fontWeight: "700" },
-  sectionTitle: {
-    fontSize: 16,
+  avatarText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+
+  // ── Scroll
+  scroll: { padding: 16, paddingTop: 8 },
+
+  // ── Section label
+  sectionLabel: {
+    fontSize: 12,
     fontWeight: "700",
-    marginHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 10,
+    color: B.muted,
+    letterSpacing: 1,
+    marginTop: 24,
+    marginBottom: 8,
   },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginRight: 20,
+
+  // ── BrandCard structure
+  shadow: {
+    shadowColor: B.teal,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+    borderRadius: 16,
+    marginBottom: 8,
   },
-  seeAll: { color: AppColors.primary, fontSize: 13, fontWeight: "600" },
-  statsGrid: {
+  cardOuter: {
+    backgroundColor: B.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: B.border,
+    overflow: "hidden",
+  },
+  colorBar: { height: 4 },
+  cardPad:  { padding: 16 },
+
+  // ── Stats grid (2-column wrap)
+  grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    paddingHorizontal: 16,
-    gap: 10,
+    gap: 8,
   },
-  statCard: {
-    flex: 1,
-    minWidth: "44%",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 14,
-    borderLeftWidth: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  statIcon: {
+  statWrap: { flex: 1, minWidth: "45%", marginBottom: 0 },
+  statIconWrap: {
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -710,112 +458,64 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 8,
   },
-  statValue: { fontSize: 24, fontWeight: "800", color: "#11181C" },
-  statLabel: { fontSize: 12, color: "#687076", marginTop: 2 },
-  attCard: {
-    marginHorizontal: 20,
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  attBar: {
-    flexDirection: "row",
-    height: 10,
-    borderRadius: 5,
-    overflow: "hidden",
-    backgroundColor: "#eee",
-    marginBottom: 12,
-  },
-  attSeg: { height: 10 },
-  legend: { flexDirection: "row", gap: 16, flexWrap: "wrap" },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { fontSize: 12 },
-  activityRow: {
+  statValue: { fontSize: 28, fontWeight: "900", color: B.text },
+  statLabel: { fontSize: 12, fontWeight: "600", color: B.sub, marginTop: 2 },
+
+  // ── Our Statistics button
+  statsBtn: {
     flexDirection: "row",
     alignItems: "center",
-    marginHorizontal: 20,
+    borderRadius: 16,
+    padding: 16,
+    backgroundColor: B.teal,
+    gap: 16,
+    marginTop: 24,
     marginBottom: 8,
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    gap: 10,
+    shadowColor: B.teal,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.32,
+    shadowRadius: 10,
+    elevation: 5,
   },
-  activityAvatar: {
+  statsBtnIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
-  activityAvatarText: { fontSize: 16, fontWeight: "700" },
-  activityBody: { flex: 1 },
-  activityTitle: { fontSize: 14, fontWeight: "600", marginBottom: 2 },
-  activitySub: { fontSize: 12 },
-  activityRight: { alignItems: "flex-end", gap: 4 },
-  activityTime: { fontSize: 11 },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: AppColors.primary,
-  },
-  eventRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 20,
-    marginBottom: 8,
+  statsBtnTitle: { fontSize: 16, fontWeight: "800", color: "#fff" },
+  statsBtnSub:   { fontSize: 12, color: "rgba(255,255,255,0.75)", marginTop: 2 },
+
+  // ── Event / notif rows
+  rowCard:  { marginBottom: 8 },
+  rowInner: { flexDirection: "row", alignItems: "center", gap: 12 },
+  dateBox: {
+    width: 48,
+    height: 48,
     borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  eventDate: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: AppColors.primaryLight,
+    backgroundColor: B.teal + "18",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
   },
-  eventDay: { fontSize: 16, fontWeight: "800", color: AppColors.primary },
-  eventMonth: { fontSize: 10, color: AppColors.primary, fontWeight: "600" },
-  eventInfo: { flex: 1 },
-  eventTitle: { fontSize: 14, fontWeight: "600", marginBottom: 2 },
-  eventLocation: { fontSize: 12 },
-  eventCapBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  eventCapText: { fontSize: 11, color: AppColors.primary, fontWeight: "600" },
-  notifRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 20,
-    marginBottom: 8,
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    gap: 10,
-  },
-  notifIcon: {
+  dateDay: { fontSize: 18, fontWeight: "900", color: B.teal },
+  dateMon: { fontSize: 9, fontWeight: "700", color: B.teal, letterSpacing: 0.5 },
+  rowTitle:{ fontSize: 14, fontWeight: "700", color: B.text, marginBottom: 3 },
+  rowSub:  { fontSize: 12, color: B.sub },
+  capBadge:{ backgroundColor: B.teal + "18", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  capText: { fontSize: 11, fontWeight: "700", color: B.teal },
+
+  notifIconWrap: {
     width: 36,
     height: 36,
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
-  notifBody: { flex: 1 },
-  notifTitle: { fontSize: 14, fontWeight: "600", marginBottom: 2 },
-  notifSub: { fontSize: 12 },
-  emptyBox: { alignItems: "center", paddingVertical: 24, gap: 8 },
-  emptyText: { fontSize: 14 },
-  spacer: { height: 24 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: B.teal },
+
+  // ── Empty state
+  emptyBox:  { alignItems: "center", paddingVertical: 32, gap: 8 },
+  emptyText: { fontSize: 14, color: B.muted },
 });
