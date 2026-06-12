@@ -6,17 +6,12 @@ import {
   User,
 } from "firebase/auth";
 import {
-  addDoc,
-  collection,
   doc,
   getDoc,
-  getDocs,
-  query,
   serverTimestamp,
-  setDoc,
-  where,
+  setDoc
 } from "firebase/firestore";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { auth, db } from "../firebase/firebase";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -66,9 +61,10 @@ type AuthContextType = {
     identifier: string,
     password: string,
     role: UserRole,
-  ) => Promise<boolean | "pending" | "rejected">;
+    // ) => Promise<boolean | "pending" | "rejected">;
+  ) => Promise<boolean>;
   // Singers submit a join request; admins approve/reject from their side
-  submitJoinRequest: (payload: StudentSignupPayload) => Promise<boolean>;
+  // submitJoinRequest: (payload: StudentSignupPayload) => Promise<boolean>;
   signupStudent: (payload: StudentSignupPayload) => Promise<boolean>;
   logout: () => void;
 };
@@ -92,6 +88,8 @@ const phoneToEmail = (phone: string) => {
 export function AuthProvider({ children }: React.PropsWithChildren) {
   const [user, setUser] = useState<UserType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Prevents onAuthStateChanged from signing out the user mid-signup
+  const isSigningUpRef = useRef(false);
 
   // Restore session on app restart
   useEffect(() => {
@@ -122,8 +120,10 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
                     : null,
             });
           } else {
-            // UID in Auth but no Firestore doc — sign out for safety
-            await signOut(auth);
+            // UID in Auth but no Firestore doc — only sign out if not mid-signup
+            if (!isSigningUpRef.current) {
+              await signOut(auth);
+            }
             setUser(null);
           }
         } catch (e) {
@@ -143,7 +143,8 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
     identifier: string,
     password: string,
     role: UserRole,
-  ): Promise<boolean | "pending" | "rejected"> => {
+    // ): Promise<boolean | "pending" | "rejected"> => {
+  ): Promise<boolean> => {
     let email = identifier;
     let singerPhone = "";
     try {
@@ -154,17 +155,17 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
           return false;
         }
 
-        // If the phone request already exists, return pending/rejected state before trying auth
-        const requestDoc = await getDoc(doc(db, "join_requests", singerPhone));
-        if (requestDoc.exists()) {
-          const requestData = requestDoc.data();
-          if (requestData.status === "pending") {
-            return "pending";
-          }
-          if (requestData.status === "rejected") {
-            return "rejected";
-          }
-        }
+        // // If the phone request already exists, return pending/rejected state before trying auth
+        // const requestDoc = await getDoc(doc(db, "join_requests", singerPhone));
+        // if (requestDoc.exists()) {
+        //   const requestData = requestDoc.data();
+        //   if (requestData.status === "pending") {
+        //     return "pending";
+        //   }
+        //   if (requestData.status === "rejected") {
+        //     return "rejected";
+        //   }
+        // }
 
         email = phoneToEmail(singerPhone);
       }
@@ -173,21 +174,21 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
       const result = await signInWithEmailAndPassword(auth, email, password);
       const fbUser = result.user;
 
-      // For singers: if a join request still exists, do not allow login until approved
-      if (role === "singer") {
-        const requestDoc = await getDoc(doc(db, "join_requests", singerPhone));
-        if (requestDoc.exists()) {
-          const requestData = requestDoc.data();
-          if (requestData.status === "pending") {
-            await signOut(auth);
-            return "pending";
-          }
-          if (requestData.status === "rejected") {
-            await signOut(auth);
-            return "rejected";
-          }
-        }
-      }
+      // // For singers: if a join request still exists, do not allow login until approved
+      // if (role === "singer") {
+      //   const requestDoc = await getDoc(doc(db, "join_requests", singerPhone));
+      //   if (requestDoc.exists()) {
+      //     const requestData = requestDoc.data();
+      //     if (requestData.status === "pending") {
+      //       await signOut(auth);
+      //       return "pending";
+      //     }
+      //     if (requestData.status === "rejected") {
+      //       await signOut(auth);
+      //       return "rejected";
+      //     }
+      //   }
+      // }
 
       // Check users collection and verify role matches
       const snap = await getDoc(doc(db, "users", fbUser.uid));
@@ -298,17 +299,42 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
   const signupStudent = async (
     payload: StudentSignupPayload,
   ): Promise<boolean> => {
+    isSigningUpRef.current = true;
     try {
       const { password, ...fields } = payload;
 
-      const result = await createUserWithEmailAndPassword(
-        auth,
-        phoneToEmail(fields.phone),
-        password,
-      );
-      const uid = result.user.uid;
+      let uid: string;
 
-      await setDoc(doc(db, "users", uid), {
+      try {
+        const result = await createUserWithEmailAndPassword(
+          auth,
+          phoneToEmail(fields.phone),
+          password,
+        );
+        uid = result.user.uid;
+      } catch (authErr: any) {
+        if (authErr.code === "auth/email-already-in-use") {
+          // Auth account exists from a previously interrupted signup attempt.
+          // Sign in and complete the Firestore write if the profile doc is still missing.
+          const result = await signInWithEmailAndPassword(
+            auth,
+            phoneToEmail(fields.phone),
+            password,
+          );
+          const existing = await getDoc(doc(db, "users", result.user.uid));
+          if (existing.exists()) {
+            // Fully registered — user should log in instead
+            await signOut(auth);
+            isSigningUpRef.current = false;
+            return false;
+          }
+          uid = result.user.uid;
+        } else {
+          throw authErr;
+        }
+      }
+
+      await setDoc(doc(db, "users", uid!), {
         uid,
         role: "singer",
         full_name: fields.full_name.trim(),
@@ -334,7 +360,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
       });
 
       setUser({
-        uid,
+        uid: uid!,
         role: "singer",
         full_name: fields.full_name.trim(),
         email: fields.email?.trim() || null,
@@ -347,8 +373,10 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         current_year_id: 1,
       });
 
+      isSigningUpRef.current = false;
       return true;
     } catch (e: any) {
+      isSigningUpRef.current = false;
       console.log("SIGNUP ERROR:", e.message);
       return false;
     }
@@ -357,76 +385,76 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
   // ── Submit join request (pending approval by admin) ──────────────────────
   // NOTE: No Firebase Auth account is created here.
   // The singer CANNOT log in until admin approves and creates their account.
-  const submitJoinRequest = async (
-    payload: StudentSignupPayload,
-  ): Promise<boolean> => {
-    try {
-      const { password, ...fields } = payload;
+  // const submitJoinRequest = async (
+  //   payload: StudentSignupPayload,
+  // ): Promise<boolean> => {
+  //   try {
+  //     const { password, ...fields } = payload;
 
-      // Use phone digits as document ID to prevent duplicates
-      const requestId = fields.phone.replace(/\D/g, "");
+  //     // Use phone digits as document ID to prevent duplicates
+  //     const requestId = fields.phone.replace(/\D/g, "");
 
-      // Check for existing request
-      const existing = await getDoc(doc(db, "join_requests", requestId));
-      if (existing.exists()) {
-        const d = existing.data();
-        if (d.status === "pending" || d.status === "approved") {
-          // Already submitted
-          return false;
-        }
-      }
+  //     // Check for existing request
+  //     const existing = await getDoc(doc(db, "join_requests", requestId));
+  //     if (existing.exists()) {
+  //       const d = existing.data();
+  //       if (d.status === "pending" || d.status === "approved") {
+  //         // Already submitted
+  //         return false;
+  //       }
+  //     }
 
-      await setDoc(doc(db, "join_requests", requestId), {
-        full_name: fields.full_name.trim(),
-        email: fields.email?.trim() || null,
-        phone: fields.phone.trim(),
-        birth_date: fields.birth_date.trim(),
-        address: fields.address.trim(),
-        neighborhood: fields.neighborhood.trim(),
-        gender: fields.gender,
-        nationality: fields.nationality.trim(),
-        age: fields.age,
-        school_name: fields.school_name.trim(),
-        shirt_size: fields.shirt_size,
-        voice_type: fields.voice_type
-          ? String(fields.voice_type).trim().toLowerCase()
-          : null,
-        year_joined: fields.year_joined,
-        food_notes: fields.food_notes ? fields.food_notes.trim() : "",
-        parent_relation: fields.parent_relation,
-        parent_phone: fields.parent_phone.trim(),
-        parent_name: fields.parent_name.trim(),
-        medical_situation: fields.medical_situation.trim(),
-        _tempPassword: password, // used by admin to create the Auth account on approval
-        status: "pending",
-        createdAt: serverTimestamp(),
-      });
+  //     await setDoc(doc(db, "join_requests", requestId), {
+  //       full_name: fields.full_name.trim(),
+  //       email: fields.email?.trim() || null,
+  //       phone: fields.phone.trim(),
+  //       birth_date: fields.birth_date.trim(),
+  //       address: fields.address.trim(),
+  //       neighborhood: fields.neighborhood.trim(),
+  //       gender: fields.gender,
+  //       nationality: fields.nationality.trim(),
+  //       age: fields.age,
+  //       school_name: fields.school_name.trim(),
+  //       shirt_size: fields.shirt_size,
+  //       voice_type: fields.voice_type
+  //         ? String(fields.voice_type).trim().toLowerCase()
+  //         : null,
+  //       year_joined: fields.year_joined,
+  //       food_notes: fields.food_notes ? fields.food_notes.trim() : "",
+  //       parent_relation: fields.parent_relation,
+  //       parent_phone: fields.parent_phone.trim(),
+  //       parent_name: fields.parent_name.trim(),
+  //       medical_situation: fields.medical_situation.trim(),
+  //       _tempPassword: password, // used by admin to create the Auth account on approval
+  //       status: "pending",
+  //       createdAt: serverTimestamp(),
+  //     });
 
-      // Fire a notification so admins see the bell badge immediately
-      // Query for all admin users and send them the notification
-      const adminQ = query(
-        collection(db, "users"),
-        where("role", "==", "admin"),
-      );
-      const adminSnap = await getDocs(adminQ);
+  // Fire a notification so admins see the bell badge immediately
+  // Query for all admin users and send them the notification
+  //     const adminQ = query(
+  //       collection(db, "users"),
+  //       where("role", "==", "admin"),
+  //     );
+  //     const adminSnap = await getDocs(adminQ);
 
-      for (const adminDoc of adminSnap.docs) {
-        await addDoc(collection(db, "notifications"), {
-          title: "New Singer Request 🎤",
-          body: `${fields.full_name.trim()} has submitted a join request.`,
-          type: "general",
-          is_read: false,
-          target_uid: adminDoc.id, // send to each admin
-          timestamp: new Date().toISOString(),
-        });
-      }
+  //     for (const adminDoc of adminSnap.docs) {
+  //       await addDoc(collection(db, "notifications"), {
+  //         title: "New Singer Request 🎤",
+  //         body: `${fields.full_name.trim()} has submitted a join request.`,
+  //         type: "general",
+  //         is_read: false,
+  //         target_uid: adminDoc.id, // send to each admin
+  //         timestamp: new Date().toISOString(),
+  //       });
+  //     }
 
-      return true;
-    } catch (e: any) {
-      console.log("JOIN REQUEST ERROR:", e.message);
-      return false;
-    }
-  };
+  //     return true;
+  //   } catch (e: any) {
+  //     console.log("JOIN REQUEST ERROR:", e.message);
+  //     return false;
+  //   }
+  // };
 
   // ── Logout ────────────────────────────────────────────────────────────────
   const logout = async () => {
@@ -440,7 +468,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         isAuthenticated: !!user,
         isLoading,
         login,
-        submitJoinRequest,
+        // submitJoinRequest,
         signupStudent,
         logout,
       }}

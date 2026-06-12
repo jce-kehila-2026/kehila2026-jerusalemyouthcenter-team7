@@ -18,10 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
   collection,
-  getDocs,
-  onSnapshot,
-  query,
-  where,
+  getDocs
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
@@ -92,7 +89,7 @@ export default function DashboardScreen() {
   const isAdmin = user?.role === "admin";
 
   const [loading, setLoading] = useState(true);
-  const [pendingRequestCount, setPendingRequestCount] = useState(0);
+  // const [pendingRequestCount, setPendingRequestCount] = useState(0);
   const [studentCount, setStudentCount] = useState((mockStudents || []).length);
   const [eventList, setEventList] = useState<DashEvent[]>(mockEvents || []);
   const [formCount, setFormCount] = useState((mockForms || []).length);
@@ -136,24 +133,24 @@ export default function DashboardScreen() {
       return;
     }
 
-    // Real-time pending join requests count (admin only)
-    let unsubRequests = () => {};
-    if (isAdmin) {
-      const reqQ = query(
-        collection(db, "join_requests"),
-        where("status", "==", "pending"),
-      );
-      unsubRequests = onSnapshot(reqQ, (snap) => {
-        setPendingRequestCount(snap.size);
-      });
-    }
+    // // Real-time pending join requests count (admin only)
+    // let unsubRequests = () => {};
+    // if (isAdmin) {
+    //   const reqQ = query(
+    //     collection(db, "join_requests"),
+    //     where("status", "==", "pending"),
+    //   );
+    //   unsubRequests = onSnapshot(reqQ, (snap) => {
+    //     // setPendingRequestCount(snap.size);
+    //   });
+    // }
 
     // One-time fetch for non-realtime collections
     const fetchStatic = async () => {
       try {
         const [studsSnap, evtsSnap, formsSnap, attSnap, esSnap] =
           await Promise.allSettled([
-            getDocs(collection(db, "students")),
+            getDocs(collection(db, "singer")),
             getDocs(collection(db, "events")),
             getDocs(collection(db, "forms")),
             getDocs(collection(db, "attendance")),
@@ -218,7 +215,7 @@ export default function DashboardScreen() {
     return () => {
       unsubNotif();
       unsubMessages();
-      unsubRequests();
+      // unsubRequests();
     };
   }, [user?.uid]);
 
@@ -291,7 +288,7 @@ export default function DashboardScreen() {
             </Text>
             <View style={styles.statsGrid}>
               <StatCard
-                label="Students"
+                label="Singer"
                 value={studentCount}
                 icon="people"
                 color={AppColors.primary}
