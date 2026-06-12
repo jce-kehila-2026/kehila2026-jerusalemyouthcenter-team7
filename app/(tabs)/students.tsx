@@ -209,7 +209,7 @@ export default function StudentsListScreen() {
               </Text>
             </View>
             <View style={s.voiceBadge}>
-              <Text style={s.voiceBadgeText}>🎤 {voiceLabel}</Text>
+              <Text style={s.voiceBadgeText}>{voiceLabel}</Text>
             </View>
           </View>
 

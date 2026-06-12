@@ -7,6 +7,7 @@ import { notificationService } from "@/src/data/notificationService";
 import { studentService } from "@/src/data/studentService";
 import { timeAgo } from "@/src/utils/timeUtils";
 import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
@@ -88,6 +89,9 @@ export default function MessagesScreen() {
   const theme = Colors[colorScheme ?? "light"];
   const scrollRef = useRef<ScrollView>(null);
 
+  const router = useRouter();
+  const { studentId, studentName } = useLocalSearchParams<{ studentId: string; studentName: string }>();
+
   const isAdmin = user?.role === "admin";
   const currentUid = user?.uid ?? "";
 
@@ -142,6 +146,26 @@ export default function MessagesScreen() {
     );
     if (updated) setActiveConv(updated);
   }, [conversations]);
+
+  // Auto-open chat when arriving from the students screen via URL params
+  useEffect(() => {
+    if (!studentId) return;
+    const sid = String(studentId);
+    const existing = conversations.find((c) => c.otherPartyId === sid);
+    if (existing) {
+      openConversation(existing);
+    } else {
+      setActiveConv({
+        otherPartyId: sid,
+        otherName: String(studentName ?? sid),
+        unread: false,
+        thread: [],
+      });
+      setSearch("");
+    }
+    // Clear params so re-visiting the screen doesn't re-open the same chat
+    router.setParams({ studentId: "", studentName: "" });
+  }, [studentId]);
 
   // ── Search state ──────────────────────────────────────────────────────────
   const searchTrimmed = search.trim().toLowerCase();
