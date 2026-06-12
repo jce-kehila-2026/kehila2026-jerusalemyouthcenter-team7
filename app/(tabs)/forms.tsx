@@ -2,7 +2,7 @@ import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/src/context/AuthContext";
 import { db } from "@/src/firebase/firebase";
-import { getAllForms } from "@/src/firebase/firestoreService";
+import { getAllForms, getFormSubmissions } from "@/src/firebase/firestoreService";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { deleteDoc, doc } from "firebase/firestore";
@@ -45,24 +45,32 @@ export default function FormsScreen() {
   const [formsList, setFormsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [formToDelete, setFormToDelete] = useState<string | null>(null);
+  const [submissionCounts, setSubmissionCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const fetchForms = async () => {
       setLoading(true);
       const data = await getAllForms();
-      // عشان نشوف الداتا بالـ Terminal ونعرف وين الغلطة اللي بالفايربيز
-      console.log("🔥 Data from Firebase:", JSON.stringify(data, null, 2));
-
       const filteredData = data.filter(
         (f) =>
           typeof f.title !== "string" ||
           !f.title.toLowerCase().includes("new student"),
       );
       setFormsList(filteredData);
+
+      if (userRole === "admin" || userRole === "staff") {
+        const allSubs = await getFormSubmissions();
+        const counts: Record<string, number> = {};
+        allSubs.forEach((sub) => {
+          if (sub.form_id) counts[sub.form_id] = (counts[sub.form_id] ?? 0) + 1;
+        });
+        setSubmissionCounts(counts);
+      }
+
       setLoading(false);
     };
     fetchForms();
-  }, []);
+  }, [userRole]);
 
   const visibleForms = formsList.filter((f) => {
     if (userRole === "admin" || userRole === "staff") return true;
@@ -280,20 +288,30 @@ export default function FormsScreen() {
                     <Text style={styles.fillButtonText}>Fill out</Text>
                   </Pressable>
 
-                  <View
-                    style={[
-                      styles.countBadge,
-                      { backgroundColor: activeColor + "26" },
-                    ]}
-                  >
-                    <Text style={[styles.countText, { color: activeColor }]}>
-                      {questions.length} questions
-                    </Text>
-                    <Ionicons
-                      name="help-circle-outline"
-                      size={13}
-                      color={activeColor}
-                    />
+                  <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                    {(userRole === "admin" || userRole === "staff") && (
+                      <View style={[styles.countBadge, { backgroundColor: activeColor + "26" }]}>
+                        <Text style={[styles.countText, { color: activeColor }]}>
+                          {submissionCounts[item.id] ?? 0} responses
+                        </Text>
+                        <Ionicons name="people-outline" size={13} color={activeColor} />
+                      </View>
+                    )}
+                    <View
+                      style={[
+                        styles.countBadge,
+                        { backgroundColor: activeColor + "26" },
+                      ]}
+                    >
+                      <Text style={[styles.countText, { color: activeColor }]}>
+                        {questions.length} questions
+                      </Text>
+                      <Ionicons
+                        name="help-circle-outline"
+                        size={13}
+                        color={activeColor}
+                      />
+                    </View>
                   </View>
                 </View>
               </Pressable>

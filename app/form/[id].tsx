@@ -34,7 +34,7 @@ export default function FormDetailScreen() {
   const router = useRouter();
   const { user } = useAuth() as any;
 
-  const studentId = user?.id || user?.email || "student_123";
+  const studentId = user?.uid ?? "";
 
   const [form, setForm] = useState<any>(null);
   const [loading, setLoading] = useState(true);

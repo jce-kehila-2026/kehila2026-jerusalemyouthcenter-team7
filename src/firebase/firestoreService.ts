@@ -1,15 +1,15 @@
 import {
     addDoc,
-    arrayUnion,
     collection,
     deleteDoc,
     doc,
     getDoc,
     getDocs,
-    updateDoc,
+    query,
+    where,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { QuestionnaireTemplate, Response, SubmittedForm } from "./interfaces";
+import { QuestionnaireTemplate, Response } from "./interfaces";
 
 export async function getFormTemplate(
   templateId: string,
@@ -34,24 +34,30 @@ export async function submitStudentForm(
   formId: string,
   responses: Response[],
 ): Promise<void> {
-  const studentRef = doc(db, "students", studentId);
-  const newSubmission: SubmittedForm = {
-    formId: formId,
-    submitDate: new Date().toISOString(),
-    responses: responses,
-  };
-
   try {
-    // arrayUnion هو السحر اللي بضيف بدون ما يمسح القديم
-    await updateDoc(studentRef, {
-      submitted_forms: arrayUnion(newSubmission),
+    await addDoc(collection(db, "form_submissions"), {
+      form_id: formId,
+      student_id: studentId,
+      submitted_at: new Date().toISOString(),
+      responses: responses,
     });
-    console.log(
-      `Form ${formId} successfully submitted for student ${studentId}`,
-    );
+    console.log(`Form ${formId} submitted by student ${studentId}`);
   } catch (error) {
     console.error(`Error submitting form for student ${studentId}:`, error);
     throw error;
+  }
+}
+
+export async function getFormSubmissions(formId?: string): Promise<any[]> {
+  try {
+    const ref = collection(db, "form_submissions");
+    const snapshot = formId
+      ? await getDocs(query(ref, where("form_id", "==", formId)))
+      : await getDocs(ref);
+    return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (error) {
+    console.error("Error fetching form submissions:", error);
+    return [];
   }
 }
 
