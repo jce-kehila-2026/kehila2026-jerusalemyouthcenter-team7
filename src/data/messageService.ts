@@ -14,6 +14,7 @@ export type FirestoreMsg = {
   sender_id: string; // Firebase uid
   sender_name: string;
   receiver_id: string; // Firebase uid
+  receiver_name?: string;
   content: string;
   timestamp: string; // ISO string
   is_read: boolean;

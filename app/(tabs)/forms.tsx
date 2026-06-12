@@ -1,14 +1,16 @@
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/src/context/AuthContext";
-import { deleteForm, getAllForms } from "@/src/firebase/firestoreService";
+import { db } from "@/src/firebase/firebase";
+import { getAllForms } from "@/src/firebase/firestoreService";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { deleteDoc, doc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -42,27 +44,7 @@ export default function FormsScreen() {
 
   const [formsList, setFormsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const handleDelete = (formId: string) => {
-    Alert.alert(
-      "Confirm Delete",
-      "Are you sure you want to delete this form?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            await deleteForm(formId);
-            setLoading(true);
-            const data = await getAllForms();
-            setFormsList(data);
-            setLoading(false);
-          },
-        },
-      ],
-    );
-  };
+  const [formToDelete, setFormToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchForms = async () => {
@@ -70,7 +52,13 @@ export default function FormsScreen() {
       const data = await getAllForms();
       // عشان نشوف الداتا بالـ Terminal ونعرف وين الغلطة اللي بالفايربيز
       console.log("🔥 Data from Firebase:", JSON.stringify(data, null, 2));
-      setFormsList(data);
+
+      const filteredData = data.filter(
+        (f) =>
+          typeof f.title !== "string" ||
+          !f.title.toLowerCase().includes("new student"),
+      );
+      setFormsList(filteredData);
       setLoading(false);
     };
     fetchForms();
@@ -131,7 +119,7 @@ export default function FormsScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={() => (
             <Text style={{ textAlign: "center", marginTop: 20, color: "#888" }}>
-              لا يوجد فورمات حالياً
+              لح
             </Text>
           )}
           renderItem={({ item, index }) => {
@@ -190,7 +178,16 @@ export default function FormsScreen() {
                     <View style={styles.adminActions}>
                       <Pressable
                         style={styles.actionButton}
-                        onPress={() => alert("Edit form " + item.id)}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/create-form",
+                            params: {
+                              id: item.id,
+                              isEditing: "true",
+                              formData: JSON.stringify(item),
+                            },
+                          } as any)
+                        }
                       >
                         <Ionicons
                           name="pencil-outline"
@@ -200,7 +197,12 @@ export default function FormsScreen() {
                       </Pressable>
                       <Pressable
                         style={styles.actionButton}
-                        onPress={() => handleDelete(item.id)}
+                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                        onPress={(e) => {
+                          if (e && e.stopPropagation) e.stopPropagation();
+                          if (e && e.preventDefault) e.preventDefault();
+                          setFormToDelete(item.id);
+                        }}
                       >
                         <Ionicons
                           name="trash-outline"
@@ -299,6 +301,45 @@ export default function FormsScreen() {
           }}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <Modal visible={!!formToDelete} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Delete Form</Text>
+            <Text style={styles.modalMessage}>
+              Are you sure you want to delete this form? This action cannot be
+              undone.
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.modalButton, styles.modalCancelButton]}
+                onPress={() => setFormToDelete(null)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, styles.modalDeleteButton]}
+                onPress={async () => {
+                  if (formToDelete) {
+                    try {
+                      await deleteDoc(doc(db, "forms", formToDelete));
+                      setFormsList((prev) =>
+                        prev.filter((f) => f.id !== formToDelete),
+                      );
+                    } catch (err) {
+                      console.error("Delete failed:", err);
+                    }
+                    setFormToDelete(null);
+                  }
+                }}
+              >
+                <Text style={styles.modalDeleteText}>Delete</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -392,4 +433,55 @@ const styles = StyleSheet.create({
   countText: { fontSize: 11, fontWeight: "700" },
   fillButton: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 10 },
   fillButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: themeColors.white,
+    padding: 24,
+    borderRadius: 16,
+    width: "80%",
+    maxWidth: 400,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: themeColors.charcoal,
+    marginBottom: 12,
+  },
+  modalMessage: {
+    fontSize: 15,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  modalActions: { flexDirection: "row", gap: 12, width: "100%" },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  modalCancelButton: { backgroundColor: "#f4f6f7" },
+  modalDeleteButton: { backgroundColor: themeColors.red },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: themeColors.charcoal,
+  },
+  modalDeleteText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: themeColors.white,
+  },
 });
