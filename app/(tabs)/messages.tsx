@@ -53,7 +53,7 @@ function groupConversations(
 
     const otherPartyId = fromMe ? msg.receiver_id : msg.sender_id;
     const otherName = fromMe
-      ? (map.get(otherPartyId)?.otherName ?? otherPartyId)
+      ? (map.get(otherPartyId)?.otherName ?? msg.receiver_name ?? otherPartyId)
       : msg.sender_name;
 
     if (!map.has(otherPartyId)) {
@@ -151,13 +151,17 @@ export default function MessagesScreen() {
   useEffect(() => {
     if (!studentId) return;
     const sid = String(studentId);
+    const resolvedName =
+      (studentName ? String(studentName) : "") ||
+      allStudents.find((s) => s.id === sid)?.full_name ||
+      sid;
     const existing = conversations.find((c) => c.otherPartyId === sid);
     if (existing) {
       openConversation(existing);
     } else {
       setActiveConv({
         otherPartyId: sid,
-        otherName: String(studentName ?? sid),
+        otherName: resolvedName,
         unread: false,
         thread: [],
       });
@@ -220,6 +224,7 @@ export default function MessagesScreen() {
         sender_id: currentUid,
         sender_name: senderName,
         receiver_id: receiverId,
+        receiver_name: activeConv.otherName,
         content: text,
         timestamp: new Date().toISOString(),
         is_read: false,
