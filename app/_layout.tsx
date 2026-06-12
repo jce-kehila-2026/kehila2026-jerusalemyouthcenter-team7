@@ -22,6 +22,7 @@ function RootLayoutNav() {
         <Stack.Screen name="event/[id]" options={{ headerShown: true, title: 'Event Details', headerBackTitle: 'Back' }} />
         <Stack.Screen name="form/[id]" options={{ headerShown: true, title: 'Form', headerBackTitle: 'Back' }} />
         <Stack.Screen name="profile" options={{ headerShown: true, title: 'My Profile', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="statistics" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
