@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -94,7 +95,7 @@ export default function StudentsListScreen() {
 
     let result = enriched;
 
-    if (user?.role === "student") {
+    if (user?.role === "singer") {
       // Students only see other students from their own year and voice section
       // Find the logged-in student's year by looking up their group assignment (chosen by admin)
       const myGroup = groupsList.find((g) => g.id === user.group_id);
@@ -183,6 +184,9 @@ export default function StudentsListScreen() {
       .join("")
       .substring(0, 2)
       .toUpperCase();
+    const voiceLabel = item.voice_type
+      ? item.voice_type.charAt(0).toUpperCase() + item.voice_type.slice(1)
+      : "N/A";
 
     return (
       <Pressable
@@ -195,41 +199,54 @@ export default function StudentsListScreen() {
       >
         <View style={[s.cardAccent, { backgroundColor: groupColor }]} />
         <View style={s.cardContent}>
-          <View
-            style={[
-              s.avatar,
-              { backgroundColor: groupColor + "20", borderColor: groupColor },
-            ]}
-          >
-            <Text style={[s.avatarText, { color: groupColor }]}>
-              {initials}
+          {/* Top: Year badge + Voice badge */}
+          <View style={s.badgesRow}>
+            <View
+              style={[s.groupBadge, { backgroundColor: groupColor + "30" }]}
+            >
+              <Text style={[s.groupBadgeText, { color: groupColor }]}>
+                {item.group_name}
+              </Text>
+            </View>
+            <View style={s.voiceBadge}>
+              <Text style={s.voiceBadgeText}>🎤 {voiceLabel}</Text>
+            </View>
+          </View>
+
+          {/* Middle: Avatar + Name */}
+          <View style={s.nameRow}>
+            <View
+              style={[
+                s.avatar,
+                { backgroundColor: groupColor + "20", borderColor: groupColor },
+              ]}
+            >
+              <Text style={[s.avatarText, { color: groupColor }]}>
+                {initials}
+              </Text>
+            </View>
+            <Text style={s.cardTitle} numberOfLines={1}>
+              {item.full_name}
             </Text>
           </View>
 
-          <View style={s.studentInfo}>
-            <View style={s.cardHeader}>
-              <Text style={s.cardTitle} numberOfLines={1}>
-                {item.full_name}
-              </Text>
-              <View
-                style={[s.groupBadge, { backgroundColor: groupColor + "30" }]}
-              >
-                <Text style={[s.groupBadgeText, { color: groupColor }]}>
-                  {item.group_name}
-                </Text>
-              </View>
-            </View>
-
-            <View style={s.detailsRow}>
-              <Text style={s.cardDetail}>
-                🎤{" "}
-                {item.voice_type
-                  ? item.voice_type.charAt(0).toUpperCase() +
-                    item.voice_type.slice(1)
-                  : "N/A"}
-              </Text>
-              <Text style={s.cardDetail}>📞 {item.phone || "N/A"}</Text>
-            </View>
+          {/* Bottom: Actions */}
+          <View style={s.actionsRow}>
+            <Pressable
+              hitSlop={8}
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)/messages",
+                  params: { studentId: item.id, studentName: item.full_name },
+                } as any)
+              }
+            >
+              <Ionicons
+                name="chatbubbles-outline"
+                size={24}
+                color={COLORS.teal}
+              />
+            </Pressable>
           </View>
         </View>
       </Pressable>
@@ -440,6 +457,11 @@ const s = StyleSheet.create({
     borderColor: COLORS.border,
     flexDirection: "row",
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   cardAccent: {
     width: 4,
@@ -447,30 +469,13 @@ const s = StyleSheet.create({
   cardContent: {
     flex: 1,
     padding: 16,
+    flexDirection: "column",
+    gap: 12,
+  },
+  badgesRow: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    borderWidth: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-  },
-  avatarText: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  studentInfo: {
-    flex: 1,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
+    gap: 8,
   },
   groupBadge: {
     paddingHorizontal: 10,
@@ -481,22 +486,43 @@ const s = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
   },
+  voiceBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: COLORS.grayLight,
+  },
+  voiceBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: COLORS.gray,
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
   cardTitle: {
     fontSize: 17,
     fontWeight: "700",
     color: COLORS.black,
     flex: 1,
-    marginRight: 8,
   },
-  detailsRow: {
+  actionsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-  },
-  cardDetail: {
-    fontSize: 13,
-    color: COLORS.gray,
-    lineHeight: 19,
   },
   empty: {
     flex: 1,
