@@ -2,6 +2,7 @@ import { NotificationBell } from "@/src/components/NotificationBell";
 import { useAuth } from "@/src/context/AuthContext";
 import { FirestoreMsg, messageService } from "@/src/data/messageService";
 import {
+  COLORS,
   events as mockEvents,
   forms as mockForms,
   messages as mockMessages,
@@ -12,13 +13,7 @@ import { db } from "@/src/firebase/firebase";
 import { notifColor, notifIcon } from "@/src/utils/notifMeta";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import {
-  collection,
-  getDocs,
-  onSnapshot,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -30,19 +25,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// ── Brand Design System ────────────────────────────────────────────────────────
-const B = {
-  teal:       '#039899',
-  red:        '#c56451',
-  yellow:     '#cfad5d',
-  purple:     '#6b5ce7',
-  text:       '#1a1a2e',
-  sub:        '#5a6a7a',
-  muted:      '#9aa8b4',
-  bg:         '#f5fafe',
-  card:       '#ffffff',
-  border:     '#e8eef2',
-} as const;
+
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type DashEvent     = { id: string | number; title: string; date: string; location: string; registered: number; capacity: number };
@@ -51,7 +34,7 @@ type DashNotif     = { id: string | number; title: string; body: string; timesta
 
 // ── Shared card wrapper (4px colour bar + teal shadow) ────────────────────────
 function BrandCard({
-  barColor = B.teal,
+  barColor = COLORS.teal,
   style,
   padStyle,
   children,
@@ -104,7 +87,7 @@ function EventRow({ event, onPress }: { event: DashEvent; onPress: () => void })
   const d = new Date(event.date);
   return (
     <Pressable onPress={onPress}>
-      <BrandCard barColor={B.teal} style={st.rowCard}>
+      <BrandCard barColor={COLORS.teal} style={st.rowCard}>
         <View style={st.rowInner}>
           <View style={st.dateBox}>
             <Text style={st.dateDay}>{d.getDate()}</Text>
@@ -151,7 +134,7 @@ export default function DashboardScreen() {
   const isAdmin   = user?.role === "admin";
 
   const [loading, setLoading]                   = useState(true);
-  const [pendingRequestCount, setPendingRequestCount] = useState(0);
+  // const [pendingRequestCount, setPendingRequestCount] = useState(0);
   const [studentCount, setStudentCount]         = useState((mockStudents || []).length);
   const [eventList, setEventList]               = useState<DashEvent[]>(mockEvents || []);
   const [formCount, setFormCount]               = useState((mockForms || []).length);
@@ -175,18 +158,19 @@ export default function DashboardScreen() {
   useEffect(() => {
     if (!user) { setLoading(false); return; }
 
-    let unsubRequests = () => {};
-    if (isAdmin) {
-      const reqQ = query(collection(db, "join_requests"), where("status", "==", "pending"));
-      unsubRequests = onSnapshot(reqQ, (snap) => setPendingRequestCount(snap.size));
-    }
+  //   let unsubRequests = () => {};
+  //   if (isAdmin) {
+  //     const reqQ = query(collection(db, "join_requests"), where("status", "==", "pending"));
+  //     unsubRequests = onSnapshot(reqQ, (snap) => setPendingRequestCount(snap.size));
+  //   }
 
     const fetchStatic = async () => {
       try {
         const [studsSnap, evtsSnap, formsSnap, esSnap] = await Promise.allSettled([
-          getDocs(collection(db, "students")),
+          getDocs(collection(db, "singer")),
           getDocs(collection(db, "events")),
           getDocs(collection(db, "forms")),
+          getDocs(collection(db, "attendance")),
           getDocs(collection(db, "event_students")),
         ]);
 
@@ -201,7 +185,7 @@ export default function DashboardScreen() {
 
         if (esSnap.status === "fulfilled" && esSnap.value.size > 0) {
           const myIds = esSnap.value.docs
-            .filter((d) => d.data().student_id === user.uid)
+            .filter((d) => d.data().student_id === user?.uid)
             .map((d) => d.data().event_id as string);
           if (myIds.length > 0) setMyRegisteredEventIds(myIds);
         }
@@ -216,7 +200,7 @@ export default function DashboardScreen() {
 
     const unsubNotif = notificationService.subscribe(
       (notifs) => { if (notifs.length > 0 || !loading) setNotifList(notifs); },
-      user.uid,
+      user?.uid,
       isAdmin ? "admin" : "singer",
     );
 
@@ -224,19 +208,21 @@ export default function DashboardScreen() {
       if (msgs.length > 0) {
         const relevant = isAdmin
           ? msgs.filter((m) => m.receiver_id === "admin")
-          : msgs.filter((m) => m.receiver_id === user.uid || m.sender_id === user.uid);
+          : msgs.filter((m) => m.receiver_id === user?.uid || m.sender_id === user?.uid);
         setMessageList(relevant.slice().reverse());
       }
     });
 
-    return () => { unsubNotif(); unsubMessages(); unsubRequests(); };
+    return () => { unsubNotif(); unsubMessages(); 
+      // unsubRequests(); 
+    };
   }, [user?.uid]);
 
   // ── Loading state ─────────────────────────────────────────────────────────
   if (loading) {
     return (
       <View style={[st.screen, st.center]}>
-        <ActivityIndicator size="large" color={B.teal} />
+        <ActivityIndicator size="large" color={COLORS.teal} />
       </View>
     );
   }
@@ -287,10 +273,10 @@ export default function DashboardScreen() {
           <>
             <SectionLabel>Overview</SectionLabel>
             <View style={st.grid}>
-              <StatCard label="Students"     value={studentCount}      icon="people"          barColor={B.teal}   />
-              <StatCard label="Events"        value={eventList.length}  icon="calendar"        barColor={B.yellow} />
-              <StatCard label="Forms"         value={formCount}         icon="document-text"   barColor={B.teal}   />
-              <StatCard label="Notifications" value={unreadNotifications} icon="notifications" barColor={B.red}    />
+              <StatCard label="Students"     value={studentCount}      icon="people"          barColor={COLORS.teal}   />
+              <StatCard label="Events"        value={eventList.length}  icon="calendar"        barColor={COLORS.yellow} />
+              <StatCard label="Forms"         value={formCount}         icon="document-text"   barColor={COLORS.teal}   />
+              <StatCard label="Notifications" value={unreadNotifications} icon="notifications" barColor={COLORS.red}    />
             </View>
 
             {/* Our Statistics button */}
@@ -311,7 +297,7 @@ export default function DashboardScreen() {
             <SectionLabel>Upcoming Events</SectionLabel>
             {eventList.filter((e) => new Date(e.date) >= now).slice(0, 3).length === 0 ? (
               <View style={st.emptyBox}>
-                <Ionicons name="calendar-outline" size={40} color={B.muted} />
+                <Ionicons name="calendar-outline" size={40} color={COLORS.muted} />
                 <Text style={st.emptyText}>No upcoming events</Text>
               </View>
             ) : (
@@ -332,15 +318,15 @@ export default function DashboardScreen() {
           <>
             <SectionLabel>Overview</SectionLabel>
             <View style={st.grid}>
-              <StatCard label="My Events"     value={myRegisteredEventIds.length} icon="calendar"      barColor={B.teal}   />
-              <StatCard label="Forms"          value={formCount}                   icon="document-text" barColor={B.yellow} />
-              <StatCard label="Unread Notifs"  value={unreadNotifications}         icon="notifications" barColor={B.red}    />
+              <StatCard label="My Events"     value={myRegisteredEventIds.length} icon="calendar"      barColor={COLORS.teal}   />
+              <StatCard label="Forms"          value={formCount}                   icon="document-text" barColor={COLORS.yellow} />
+              <StatCard label="Unread Notifs"  value={unreadNotifications}         icon="notifications" barColor={COLORS.red}    />
             </View>
 
             <SectionLabel>My Upcoming Events</SectionLabel>
             {myUpcomingEvents.length === 0 ? (
               <View style={st.emptyBox}>
-                <Ionicons name="calendar-outline" size={40} color={B.muted} />
+                <Ionicons name="calendar-outline" size={40} color={COLORS.muted} />
                 <Text style={st.emptyText}>No upcoming events</Text>
               </View>
             ) : (
@@ -369,12 +355,12 @@ export default function DashboardScreen() {
 // ── Styles ─────────────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
   // ── Layout
-  screen:   { flex: 1, backgroundColor: B.bg },
+  screen:   { flex: 1, backgroundColor: COLORS.bg },
   center:   { flex: 1, alignItems: "center", justifyContent: "center" },
 
   // ── Teal header
   header: {
-    backgroundColor: B.teal,
+    backgroundColor: COLORS.teal,
     paddingHorizontal: 16,
     paddingBottom: 16,
     flexDirection: "row",
@@ -392,7 +378,7 @@ const st = StyleSheet.create({
     minWidth: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: B.red,
+    backgroundColor: COLORS.red,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 3,
@@ -417,7 +403,7 @@ const st = StyleSheet.create({
   sectionLabel: {
     fontSize: 12,
     fontWeight: "700",
-    color: B.muted,
+    color: COLORS.muted,
     letterSpacing: 1,
     marginTop: 24,
     marginBottom: 8,
@@ -425,7 +411,7 @@ const st = StyleSheet.create({
 
   // ── BrandCard structure
   shadow: {
-    shadowColor: B.teal,
+    shadowColor: COLORS.teal,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 8,
@@ -434,10 +420,10 @@ const st = StyleSheet.create({
     marginBottom: 8,
   },
   cardOuter: {
-    backgroundColor: B.card,
+    backgroundColor: COLORS.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: B.border,
+    borderColor: COLORS.border,
     overflow: "hidden",
   },
   colorBar: { height: 4 },
@@ -458,8 +444,8 @@ const st = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 8,
   },
-  statValue: { fontSize: 28, fontWeight: "900", color: B.text },
-  statLabel: { fontSize: 12, fontWeight: "600", color: B.sub, marginTop: 2 },
+  statValue: { fontSize: 28, fontWeight: "900", color: COLORS.text },
+  statLabel: { fontSize: 12, fontWeight: "600", color: COLORS.sub, marginTop: 2 },
 
   // ── Our Statistics button
   statsBtn: {
@@ -467,11 +453,11 @@ const st = StyleSheet.create({
     alignItems: "center",
     borderRadius: 16,
     padding: 16,
-    backgroundColor: B.teal,
+    backgroundColor: COLORS.teal,
     gap: 16,
     marginTop: 24,
     marginBottom: 8,
-    shadowColor: B.teal,
+    shadowColor: COLORS.teal,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.32,
     shadowRadius: 10,
@@ -495,16 +481,16 @@ const st = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: B.teal + "18",
+    backgroundColor: COLORS.teal + "18",
     alignItems: "center",
     justifyContent: "center",
   },
-  dateDay: { fontSize: 18, fontWeight: "900", color: B.teal },
-  dateMon: { fontSize: 9, fontWeight: "700", color: B.teal, letterSpacing: 0.5 },
-  rowTitle:{ fontSize: 14, fontWeight: "700", color: B.text, marginBottom: 3 },
-  rowSub:  { fontSize: 12, color: B.sub },
-  capBadge:{ backgroundColor: B.teal + "18", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  capText: { fontSize: 11, fontWeight: "700", color: B.teal },
+  dateDay: { fontSize: 18, fontWeight: "900", color: COLORS.teal },
+  dateMon: { fontSize: 9, fontWeight: "700", color: COLORS.teal, letterSpacing: 0.5 },
+  rowTitle:{ fontSize: 14, fontWeight: "700", color: COLORS.text, marginBottom: 3 },
+  rowSub:  { fontSize: 12, color: COLORS.sub },
+  capBadge:{ backgroundColor: COLORS.teal + "18", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  capText: { fontSize: 11, fontWeight: "700", color: COLORS.teal },
 
   notifIconWrap: {
     width: 36,
@@ -513,9 +499,9 @@ const st = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: B.teal },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.teal },
 
   // ── Empty state
   emptyBox:  { alignItems: "center", paddingVertical: 32, gap: 8 },
-  emptyText: { fontSize: 14, color: B.muted },
+  emptyText: { fontSize: 14, color: COLORS .muted },
 });
