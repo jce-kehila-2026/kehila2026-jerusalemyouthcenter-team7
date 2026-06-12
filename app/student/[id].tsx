@@ -14,6 +14,7 @@ import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -165,6 +166,17 @@ export default function StudentDetailScreen() {
     absent: COLORS.red,
   };
 
+  const age = rawStudent?.age || "N/A";
+  const dob = rawStudent?.birth_date || rawStudent?.date_of_birth || "N/A";
+  const studyYear =
+    rawStudent?.study_year || rawStudent?.year_joined || studentYear || "N/A";
+  const voiceType = rawStudent?.voice_type || "N/A";
+  const address = rawStudent?.neighborhood || rawStudent?.address || "N/A";
+  const medicalDetails =
+    rawStudent?.food_notes || rawStudent?.allergies || "None";
+
+  const canViewAll = user?.role === "admin" || user?.uid === id;
+
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
       <StatusBar barStyle="dark-content" />
@@ -177,12 +189,20 @@ export default function StudentDetailScreen() {
               { backgroundColor: groupColor + "20", borderColor: groupColor },
             ]}
           >
-            <Text style={[styles.avatarText, { color: groupColor }]}>
-              {student.full_name
-                .split(" ")
-                .map((n) => n[0])
-                .join("")}
-            </Text>
+            {rawStudent?.photoURL ? (
+              <Image
+                source={{ uri: rawStudent.photoURL }}
+                style={{ width: "100%", height: "100%", borderRadius: 50 }}
+                resizeMode="cover"
+              />
+            ) : (
+              <Text style={[styles.avatarText, { color: groupColor }]}>
+                {student.full_name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")}
+              </Text>
+            )}
           </View>
           <Text style={styles.name}>{student.full_name}</Text>
           <View
@@ -194,24 +214,82 @@ export default function StudentDetailScreen() {
           </View>
         </View>
 
-        {/* Info Section */}
-        <View style={styles.infoSection}>
-          <InfoRow icon="mail-outline" label="Email" value={student.email} />
-          <View style={styles.divider} />
-          <InfoRow icon="call-outline" label="Phone" value={student.phone} />
-          <View style={styles.divider} />
-          <InfoRow
-            icon="calendar-outline"
-            label="Year"
-            value={(() => {
-              // Prioritize the year from the assigned group, then the student's own year_id
-              const displayYear = group?.year_id || studentYear;
-              if (displayYear) return `Year ${displayYear}`;
-              return "N/A";
-            })()}
-          />
-          <View style={styles.divider} />
+        {/* Basic Information */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Basic Information</Text>
+          <View style={styles.infoCard}>
+            <InfoRow
+              icon="person-outline"
+              label="Age"
+              value={age !== "N/A" ? `${age} years` : age}
+            />
+            <View style={styles.divider} />
+            <InfoRow
+              icon="calendar-outline"
+              label="Date of Birth"
+              value={dob}
+            />
+            <View style={styles.divider} />
+            <InfoRow
+              icon="school-outline"
+              label="Study Year"
+              value={(() => {
+                const displayYear = group?.year_id || studyYear;
+                if (displayYear && displayYear !== "N/A")
+                  return `Year ${displayYear}`;
+                return "N/A";
+              })()}
+            />
+            <View style={styles.divider} />
+            <InfoRow icon="mic-outline" label="Voice Type" value={voiceType} />
+          </View>
         </View>
+
+        {/* Contact Information */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Contact Information</Text>
+          <View style={styles.infoCard}>
+            {canViewAll && (
+              <>
+                <InfoRow
+                  icon="mail-outline"
+                  label="Email"
+                  value={student.email || "N/A"}
+                />
+                <View style={styles.divider} />
+              </>
+            )}
+            <InfoRow
+              icon="call-outline"
+              label="Phone"
+              value={student.phone || "N/A"}
+            />
+            {canViewAll && (
+              <>
+                <View style={styles.divider} />
+                <InfoRow
+                  icon="location-outline"
+                  label="Address"
+                  value={address}
+                />
+              </>
+            )}
+          </View>
+        </View>
+
+        {/* Medical Details */}
+        {canViewAll && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Medical Details</Text>
+            <View style={styles.infoCard}>
+              <InfoRow
+                icon="medkit-outline"
+                label="Allergies / Food Notes"
+                value={medicalDetails}
+              />
+            </View>
+          </View>
+        )}
 
         {/* Management Actions */}
         {user?.role === "admin" && (
@@ -237,46 +315,48 @@ export default function StudentDetailScreen() {
         )}
 
         {/* Attendance */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Event Attendance ({attendedEvents.length})
-          </Text>
-          {attendedEvents.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>No events recorded</Text>
-            </View>
-          ) : (
-            attendedEvents.map((a) => (
-              <View key={a.event_id} style={styles.attendanceRow}>
-                <View style={styles.attendanceInfo}>
-                  <Text style={styles.eventTitle}>{a.event?.title}</Text>
-                  <Text style={styles.eventDate}>
-                    {new Date(a.event!.date).toLocaleDateString("en-GB", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: statusColors[a.status] + "20" },
-                  ]}
-                >
-                  <Text
+        {canViewAll && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Event Attendance ({attendedEvents.length})
+            </Text>
+            {attendedEvents.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>No events recorded</Text>
+              </View>
+            ) : (
+              attendedEvents.map((a) => (
+                <View key={a.event_id} style={styles.attendanceRow}>
+                  <View style={styles.attendanceInfo}>
+                    <Text style={styles.eventTitle}>{a.event?.title}</Text>
+                    <Text style={styles.eventDate}>
+                      {new Date(a.event!.date).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </Text>
+                  </View>
+                  <View
                     style={[
-                      styles.statusText,
-                      { color: statusColors[a.status] },
+                      styles.statusBadge,
+                      { backgroundColor: statusColors[a.status] + "20" },
                     ]}
                   >
-                    {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.statusText,
+                        { color: statusColors[a.status] },
+                      ]}
+                    >
+                      {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            ))
-          )}
-        </View>
+              ))
+            )}
+          </View>
+        )}
 
         <View style={{ height: 30 }} />
       </ScrollView>
@@ -372,6 +452,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
+    overflow: "hidden",
   },
   avatarText: { fontSize: 32, fontWeight: "bold" },
   name: {
@@ -382,13 +463,13 @@ const styles = StyleSheet.create({
   },
   groupBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   groupBadgeText: { fontSize: 14, fontWeight: "700" },
-  infoSection: {
+  infoCard: {
     backgroundColor: COLORS.grayLight,
     borderRadius: 16,
-    margin: 20,
     padding: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
+    marginBottom: 20,
   },
   infoRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12 },
   iconBg: {

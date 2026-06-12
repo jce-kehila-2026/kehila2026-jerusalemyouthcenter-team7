@@ -7,6 +7,7 @@ import { notificationService } from "@/src/data/notificationService";
 import { studentService } from "@/src/data/studentService";
 import { timeAgo } from "@/src/utils/timeUtils";
 import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
@@ -52,7 +53,7 @@ function groupConversations(
 
     const otherPartyId = fromMe ? msg.receiver_id : msg.sender_id;
     const otherName = fromMe
-      ? (map.get(otherPartyId)?.otherName ?? otherPartyId)
+      ? (map.get(otherPartyId)?.otherName ?? msg.receiver_name ?? otherPartyId)
       : msg.sender_name;
 
     if (!map.has(otherPartyId)) {
@@ -87,6 +88,9 @@ export default function MessagesScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
   const scrollRef = useRef<ScrollView>(null);
+
+  const router = useRouter();
+  const { studentId, studentName } = useLocalSearchParams<{ studentId: string; studentName: string }>();
 
   const isAdmin = user?.role === "admin";
   const currentUid = user?.uid ?? "";
@@ -143,6 +147,30 @@ export default function MessagesScreen() {
     if (updated) setActiveConv(updated);
   }, [conversations]);
 
+  // Auto-open chat when arriving from the students screen via URL params
+  useEffect(() => {
+    if (!studentId) return;
+    const sid = String(studentId);
+    const resolvedName =
+      (studentName ? String(studentName) : "") ||
+      allStudents.find((s) => s.id === sid)?.full_name ||
+      sid;
+    const existing = conversations.find((c) => c.otherPartyId === sid);
+    if (existing) {
+      openConversation(existing);
+    } else {
+      setActiveConv({
+        otherPartyId: sid,
+        otherName: resolvedName,
+        unread: false,
+        thread: [],
+      });
+      setSearch("");
+    }
+    // Clear params so re-visiting the screen doesn't re-open the same chat
+    router.setParams({ studentId: "", studentName: "" });
+  }, [studentId]);
+
   // ── Search state ──────────────────────────────────────────────────────────
   const searchTrimmed = search.trim().toLowerCase();
   const filteredStudents = searchTrimmed
@@ -196,6 +224,7 @@ export default function MessagesScreen() {
         sender_id: currentUid,
         sender_name: senderName,
         receiver_id: receiverId,
+        receiver_name: activeConv.otherName,
         content: text,
         timestamp: new Date().toISOString(),
         is_read: false,

@@ -9,21 +9,15 @@ import {
   forms as mockForms,
   messages as mockMessages,
   students as mockStudents,
-} from "@/src/data/mockData";
-import { notificationService } from "@/src/data/notificationService";
-import { db } from "@/src/firebase/firebase";
-import { notifColor, notifIcon } from "@/src/utils/notifMeta";
-import { timeAgo } from "@/src/utils/timeUtils";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import {
-  collection,
-  getDocs,
-  onSnapshot,
-  query,
-  where,
-} from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+} from '@/src/data/mockData';
+import { notificationService } from '@/src/data/notificationService';
+import { db } from '@/src/firebase/firebase';
+import { notifColor, notifIcon } from '@/src/utils/notifMeta';
+import { timeAgo } from '@/src/utils/timeUtils';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from "firebase/firestore";
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -103,9 +97,8 @@ export default function DashboardScreen() {
   const [messageList, setMessageList] = useState<DashMsg[]>(
     (mockMessages || []).map((m) => ({ ...m, id: String(m.id) })),
   );
-  const [myRegisteredEventIds, setMyRegisteredEventIds] = useState<
-    (string | number)[]
-  >([]);
+  const [myRegisteredEventIds, setMyRegisteredEventIds] = useState<(string | number)[]>([]);
+  const [adminData, setAdminData] = useState<any>(null);
 
   // Derived values
   const now = new Date();
@@ -129,24 +122,18 @@ export default function DashboardScreen() {
     (e) => myRegisteredEventIds.includes(e.id) && new Date(e.date) >= now,
   );
 
+  const displayName =
+    adminData?.full_name ||
+    adminData?.["full-name"] ||
+    user?.full_name ||
+    (user as any)?.["full-name"] ||
+    (user as any)?.name ||
+    "Admin";
+  const initials = displayName.charAt(0).toUpperCase();
+
   // ── Firebase loading ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    // Real-time pending join requests count (admin only)
-    let unsubRequests = () => {};
-    if (isAdmin) {
-      const reqQ = query(
-        collection(db, "join_requests"),
-        where("status", "==", "pending"),
-      );
-      unsubRequests = onSnapshot(reqQ, (snap) => {
-        setPendingRequestCount(snap.size);
-      });
-    }
+    if (!user) { setLoading(false); return; }
 
     // One-time fetch for non-realtime collections
     const fetchStatic = async () => {
@@ -194,11 +181,24 @@ export default function DashboardScreen() {
 
     fetchStatic();
 
+    // Fetch admin profile data
+    const fetchAdminData = async () => {
+      if (user?.uid) {
+        const adminDoc = await getDoc(doc(db, "admins", user.uid));
+        if (adminDoc.exists()) setAdminData(adminDoc.data());
+      }
+    };
+    fetchAdminData();
+
+    // Real-time pending join requests
+    const unsubRequests = onSnapshot(
+      query(collection(db, "requests"), where("status", "==", "pending")),
+      (snap) => setPendingRequestCount(snap.size),
+    );
+
     // Real-time notifications
     const unsubNotif = notificationService.subscribe(
-      (notifs) => {
-        if (notifs.length > 0 || !loading) setNotifList(notifs);
-      },
+      notifs => { if (notifs.length > 0 || !loading) setNotifList(notifs); },
       user.uid,
       isAdmin ? "admin" : "singer",
     );
@@ -242,12 +242,8 @@ export default function DashboardScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={[styles.greeting, { color: theme.subtext }]}>
-              Good day,
-            </Text>
-            <Text style={[styles.name, { color: theme.text }]}>
-              {user?.full_name}
-            </Text>
+            <Text style={[styles.greeting, { color: theme.subtext }]}>Good day,</Text>
+            <Text style={[styles.name, { color: theme.text }]}>{displayName}</Text>
           </View>
           <View style={styles.headerActions}>
             <Pressable
@@ -275,9 +271,7 @@ export default function DashboardScreen() {
             />
             <Pressable onPress={() => router.push("/profile" as any)}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {user?.full_name?.charAt(0) ?? "?"}
-                </Text>
+                <Text style={styles.avatarText}>{initials}</Text>
               </View>
             </Pressable>
           </View>
