@@ -1,4 +1,7 @@
+import { useLocalSearchParams } from "expo-router";
 import LibraryScreen from "../../src/screens/LibaryScreen";
+
 export default function Library() {
-  return <LibraryScreen />;
+  const { action } = useLocalSearchParams();
+  return <LibraryScreen autoUpload={action === "upload"} />;
 }
