@@ -1,18 +1,18 @@
 # 🎵 Jerusalem Youth Chorus — Management System
 
-A mobile management application for the Jerusalem Youth Chorus, built with React Native and Expo Router.
+This project is developed for the Jerusalem Youth Center, an organization that works with youth through music. The system is intended to support student management, communication, attendance tracking, and activity monitoring. Built with React Native and Expo Router.
 
 ---
 
-##  Team Members
+## Team Members
 
 | Name | Role |
 |------|------|
-|   Rania Shqerat   |  Full Stack Developer : Events, Attendance, Calendar & Music Library (UI + Firebase Integration)    |
-|  Hadeel Shehadeh    |   Full Stack Developer : Student Management Module (UI + Firebase Integration)   |
-|   Afnan Rabeih   | Full Stack Developer : Authentication (Login & Signup) (UI + Firebase Integration)    |
-|   Mahmoud Masri   |Full Stack Developer : Forms Module  (UI + Firebase Integration)    |
-| George Abo Saeed     |Full Stack Developer :Dashboard, Notifications & Statistics (UI + Firebase Integration)     |
+| Rania Shqerat | Full Stack Developer :Events, Attendance, Calendar & Music Library (UI + Firebase Integration) |
+| Hadeel Shehadeh | Full Stack Developer :Student Management Module (UI + Firebase Integration) |
+| Afnan Rabeih | Full Stack Developer : Authentication (Login & Signup) (UI + Firebase Integration) |
+| Mahmoud Masri | Full Stack Developer :Forms Module (UI + Firebase Integration) |
+| George Abo Saeed | Full Stack Developer : Dashboard, Notifications & Statistics (UI + Firebase Integration) |
 
 ---
 
@@ -22,7 +22,7 @@ A cross-platform mobile app (iOS / Android / Web) for managing the Jerusalem You
 
 ---
 
-##  Tech Stack
+## Tech Stack
 
 | Technology | Purpose |
 |------------|---------|
@@ -35,7 +35,7 @@ A cross-platform mobile app (iOS / Android / Web) for managing the Jerusalem You
 
 ---
 
-## Roles
+##  Roles
 
 ### Admin
 - Manage events (create, edit, delete)
@@ -51,110 +51,128 @@ A cross-platform mobile app (iOS / Android / Web) for managing the Jerusalem You
 
 ---
 
+##  Project Structure
+
+```
 mobile-app/
 │
-├── app/                              # Expo Router — all screens & navigation
-│   ├── _layout.tsx                   # Root layout (AuthProvider, Stack)
-│   ├── index.tsx                     # Entry point — redirect by role
-│   ├── attendance.js                 # Attendance screen
-│   ├── event-detail.tsx              # Event detail screen
-│   ├── add-student.tsx               # Add student screen
-│   ├── create-form.tsx               # Create form screen
-│   ├── profile.tsx                   # Profile screen
-│   ├── statistics.tsx                # Statistics screen
-│   ├── modal.tsx                     # Modal screen
+├── app/                                # Expo Router — screens & navigation
+│   ├── _layout.tsx                     # Root layout (AuthProvider, Stack)
+│   ├── index.tsx                       # Entry point — redirect by role
+│   ├── attendance.js                   # Attendance screen
+│   ├── event-detail.tsx                # Event detail screen
+│   ├── add-student.tsx                 # Add student screen
+│   ├── create-form.tsx                 # Create form screen
+│   ├── profile.tsx                     # Profile screen
+│   ├── statistics.tsx                  # Statistics screen
+│   ├── modal.tsx                       # Modal screen
 │   │
-│   ├── (auth)/                       # Authentication screens
-│   │   ├── _layout.tsx
-│   │   ├── login.tsx                 # Login (Admin: email, Student: phone)
-│   │   └── signup.tsx                # Student registration
+│   ├── (auth)/                         # Authentication screens
+│   │   ├── _layout.tsx                 # Auth stack layout
+│   │   ├── login.tsx                   # Login (Admin: email, Student: phone)
+│   │   └── signup.tsx                  # Student registration
 │   │
-│   ├── (tabs)/                       # Main tab navigation
-│   │   ├── _layout.tsx               # Tab bar configuration (5 tabs)
-│   │   ├── index.tsx                 # Dashboard
-│   │   ├── students.tsx              # Students management
-│   │   ├── events.tsx                # Events tab (Admin/Student)
-│   │   ├── forms.tsx                 # Forms & surveys
-│   │   ├── library.js                # Music Library tab
-│   │   ├── messages.tsx              # Messages (hidden)
-│   │   ├── notifications.tsx         # Notifications (hidden)
-│   │   ├── calendar.js               # Calendar (hidden — merged into Events)
-│   │   ├── admin.tsx                 # Admin panel (hidden)
-│   │   ├── explore.tsx               # Explore (hidden)
-│   │   ├── Join-requests.tsx         # Join requests (hidden)
-│   │   ├── student-events.tsx        # Student events (hidden)
-│   │   └── student-calender.tsx      # Student calendar (hidden)
+│   ├── (tabs)/                         # Main tab navigation (5 tabs)
+│   │   ├── _layout.tsx                 # Tab bar configuration
+│   │   ├── index.tsx                   # Dashboard
+│   │   ├── students.tsx                # Students management
+│   │   ├── events.tsx                  # Events tab (Admin + Student)
+│   │   ├── forms.tsx                   # Forms & surveys
+│   │   ├── library.js                  # Music Library tab
+│   │   ├── messages.tsx                # Messages (hidden)
+│   │   ├── notifications.tsx           # Notifications (hidden)
+│   │   ├── calendar.js                 # Calendar (hidden — merged into Events)
+│   │   ├── admin.tsx                   # Admin panel (hidden)
+│   │   ├── explore.tsx                 # Explore (hidden)
+│   │   ├── Join-requests.tsx           # Join requests (hidden)
+│   │   ├── student-events.tsx          # Student events (hidden)
+│   │   └── student-calender.tsx        # Student calendar (hidden)
 │   │
-│   ├── event/[id].tsx                # Dynamic event detail
-│   ├── form/[id].tsx                 # Dynamic form detail
-│   └── student/[id].tsx              # Dynamic student detail
+│   ├── event/[id].tsx                  # Dynamic event detail
+│   ├── form/[id].tsx                   # Dynamic form detail
+│   └── student/[id].tsx                # Dynamic student detail
 │
-├── src/                              # Source files
-│   ├── screens/                      # Screen components
-│   │   ├── EventsScreen.js           # Admin events (List + Calendar)
-│   │   ├── EventStudentScreen.js     # Student events (List + Calendar)
-│   │   ├── CalendarScreen.js         # Calendar screen
-│   │   ├── LibaryScreen.js           # Music Library screen
-│   │   ├── AttendanceScreen.js       # Attendance screen
-│   │   ├── EventDetailScreen.js      # Event detail
-│   │   ├── Admineventscreen.js       # Admin event management
-│   │   └── Studentcalenderscreen.js  # Student calendar
+├── src/                                # Source files
 │   │
-│   ├── context/                      # React Context providers
-│   │   ├── AuthContext.tsx           # Auth state (user, role, login, logout)
-│   │   └── EventsContext.js          # Events state (Firebase)
+│   ├── screens/                        # Screen components
+│   │   ├── EventsScreen.js             # Admin events (List + Calendar)
+│   │   ├── EventStudentScreen.js       # Student events (List + Calendar)
+│   │   ├── CalendarScreen.js           # Calendar screen
+│   │   ├── LibaryScreen.js             # Music Library screen
+│   │   ├── AttendanceScreen.js         # Attendance screen
+│   │   ├── EventDetailScreen.js        # Event detail
+│   │   ├── Admineventscreen.js         # Admin event management
+│   │   └── Studentcalenderscreen.js    # Student calendar
 │   │
-│   ├── components/                   # Reusable components
-│   │   └── NotificationBell.tsx      # Notification bell component
+│   ├── context/                        # React Context providers
+│   │   ├── AuthContext.tsx             # Auth state (user, role, login, logout)
+│   │   └── EventsContext.js            # Events state (Firebase)
 │   │
-│   ├── firebase/                     # Firebase configuration
-│   │   ├── firebase.ts               # Firebase app init
-│   │   ├── firestoreService.ts       # Firestore helpers
-│   │   └── interfaces.ts             # TypeScript interfaces
+│   ├── components/                     # Reusable components
+│   │   └── NotificationBell.tsx        # Notification bell component
 │   │
-│   ├── data/                         # Data & services
-│   │   ├── mockData.js               # Brand colors & constants
-│   │   ├── mockData.ts               # TypeScript mock data
-│   │   ├── studentService.ts         # Student data service
-│   │   ├── messageService.ts         # Message service
-│   │   ├── notificationService.ts    # Notification service
-│   │   └── statsData.ts              # Statistics data
+│   ├── firebase/                       # Firebase configuration
+│   │   ├── firebase.ts                 # Firebase app init
+│   │   ├── firestoreService.ts         # Firestore helpers
+│   │   └── interfaces.ts              # TypeScript interfaces
 │   │
-│   └── utils/                        # Utility functions
-│       ├── eventUtils.js             # Event helper functions
-│       ├── timeUtils.ts              # Time formatting
-│       └── notifMeta.ts              # Notification metadata
+│   ├── data/                           # Data & services
+│   │   ├── mockData.js                 # Brand colors & constants
+│   │   ├── mockData.ts                 # TypeScript mock data
+│   │   ├── studentService.ts           # Student data service
+│   │   ├── messageService.ts           # Message service
+│   │   ├── notificationService.ts      # Notification service
+│   │   └── statsData.ts               # Statistics data
+│   │
+│   └── utils/                          # Utility functions
+│       ├── eventUtils.js               # Event helper functions
+│       ├── timeUtils.ts                # Time formatting
+│       └── notifMeta.ts               # Notification metadata
 │
-└── backend/                          # Firebase backend services
-    ├── firebase.js                   # Firebase config (db, storage, auth)
-    ├── eventsService.js              # Events CRUD + getStudents
-    └── attendanceService.js          # Attendance save & load
+└── backend/                            # Firebase backend services
+    ├── firebase.js                     # Firebase config (db, storage, auth)
+    ├── eventsService.js                # Events CRUD + getStudents
+    └── attendanceService.js            # Attendance save & load
+```
+
+---
 
 ##  Firebase Collections
 
 | Collection | Description |
 |-----------|-------------|
-| `events` | Choir events with date, time, location, group |
-| `students` | Student profiles and information |
-| `admins` | Admin profiles |
+| `events` | Choir events — title, date, time, location, group |
+| `students` | Student profiles — name, phone, year, group_id |
+| `admins` | Admin profiles — name, email, role |
 | `attendance` | Attendance records per event |
-| `library` | Music library files and YouTube links |
+| `library` | Music library — files (Firebase Storage) + YouTube links |
 | `forms` | Forms and surveys |
 
 ---
 
-##  Design System
+## Design System
 
 ### Colors — 60/30/10 Rule
+
 | Color | HEX | Usage |
 |-------|-----|-------|
 | Teal (Primary) | `#039899` | Headers, buttons, badges — 30% |
-| White/Light | `#f5fafe` | Background, cards — 60% |
+| White / Light | `#f5fafe` | Background, cards — 60% |
 | Red (Accent) | `#c56451` | Delete, Year 2 — 10% |
 | Yellow | `#cfad5d` | Attendance, Year 1 |
+| Purple | `#6b5ce7` | Year 3 |
 
 ### Spacing
 All spacing uses multiples of 8px: `8, 16, 24, 32...`
+
+### Typography
+
+| Element | Size | Weight |
+|---------|------|--------|
+| Page Title | 32px | 900 |
+| Card Title | 18px | 800 |
+| Body | 15px | 400 |
+| Badge | 11px | 700 |
 
 ---
 
@@ -181,57 +199,53 @@ npm install
 npx expo start
 ```
 
-### Environment
-Firebase config is located in `backend/firebase.js`.
-
 ---
 
-## 📋 Features
+##  Features
 
-### ✅ Events Module
+### Events Module
 - Create, edit, delete events
 - Filter by year group (Year 1, 2, 3, All Groups)
 - Date format: DD/MM/YYYY
 - Location validation (Israel only)
+- List + Calendar toggle view
 
-### ✅ Attendance Module
+### Attendance Module
 - Mark students: On Time, Late, Absent, School Trip, Sick
 - Save attendance to Firestore
 - Load previously saved attendance
+- Statistics counter per status
 
-### ✅ Calendar Module
-- Integrated inside Events screen
+### Calendar Module
+- Integrated inside Events screen (no separate tab)
 - Color-coded dots per group
-- Click on date to see events
+- Click on date to filter events
 
-### ✅ Music Library
-- Upload files to Firebase Storage
-- Add YouTube links
-- Filter by year group
-- Students see only their group's materials
+### Music Library
+- Upload files to Firebase Storage (PDF, MP3, ZIP, images, etc.)
+- Add YouTube links with group assignment
+- Filter by year group (Admin only)
+- Students see only their group's materials + All Groups
 
 ---
 
-## 🔐 Security
+##  Security
 
 - Firebase Auth required for all operations
 - Firestore rules enforce role-based access
 - Storage rules require authentication
-- Protected routes per user role
+- Protected routes per user role (Admin / Student)
 
 ---
 
-## Test Plan
+##  Test Plan
 
 | TC | Module | Description | Status |
 |----|--------|-------------|--------|
 | TC-01 | Events | Add new event with valid data | Pass |
 | TC-02 | Attendance | Mark and save attendance | Pass |
 | TC-03 | Calendar | Event dots appear on correct dates | Pass |
-| TC-04 | Library | Admin uploads file | Pass |
+| TC-04 | Library | Admin uploads file to Music Library | Pass |
 
 ---
 
-##  Course
-**JCE — Jerusalem College of Engineering**
-Full Stack Development Course — 2026
