@@ -1,0 +1,5 @@
+[33m3407e3a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32madding-stats[m[33m, [m[1;31morigin/adding-stats[m[33m)[m merge: resolve conflicts with main, keep brand-redesigned dashboard
+[33m3d0caa7[m feat: add statistics data types and initial data for students and attendance
+[33m242bb1c[m refactor: streamline DashboardScreen layout and enhance StatCard component with BrandCard wrapper
+[33mbb55a41[m feat: add Statistics screen with charts and filters for attendance and demographics
+[33m2fdc770[m feat: add statistics screen to navigation

@@ -1,6 +1,6 @@
 import { useAuth } from "@/src/context/AuthContext";
-import EventStudentScreen from "@/src/screens/EventStudentScreen";
 import EventsScreen from "@/src/screens/EventsScreen";
+import EventStudentScreen from "@/src/screens/EventStudentScreen";
 
 export default function EventsTab() {
   const { user } = useAuth();
