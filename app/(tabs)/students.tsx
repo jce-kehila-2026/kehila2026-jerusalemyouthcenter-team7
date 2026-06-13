@@ -28,10 +28,11 @@ const ds = {
   yellow: "#cfad5d",
   purple: "#6b5ce7",
   white: "#ffffff",
-  bg: "#f5fafe",
-  text: "#1a1a2e",
-  subtext: "#5a6a7a",
-  border: "#e8eef2",
+  bg: "#f5fafe",      // Background
+  text: "#1a1a2e",    // Text
+  subtext: "#5a6a7a", // Text Sub
+  muted: "#9aa8b4",   // Muted
+  border: "#e8eef2",  // Border
 } as const;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -235,10 +236,10 @@ export default function StudentsListScreen() {
             <View
               style={[
                 s.avatar,
-                { backgroundColor: groupColor + "22", borderColor: groupColor },
+                { backgroundColor: ds.bg, borderColor: ds.border, borderWidth: 1 },
               ]}
             >
-              <Text style={[s.avatarText, { color: groupColor }]}>
+              <Text style={[s.avatarText, { color: ds.text }]}>
                 {initials}
               </Text>
             </View>
@@ -247,7 +248,6 @@ export default function StudentsListScreen() {
             </Text>
           </View>
 
-          {/* Bottom — actions */}
           <View style={s.actionsRow}>
             <Pressable
               hitSlop={8}
@@ -273,7 +273,9 @@ export default function StudentsListScreen() {
 
       {/* ── Teal Header ───────────────────────────────────────────────── */}
       <View style={s.headerBg}>
-        <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
+        <Text style={s.orgLabel}>
+          <Text style={{ opacity: 0.85 }}>🎵 Jerusalem Youth Chorus</Text>
+        </Text>
         <Text style={s.pageTitle}>Students</Text>
       </View>
 
@@ -284,8 +286,8 @@ export default function StudentsListScreen() {
             <Ionicons name="search-outline" size={18} color={ds.subtext} />
             <TextInput
               style={s.searchInput}
-              placeholder="Search students..."
-              placeholderTextColor={ds.subtext}
+              placeholder="Search by name or email..."
+              placeholderTextColor={ds.muted}
               value={searchQuery}
               onChangeText={setSearchQuery}
               clearButtonMode="while-editing"
@@ -379,149 +381,41 @@ export default function StudentsListScreen() {
         )}
       </View>
 
-      {/* ── FAB ───────────────────────────────────────────────────────── */}
-      {user?.role === "admin" && (
-        <Pressable style={s.fab} onPress={() => router.push("/add-student")}>
-          <Text style={s.fabText}>+</Text>
-        </Pressable>
-      )}
+      {/* ── FAB ────────────────────────*/}
     </SafeAreaView>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// ── Styles ─────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: ds.teal },
-  content: { flex: 1, backgroundColor: ds.bg },
-
-  // Header
-  headerBg: {
-    backgroundColor: ds.teal,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
-  },
-  orgLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "rgba(255,255,255,0.85)",
-    marginBottom: 4,
-  },
-  pageTitle: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: ds.white,
-  },
-
-  // Search
-  searchSection: {
-    backgroundColor: ds.white,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: ds.border,
-  },
-  searchWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: ds.bg,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: ds.border,
-    paddingHorizontal: 16,
-    height: 48,
-    gap: 8,
-  },
-  searchInput: { flex: 1, fontSize: 15, color: ds.text },
-
-  // Filters
-  filterSection: {
-    backgroundColor: ds.white,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: ds.border,
-  },
-  filterLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: ds.subtext,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginTop: 8,
-    marginBottom: 8,
-  },
+  safe: { flex: 1, backgroundColor: ds.bg },
+  headerBg: { backgroundColor: ds.teal, padding: 16, paddingTop: 40 },
+  orgLabel: { color: ds.white, opacity: 0.9 },
+  pageTitle: { color: ds.white, fontSize: 20, fontWeight: "700", marginTop: 6 },
+  content: { flex: 1, padding: 12 },
+  searchSection: { marginBottom: 12 },
+  searchWrap: { flexDirection: "row", alignItems: "center", backgroundColor: ds.white, padding: 8, borderRadius: 8 },
+  searchInput: { marginLeft: 8, flex: 1, color: ds.text },
+  filterSection: { marginBottom: 12 },
+  filterLabel: { color: ds.subtext, fontSize: 12, marginBottom: 6 },
   filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  filterChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: ds.border,
-    backgroundColor: ds.bg,
-  },
-  filterChipActive: { backgroundColor: ds.teal, borderColor: ds.teal },
-  filterChipText: { fontSize: 12, fontWeight: "600", color: ds.subtext },
+  filterChip: { flexDirection: "row", alignItems: "center", paddingVertical: 6, paddingHorizontal: 10, borderRadius: 16, backgroundColor: ds.white, marginRight: 8, marginBottom: 8 },
+  filterChipActive: { backgroundColor: ds.teal },
+  filterDot: { width: 8, height: 8, borderRadius: 8, marginRight: 8 },
+  filterChipText: { color: ds.text },
   filterChipTextActive: { color: ds.white },
-  filterDot: { width: 8, height: 8, borderRadius: 4 },
-
-  // List
-  list: { padding: 16, gap: 16, paddingBottom: 96 },
-
-  // Card
-  card: {
-    backgroundColor: ds.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: ds.border,
-    overflow: "hidden",
-    shadowColor: ds.teal,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  cardTopBar: { height: 4 },
-  cardBody: { padding: 16, gap: 16 },
-  badgesRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
-  badgeText: { fontSize: 12, fontWeight: "600" },
-  nameRow: { flexDirection: "row", alignItems: "center", gap: 16 },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarText: { fontSize: 18, fontWeight: "700" },
-  cardTitle: { fontSize: 18, fontWeight: "800", color: ds.text, flex: 1 },
-  actionsRow: { flexDirection: "row", alignItems: "center" },
-
-  // FAB
-  fab: {
-    position: "absolute",
-    bottom: 24,
-    right: 16,
-    backgroundColor: ds.teal,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: ds.teal,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  fabText: { fontSize: 28, color: ds.white, fontWeight: "300", lineHeight: 32 },
-
-  // Empty / Loading
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
-  emptyText: { fontSize: 15, color: ds.subtext },
+  empty: { flex: 1, justifyContent: "center", alignItems: "center" },
+  emptyText: { color: ds.muted, marginTop: 8 },
+  list: { paddingBottom: 120 },
+  card: { backgroundColor: ds.white, borderRadius: 8, marginBottom: 12, overflow: "hidden" },
+  cardTopBar: { height: 6, width: "100%" },
+  cardBody: { padding: 12, flexDirection: "row", alignItems: "center" , justifyContent: "space-between"},
+  badgesRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  badge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 12, marginRight: 8 },
+  badgeText: { fontSize: 12 },
+  nameRow: { flex: 1, flexDirection: "row", alignItems: "center", marginLeft: 8 },
+  avatar: { width: 48, height: 48, borderRadius: 24, justifyContent: "center", alignItems: "center" },
+  avatarText: { fontWeight: "700" },
+  cardTitle: { marginLeft: 12, fontWeight: "600", color: ds.text, flex: 1 },
+  actionsRow: { marginLeft: 8 },
 });
