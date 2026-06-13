@@ -1,5 +1,3 @@
-import { Colors } from "@/constants/theme";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/src/context/AuthContext";
 import { db } from "@/src/firebase/firebase";
 import { getAllForms, getFormSubmissions } from "@/src/firebase/firestoreService";
@@ -11,6 +9,7 @@ import {
   ActivityIndicator,
   FlatList,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -18,33 +17,37 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const themeColors = {
-  teal: "#039899",
-  red: "#c56451",
-  yellow: "#cfad5d",
-  bluishWhite: "#f5fafe",
-  charcoal: "#353535",
-  white: "#ffffff",
+// ── Design System ─────────────────────────────────────────────────────────────
+const ds = {
+  teal:    "#039899",
+  red:     "#c56451",
+  yellow:  "#cfad5d",
+  white:   "#ffffff",
+  bg:      "#f5fafe",
+  text:    "#1a1a2e",
+  subtext: "#5a6a7a",
+  border:  "#e8eef2",
+} as const;
+
+const CARD_COLORS = [ds.teal, ds.red, ds.yellow] as const;
+
+const typeIcons: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
+  text:            "text-outline",
+  multiple_choice: "radio-button-on-outline",
+  yes_no:          "checkmark-circle-outline",
+  range:           "options-outline",
 };
 
-const typeIcons: Record<string, React.ComponentProps<typeof Ionicons>["name"]> =
-  {
-    text: "text-outline",
-    multiple_choice: "radio-button-on-outline",
-    yes_no: "checkmark-circle-outline",
-    range: "options-outline",
-  };
-
+// ── Screen ────────────────────────────────────────────────────────────────────
 export default function FormsScreen() {
   const { user } = useAuth() as any;
-  const userRole = user?.role || "student";
-  const router = useRouter();
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? "light"];
+  const userRole  = user?.role || "student";
+  const isAdmin   = userRole === "admin" || userRole === "staff";
+  const router    = useRouter();
 
-  const [formsList, setFormsList] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [formToDelete, setFormToDelete] = useState<string | null>(null);
+  const [formsList, setFormsList]           = useState<any[]>([]);
+  const [loading, setLoading]               = useState(true);
+  const [formToDelete, setFormToDelete]     = useState<string | null>(null);
   const [submissionCounts, setSubmissionCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -58,7 +61,7 @@ export default function FormsScreen() {
       );
       setFormsList(filteredData);
 
-      if (userRole === "admin" || userRole === "staff") {
+      if (isAdmin) {
         const allSubs = await getFormSubmissions();
         const counts: Record<string, number> = {};
         allSubs.forEach((sub) => {
@@ -70,247 +73,174 @@ export default function FormsScreen() {
       setLoading(false);
     };
     fetchForms();
-  }, [userRole]);
+  }, [isAdmin]);
 
   const visibleForms = formsList.filter((f) => {
-    if (userRole === "admin" || userRole === "staff") return true;
+    if (isAdmin) return true;
     const audience =
       typeof f.target_audience === "string" ? f.target_audience : "both";
     return audience === "student" || audience === "both";
   });
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: themeColors.bluishWhite }]}
-    >
-      <View style={styles.header}>
-        <View>
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "700",
-              color: themeColors.teal,
-              marginBottom: 2,
-            }}
-          >
-            Jerusalem Youth Chorus
-          </Text>
-          <Text
-            style={[
-              styles.title,
-              { color: themeColors.charcoal, fontSize: 32 },
-            ]}
-          >
-            Forms
-          </Text>
-          <Text style={styles.subtitle}>{visibleForms.length} active</Text>
+    <SafeAreaView style={s.safe} edges={["top"]}>
+
+      {/* ── Teal Header ───────────────────────────────────────────────── */}
+      <View style={s.headerBg}>
+        <View style={s.headerContent}>
+          <View>
+            <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
+            <Text style={s.pageTitle}>Forms</Text>
+            <Text style={s.subtitle}>{visibleForms.length} active</Text>
+          </View>
+          {isAdmin && (
+            <Pressable
+              style={s.manageBtn}
+              onPress={() => router.push("/create-form" as any)}
+            >
+              <Ionicons name="add-circle-outline" size={20} color={ds.white} />
+              <Text style={s.manageBtnText}>Manage</Text>
+            </Pressable>
+          )}
         </View>
-        {(userRole === "admin" || userRole === "staff") && (
-          <Pressable
-            style={styles.manageButton}
-            onPress={() => router.push("/create-form" as any)}
-          >
-            <Text style={styles.manageButtonText}>Manage Forms</Text>
-          </Pressable>
-        )}
       </View>
 
+      {/* ── List ─────────────────────────────────────────────────────── */}
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={themeColors.teal} />
+        <View style={s.center}>
+          <ActivityIndicator size="large" color={ds.teal} />
         </View>
       ) : (
         <FlatList
           data={visibleForms}
           keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={() => (
-            <Text style={{ textAlign: "center", marginTop: 20, color: "#888" }}>
-              لح
-            </Text>
+            <View style={s.empty}>
+              <Ionicons name="document-outline" size={48} color={ds.border} />
+              <Text style={s.emptyText}>No forms available</Text>
+            </View>
           )}
           renderItem={({ item, index }) => {
-            const colors = [
-              themeColors.teal,
-              themeColors.red,
-              themeColors.yellow,
-            ];
-            const activeColor = colors[index % 3];
-
-            // 🛡️ دروع الحماية: التأكد إن البيانات نصوص مش كائنات (Objects)
-            const safeTitle =
-              typeof item.title === "string" ? item.title : "Form Title";
-            const safeDescription =
-              typeof item.description === "string" ? item.description : null;
-            const safeDate =
-              typeof item.date === "string" ? item.date : "Recently";
-            const questions = Array.isArray(item.questions)
-              ? item.questions
-              : [];
+            const activeColor   = CARD_COLORS[index % CARD_COLORS.length];
+            const safeTitle     = typeof item.title === "string" ? item.title : "Form Title";
+            const safeDescription = typeof item.description === "string" ? item.description : null;
+            const safeDate      = typeof item.date === "string" ? item.date : "Recently";
+            const questions     = Array.isArray(item.questions) ? item.questions : [];
 
             return (
               <Pressable
-                style={[
-                  styles.card,
-                  {
-                    backgroundColor: themeColors.white,
-                    borderLeftWidth: 6,
-                    borderLeftColor: activeColor,
-                  },
+                style={({ pressed }) => [
+                  s.card,
+                  Platform.OS === "ios" && pressed && { opacity: 0.85 },
                 ]}
                 onPress={() => router.push(`/form/${item.id}` as any)}
+                android_ripple={{ color: ds.teal + "20" }}
               >
-                <View style={styles.cardHeader}>
-                  <View
-                    style={[
-                      styles.iconBox,
-                      { backgroundColor: activeColor + "26" },
-                    ]}
-                  >
-                    <Ionicons
-                      name="document-text"
-                      size={22}
-                      color={activeColor}
-                    />
-                  </View>
+                {/* Colored top accent bar */}
+                <View style={[s.cardTopBar, { backgroundColor: activeColor }]} />
 
-                  <View style={styles.cardInfo}>
-                    <Text style={[styles.cardTitle, { color: activeColor }]}>
-                      {safeTitle}
-                    </Text>
-                    <Text style={styles.cardDate}>Created {safeDate}</Text>
-                  </View>
-
-                  {userRole === "admin" || userRole === "staff" ? (
-                    <View style={styles.adminActions}>
-                      <Pressable
-                        style={styles.actionButton}
-                        onPress={() =>
-                          router.push({
-                            pathname: "/create-form",
-                            params: {
-                              id: item.id,
-                              isEditing: "true",
-                              formData: JSON.stringify(item),
-                            },
-                          } as any)
-                        }
-                      >
-                        <Ionicons
-                          name="pencil-outline"
-                          size={18}
-                          color={themeColors.charcoal}
-                        />
-                      </Pressable>
-                      <Pressable
-                        style={styles.actionButton}
-                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                        onPress={(e) => {
-                          if (e && e.stopPropagation) e.stopPropagation();
-                          if (e && e.preventDefault) e.preventDefault();
-                          setFormToDelete(item.id);
-                        }}
-                      >
-                        <Ionicons
-                          name="trash-outline"
-                          size={18}
-                          color={themeColors.red}
-                        />
-                      </Pressable>
+                <View style={s.cardBody}>
+                  {/* Header row: icon + title + admin actions */}
+                  <View style={s.cardHeader}>
+                    <View style={[s.iconBox, { backgroundColor: activeColor + "22" }]}>
+                      <Ionicons name="document-text" size={22} color={activeColor} />
                     </View>
-                  ) : (
-                    <Ionicons
-                      name="chevron-forward"
-                      size={16}
-                      color={themeColors.charcoal}
-                    />
-                  )}
-                </View>
-
-                {safeDescription && (
-                  <Text
-                    style={[
-                      styles.description,
-                      { color: themeColors.charcoal },
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {safeDescription}
-                  </Text>
-                )}
-
-                {questions.length > 0 && (
-                  <View style={styles.questionsList}>
-                    {questions.slice(0, 2).map((q: any, i: number) => {
-                      // 🛡️ حماية لطباعة نص السؤال
-                      const qText =
-                        typeof q.text === "string"
-                          ? q.text
-                          : typeof q.question_text === "string"
-                            ? q.question_text
-                            : `سؤال ${i + 1}`;
-                      const qType =
-                        typeof q.answer_type === "string"
-                          ? q.answer_type
-                          : "text";
-
-                      return (
-                        <View key={q.id || i} style={styles.questionRow}>
-                          <Ionicons
-                            name={typeIcons[qType] || "document-outline"}
-                            size={13}
-                            color={activeColor}
-                          />
-                          <Text
-                            style={[
-                              styles.questionText,
-                              { color: themeColors.charcoal },
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {qText}
-                          </Text>
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
-
-                <View style={styles.footer}>
-                  <Pressable
-                    style={[
-                      styles.fillButton,
-                      { backgroundColor: activeColor },
-                    ]}
-                    onPress={() => router.push(`/form/${item.id}` as any)}
-                  >
-                    <Text style={styles.fillButtonText}>Fill out</Text>
-                  </Pressable>
-
-                  <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
-                    {(userRole === "admin" || userRole === "staff") && (
-                      <View style={[styles.countBadge, { backgroundColor: activeColor + "26" }]}>
-                        <Text style={[styles.countText, { color: activeColor }]}>
-                          {submissionCounts[item.id] ?? 0} responses
-                        </Text>
-                        <Ionicons name="people-outline" size={13} color={activeColor} />
-                      </View>
-                    )}
-                    <View
-                      style={[
-                        styles.countBadge,
-                        { backgroundColor: activeColor + "26" },
-                      ]}
-                    >
-                      <Text style={[styles.countText, { color: activeColor }]}>
-                        {questions.length} questions
+                    <View style={s.cardInfo}>
+                      <Text style={[s.cardTitle, { color: activeColor }]} numberOfLines={1}>
+                        {safeTitle}
                       </Text>
-                      <Ionicons
-                        name="help-circle-outline"
-                        size={13}
-                        color={activeColor}
-                      />
+                      <Text style={s.cardDate}>Created {safeDate}</Text>
+                    </View>
+                    {isAdmin ? (
+                      <View style={s.adminActions}>
+                        <Pressable
+                          style={s.editBtn}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/create-form",
+                              params: {
+                                id: item.id,
+                                isEditing: "true",
+                                formData: JSON.stringify(item),
+                              },
+                            } as any)
+                          }
+                        >
+                          <Ionicons name="pencil-outline" size={14} color={ds.teal} />
+                        </Pressable>
+                        <Pressable
+                          style={s.deleteBtn}
+                          onPress={() => setFormToDelete(item.id)}
+                        >
+                          <Ionicons name="trash-outline" size={14} color={ds.white} />
+                        </Pressable>
+                      </View>
+                    ) : (
+                      <Ionicons name="chevron-forward" size={16} color={ds.subtext} />
+                    )}
+                  </View>
+
+                  {/* Description */}
+                  {safeDescription && (
+                    <Text style={s.description} numberOfLines={2}>
+                      {safeDescription}
+                    </Text>
+                  )}
+
+                  {/* Question preview */}
+                  {questions.length > 0 && (
+                    <View style={s.questionsList}>
+                      {questions.slice(0, 2).map((q: any, i: number) => {
+                        const qText =
+                          typeof q.text === "string"
+                            ? q.text
+                            : typeof q.question_text === "string"
+                              ? q.question_text
+                              : `Question ${i + 1}`;
+                        const qType =
+                          typeof q.answer_type === "string" ? q.answer_type : "text";
+                        return (
+                          <View key={q.id || i} style={s.questionRow}>
+                            <Ionicons
+                              name={typeIcons[qType] || "document-outline"}
+                              size={13}
+                              color={activeColor}
+                            />
+                            <Text style={s.questionText} numberOfLines={1}>
+                              {qText}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+
+                  {/* Footer */}
+                  <View style={s.cardFooter}>
+                    <Pressable
+                      style={[s.fillBtn, { backgroundColor: activeColor }]}
+                      onPress={() => router.push(`/form/${item.id}` as any)}
+                    >
+                      <Text style={s.fillBtnText}>Fill out</Text>
+                    </Pressable>
+                    <View style={s.badgesRow}>
+                      {isAdmin && (
+                        <View style={[s.badge, { backgroundColor: activeColor + "22" }]}>
+                          <Text style={[s.badgeText, { color: activeColor }]}>
+                            {submissionCounts[item.id] ?? 0} responses
+                          </Text>
+                          <Ionicons name="people-outline" size={12} color={activeColor} />
+                        </View>
+                      )}
+                      <View style={[s.badge, { backgroundColor: activeColor + "22" }]}>
+                        <Text style={[s.badgeText, { color: activeColor }]}>
+                          {questions.length} qs
+                        </Text>
+                        <Ionicons name="help-circle-outline" size={12} color={activeColor} />
+                      </View>
                     </View>
                   </View>
                 </View>
@@ -320,24 +250,23 @@ export default function FormsScreen() {
         />
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* ── Delete Confirmation Modal ──────────────────────────────── */}
       <Modal visible={!!formToDelete} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Delete Form</Text>
-            <Text style={styles.modalMessage}>
-              Are you sure you want to delete this form? This action cannot be
-              undone.
+        <View style={s.modalOverlay}>
+          <View style={s.modalContent}>
+            <View style={s.modalIconWrap}>
+              <Ionicons name="trash-outline" size={28} color={ds.red} />
+            </View>
+            <Text style={s.modalTitle}>Delete Form</Text>
+            <Text style={s.modalMessage}>
+              Are you sure you want to delete this form? This action cannot be undone.
             </Text>
-            <View style={styles.modalActions}>
-              <Pressable
-                style={[styles.modalButton, styles.modalCancelButton]}
-                onPress={() => setFormToDelete(null)}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
+            <View style={s.modalActions}>
+              <Pressable style={s.cancelBtn} onPress={() => setFormToDelete(null)}>
+                <Text style={s.cancelBtnText}>Cancel</Text>
               </Pressable>
               <Pressable
-                style={[styles.modalButton, styles.modalDeleteButton]}
+                style={s.confirmDeleteBtn}
                 onPress={async () => {
                   if (formToDelete) {
                     try {
@@ -352,7 +281,8 @@ export default function FormsScreen() {
                   }
                 }}
               >
-                <Text style={styles.modalDeleteText}>Delete</Text>
+                <Ionicons name="trash-outline" size={16} color={ds.white} />
+                <Text style={s.confirmDeleteBtnText}>Delete</Text>
               </Pressable>
             </View>
           </View>
@@ -362,144 +292,174 @@ export default function FormsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: {
+// ── Styles ────────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  safe:   { flex: 1, backgroundColor: ds.teal },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: ds.bg },
+
+  // Header
+  headerBg: {
+    backgroundColor: ds.teal,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+  },
+  headerContent: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
+    alignItems: "flex-end",
   },
-  manageButton: {
-    backgroundColor: themeColors.teal,
+  orgLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.85)",
+    marginBottom: 4,
+  },
+  pageTitle: { fontSize: 32, fontWeight: "900", color: ds.white },
+  subtitle:  { fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.7)", marginTop: 4 },
+  manageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.2)",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.4)",
   },
-  manageButtonText: {
-    color: themeColors.white,
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  title: { fontSize: 24, fontWeight: "800" },
-  subtitle: { fontSize: 13, marginTop: 2, color: "#666" },
-  list: { padding: 20, gap: 16 },
+  manageBtnText: { fontSize: 14, fontWeight: "700", color: ds.white },
+
+  // List
+  list: { padding: 16, gap: 16, paddingBottom: 96, backgroundColor: ds.bg },
+
+  // Card
   card: {
-    borderRadius: 14,
-    padding: 16,
-    shadowColor: "#000",
+    backgroundColor: ds.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: ds.border,
+    overflow: "hidden",
+    shadowColor: ds.teal,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
-    shadowRadius: 10,
+    shadowRadius: 8,
     elevation: 3,
   },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 10,
-  },
+  cardTopBar: { height: 4 },
+  cardBody:   { padding: 16, gap: 16 },
+  cardHeader: { flexDirection: "row", alignItems: "center", gap: 16 },
   iconBox: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
-  cardInfo: { flex: 1, alignItems: "flex-start" },
-  cardTitle: { fontSize: 16, fontWeight: "800", textAlign: "left" },
-  cardDate: { fontSize: 11, marginTop: 2, color: "#888", textAlign: "left" },
-  adminActions: { flexDirection: "row", alignItems: "center", gap: 8 },
-  actionButton: { padding: 4, zIndex: 10 },
-  description: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 12,
-    textAlign: "left",
-    opacity: 0.8,
-  },
-  questionsList: {
-    gap: 6,
-    marginBottom: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-    paddingTop: 12,
-  },
-  questionRow: {
-    flexDirection: "row",
+  cardInfo:  { flex: 1 },
+  cardTitle: { fontSize: 18, fontWeight: "800" },
+  cardDate:  { fontSize: 11, color: ds.subtext, marginTop: 4 },
+  adminActions: { flexDirection: "row", gap: 8 },
+  editBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: ds.teal + "22",
     alignItems: "center",
-    justifyContent: "flex-start",
-    gap: 8,
+    justifyContent: "center",
   },
-  questionText: { fontSize: 12, textAlign: "left", opacity: 0.7 },
-  footer: {
+  deleteBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: ds.red,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  description:   { fontSize: 13, color: ds.subtext, lineHeight: 19 },
+  questionsList: { gap: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: ds.border },
+  questionRow:   { flexDirection: "row", alignItems: "center", gap: 8 },
+  questionText:  { fontSize: 13, color: ds.subtext, flex: 1 },
+  cardFooter: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  countBadge: {
+  fillBtn:      { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
+  fillBtnText:  { color: ds.white, fontSize: 14, fontWeight: "700" },
+  badgesRow:    { flexDirection: "row", gap: 8, alignItems: "center" },
+  badge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 20,
   },
-  countText: { fontSize: 11, fontWeight: "700" },
-  fillButton: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 10 },
-  fillButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  badgeText: { fontSize: 11, fontWeight: "600" },
+
+  // Empty
+  empty:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, paddingTop: 64 },
+  emptyText: { fontSize: 15, color: ds.subtext },
+
+  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
+    padding: 24,
   },
   modalContent: {
-    backgroundColor: themeColors.white,
+    backgroundColor: ds.white,
     padding: 24,
     borderRadius: 16,
-    width: "80%",
+    width: "100%",
     maxWidth: 400,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: themeColors.charcoal,
-    marginBottom: 12,
+  modalIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: ds.red + "20",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
   },
+  modalTitle:   { fontSize: 20, fontWeight: "800", color: ds.text, marginBottom: 8 },
   modalMessage: {
     fontSize: 15,
-    color: "#666",
+    color: ds.subtext,
     textAlign: "center",
-    marginBottom: 24,
     lineHeight: 22,
+    marginBottom: 24,
   },
-  modalActions: { flexDirection: "row", gap: 12, width: "100%" },
-  modalButton: {
+  modalActions: { flexDirection: "row", gap: 16, width: "100%" },
+  cancelBtn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderRadius: 8,
     alignItems: "center",
+    backgroundColor: ds.bg,
+    borderWidth: 1,
+    borderColor: ds.border,
   },
-  modalCancelButton: { backgroundColor: "#f4f6f7" },
-  modalDeleteButton: { backgroundColor: themeColors.red },
-  modalCancelText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: themeColors.charcoal,
+  cancelBtnText: { fontSize: 15, fontWeight: "600", color: ds.text },
+  confirmDeleteBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 8,
+    backgroundColor: ds.red,
   },
-  modalDeleteText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: themeColors.white,
-  },
+  confirmDeleteBtnText: { fontSize: 15, fontWeight: "700", color: ds.white },
 });

@@ -16,17 +16,18 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// Official Jerusalem Youth Chorus Colors
-const themeColors = {
-  teal: "#039899",
-  red: "#c56451",
-  yellow: "#cfad5d",
-  bluishWhite: "#f5fafe",
-  charcoal: "#353535",
-  white: "#ffffff",
-  gray: "#e0e0e0",
-};
+// ── Design System ─────────────────────────────────────────────────────────────
+const ds = {
+  teal:    "#039899",
+  red:     "#c56451",
+  white:   "#ffffff",
+  bg:      "#f5fafe",
+  text:    "#1a1a2e",
+  subtext: "#5a6a7a",
+  border:  "#e8eef2",
+} as const;
 
+// ── Screen ────────────────────────────────────────────────────────────────────
 export default function CreateFormScreen() {
   const router = useRouter();
   const { id, isEditing, formData } = useLocalSearchParams<{
@@ -34,62 +35,64 @@ export default function CreateFormScreen() {
     isEditing?: string;
     formData?: string;
   }>();
-  const [title, setTitle] = useState("");
+
+  const [title, setTitle]         = useState("");
   const [description, setDescription] = useState("");
   const [questions, setQuestions] = useState<
     { id: string; text: string; type: string; options?: string[] }[]
   >([]);
   const [loading, setLoading] = useState(false);
 
+  const editing = isEditing === "true";
+
   useEffect(() => {
-    if (isEditing === "true" && formData) {
+    if (editing && formData) {
       try {
-        const parsedData = JSON.parse(formData);
-        setTitle(parsedData.title || "");
-        setDescription(parsedData.description || "");
-        setQuestions(parsedData.questions || []);
+        const parsed = JSON.parse(formData);
+        setTitle(parsed.title || "");
+        setDescription(parsed.description || "");
+        setQuestions(parsed.questions || []);
       } catch (error) {
         console.error("Error parsing form data:", error);
       }
     }
   }, [isEditing, formData]);
 
+  // ── Firebase actions ─────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!title.trim() || !description.trim()) {
       Alert.alert("Error", "Please provide a title and description.");
       return;
     }
-
     setLoading(true);
     try {
-      if (isEditing === "true" && id) {
-        const updatedForm = {
+      if (editing && id) {
+        await updateDoc(doc(db, "forms", id), {
           title: title.trim(),
           description: description.trim(),
-          questions: questions,
-        };
-        await updateDoc(doc(db, "forms", id), updatedForm);
+          questions,
+        });
         Alert.alert("Success", "Form updated successfully!");
       } else {
-        const newForm = {
+        await addDoc(collection(db, "forms"), {
           title: title.trim(),
           description: description.trim(),
           createdAt: new Date().toISOString(),
-          target_audience: "both", // Default for now
-          questions: questions,
-        };
-        await addDoc(collection(db, "forms"), newForm);
+          target_audience: "both",
+          questions,
+        });
         Alert.alert("Success", "Form created successfully!");
       }
       router.back();
     } catch (error) {
-      console.error("Error creating form:", error);
+      console.error("Error saving form:", error);
       Alert.alert("Error", "Failed to save the form. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
+  // ── Question helpers ──────────────────────────────────────────────────────
   const addQuestion = () => {
     setQuestions([
       ...questions,
@@ -97,14 +100,14 @@ export default function CreateFormScreen() {
     ]);
   };
 
-  const updateQuestionText = (id: string, text: string) => {
-    setQuestions(questions.map((q) => (q.id === id ? { ...q, text } : q)));
+  const updateQuestionText = (qId: string, text: string) => {
+    setQuestions(questions.map((q) => (q.id === qId ? { ...q, text } : q)));
   };
 
-  const updateQuestionType = (id: string, type: string) => {
+  const updateQuestionType = (qId: string, type: string) => {
     setQuestions(
       questions.map((q) =>
-        q.id === id
+        q.id === qId
           ? { ...q, type, options: q.options?.length ? q.options : [""] }
           : q,
       ),
@@ -114,274 +117,231 @@ export default function CreateFormScreen() {
   const updateOption = (qId: string, optIndex: number, text: string) => {
     setQuestions(
       questions.map((q) => {
-        if (q.id === qId) {
-          const newOptions = [...(q.options || [])];
-          newOptions[optIndex] = text;
-          return { ...q, options: newOptions };
-        }
-        return q;
+        if (q.id !== qId) return q;
+        const newOptions = [...(q.options || [])];
+        newOptions[optIndex] = text;
+        return { ...q, options: newOptions };
       }),
     );
   };
 
   const addOption = (qId: string) => {
     setQuestions(
-      questions.map((q) => {
-        if (q.id === qId) {
-          return { ...q, options: [...(q.options || []), ""] };
-        }
-        return q;
-      }),
+      questions.map((q) =>
+        q.id === qId ? { ...q, options: [...(q.options || []), ""] } : q,
+      ),
     );
   };
 
   const removeOption = (qId: string, optIndex: number) => {
     setQuestions(
       questions.map((q) => {
-        if (q.id === qId) {
-          const newOptions = [...(q.options || [])];
-          newOptions.splice(optIndex, 1);
-          return { ...q, options: newOptions };
-        }
-        return q;
+        if (q.id !== qId) return q;
+        const newOptions = [...(q.options || [])];
+        newOptions.splice(optIndex, 1);
+        return { ...q, options: newOptions };
       }),
     );
   };
 
-  const removeQuestion = (id: string) => {
-    setQuestions(questions.filter((q) => q.id !== id));
+  const removeQuestion = (qId: string) => {
+    setQuestions(questions.filter((q) => q.id !== qId));
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: themeColors.bluishWhite }]}
-      edges={["top", "bottom"]}
-    >
-      <View style={[styles.header, { backgroundColor: themeColors.teal }]}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={themeColors.white} />
+    <SafeAreaView style={s.safe} edges={["top"]}>
+
+      {/* ── Teal Header ───────────────────────────────────────────────── */}
+      <View style={s.headerBg}>
+        <Pressable onPress={() => router.back()} style={s.backBtn} hitSlop={8}>
+          <Ionicons name="arrow-back" size={24} color={ds.white} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: themeColors.white }]}>
-          {isEditing === "true" ? "Edit Form" : "Create New Form"}
-        </Text>
-        <View style={{ width: 24 }} /> {/* Spacer for centering title */}
+        <View style={s.headerText}>
+          <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
+          <Text style={s.pageTitle} numberOfLines={1}>
+            {editing ? "Edit Form" : "Create New Form"}
+          </Text>
+        </View>
       </View>
 
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={s.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScrollView contentContainerStyle={styles.content}>
-          <View style={[styles.card, { backgroundColor: themeColors.white }]}>
-            <Text style={[styles.label, { color: themeColors.charcoal }]}>
-              Form Title
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                { borderColor: themeColors.gray, color: themeColors.charcoal },
-              ]}
-              placeholder="Enter form title..."
-              placeholderTextColor="#999"
-              value={title}
-              onChangeText={setTitle}
-            />
-
-            <Text style={[styles.label, { color: themeColors.charcoal }]}>
-              Form Description
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                styles.textArea,
-                { borderColor: themeColors.gray, color: themeColors.charcoal },
-              ]}
-              placeholder="Enter form description..."
-              placeholderTextColor="#999"
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={4}
-            />
-          </View>
-
-          {questions.map((q, index) => (
-            <View
-              key={q.id}
-              style={[styles.card, { backgroundColor: themeColors.white }]}
-            >
-              <View style={styles.questionHeader}>
-                <Text style={[styles.label, { color: themeColors.charcoal }]}>
-                  Question {index + 1}
-                </Text>
-                <Pressable onPress={() => removeQuestion(q.id)}>
-                  <Ionicons
-                    name="trash-outline"
-                    size={20}
-                    color={themeColors.red}
-                  />
-                </Pressable>
-              </View>
+        <ScrollView
+          contentContainerStyle={s.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* ── Form Details Card ────────────────────────────────────── */}
+          <View style={s.card}>
+            <View style={s.cardTopBar} />
+            <View style={s.cardBody}>
+              <Text style={s.fieldLabel}>Form Title</Text>
               <TextInput
-                style={[
-                  styles.input,
-                  {
-                    borderColor: themeColors.gray,
-                    color: themeColors.charcoal,
-                    marginBottom: 12,
-                  },
-                ]}
-                placeholder="Enter question text..."
-                placeholderTextColor="#999"
-                value={q.text}
-                onChangeText={(text) => updateQuestionText(q.id, text)}
+                style={s.input}
+                placeholder="Enter form title..."
+                placeholderTextColor={ds.subtext}
+                value={title}
+                onChangeText={setTitle}
               />
 
-              <View style={styles.typeSelector}>
-                <Pressable
-                  style={[
-                    styles.typeBtn,
-                    q.type === "text" && styles.typeBtnActive,
-                  ]}
-                  onPress={() => updateQuestionType(q.id, "text")}
-                >
-                  <Ionicons
-                    name="text-outline"
-                    size={16}
-                    color={
-                      q.type === "text" ? themeColors.teal : themeColors.gray
-                    }
-                  />
-                  <Text
-                    style={[
-                      styles.typeBtnText,
-                      q.type === "text" && styles.typeBtnTextActive,
-                    ]}
-                  >
-                    Text Answer
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.typeBtn,
-                    q.type === "multiple_choice" && styles.typeBtnActive,
-                  ]}
-                  onPress={() => updateQuestionType(q.id, "multiple_choice")}
-                >
-                  <Ionicons
-                    name="list-outline"
-                    size={16}
-                    color={
-                      q.type === "multiple_choice"
-                        ? themeColors.teal
-                        : themeColors.gray
-                    }
-                  />
-                  <Text
-                    style={[
-                      styles.typeBtnText,
-                      q.type === "multiple_choice" && styles.typeBtnTextActive,
-                    ]}
-                  >
-                    Multiple Choice
-                  </Text>
-                </Pressable>
-              </View>
+              <Text style={[s.fieldLabel, { marginTop: 16 }]}>
+                Form Description
+              </Text>
+              <TextInput
+                style={[s.input, s.textArea]}
+                placeholder="Enter form description..."
+                placeholderTextColor={ds.subtext}
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={4}
+              />
+            </View>
+          </View>
 
-              {q.type === "multiple_choice" && (
-                <View style={styles.optionsContainer}>
-                  {(q.options || []).map((opt, optIdx) => (
-                    <View key={optIdx} style={styles.optionRow}>
-                      <Ionicons
-                        name="radio-button-off"
-                        size={20}
-                        color={themeColors.gray}
-                      />
-                      <TextInput
-                        style={styles.optionInput}
-                        placeholder={`Option ${optIdx + 1}`}
-                        placeholderTextColor="#999"
-                        value={opt}
-                        onChangeText={(txt) => updateOption(q.id, optIdx, txt)}
-                      />
-                      {(q.options || []).length > 1 && (
-                        <Pressable
-                          onPress={() => removeOption(q.id, optIdx)}
-                          style={styles.removeOptionBtn}
-                        >
-                          <Ionicons
-                            name="close"
-                            size={20}
-                            color={themeColors.red}
-                          />
-                        </Pressable>
-                      )}
-                    </View>
-                  ))}
+          {/* ── Question Cards ───────────────────────────────────────── */}
+          {questions.map((q, index) => (
+            <View key={q.id} style={s.card}>
+              <View style={s.cardTopBar} />
+              <View style={s.cardBody}>
+                {/* Question header */}
+                <View style={s.questionHeader}>
+                  <View style={s.questionNumberBadge}>
+                    <Text style={s.questionNumberText}>{index + 1}</Text>
+                  </View>
+                  <Text style={s.questionHeaderLabel}>Question {index + 1}</Text>
                   <Pressable
-                    style={styles.addOptionBtn}
-                    onPress={() => addOption(q.id)}
+                    style={s.deleteBtn}
+                    onPress={() => removeQuestion(q.id)}
+                    hitSlop={8}
                   >
-                    <Ionicons name="add" size={18} color={themeColors.teal} />
+                    <Ionicons name="trash-outline" size={14} color={ds.white} />
+                  </Pressable>
+                </View>
+
+                {/* Question text input */}
+                <TextInput
+                  style={s.input}
+                  placeholder="Enter question text..."
+                  placeholderTextColor={ds.subtext}
+                  value={q.text}
+                  onChangeText={(text) => updateQuestionText(q.id, text)}
+                />
+
+                {/* Type selector */}
+                <View style={s.typeSelector}>
+                  <Pressable
+                    style={[
+                      s.typeBtn,
+                      q.type === "text" && s.typeBtnActive,
+                    ]}
+                    onPress={() => updateQuestionType(q.id, "text")}
+                  >
+                    <Ionicons
+                      name="text-outline"
+                      size={16}
+                      color={q.type === "text" ? ds.teal : ds.subtext}
+                    />
                     <Text
                       style={[
-                        styles.addOptionText,
-                        { color: themeColors.teal },
+                        s.typeBtnText,
+                        q.type === "text" && s.typeBtnTextActive,
                       ]}
                     >
-                      Add Option
+                      Text Answer
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      s.typeBtn,
+                      q.type === "multiple_choice" && s.typeBtnActive,
+                    ]}
+                    onPress={() => updateQuestionType(q.id, "multiple_choice")}
+                  >
+                    <Ionicons
+                      name="list-outline"
+                      size={16}
+                      color={
+                        q.type === "multiple_choice" ? ds.teal : ds.subtext
+                      }
+                    />
+                    <Text
+                      style={[
+                        s.typeBtnText,
+                        q.type === "multiple_choice" && s.typeBtnTextActive,
+                      ]}
+                    >
+                      Multiple Choice
                     </Text>
                   </Pressable>
                 </View>
-              )}
+
+                {/* Options (multiple choice) */}
+                {q.type === "multiple_choice" && (
+                  <View style={s.optionsContainer}>
+                    {(q.options || []).map((opt, optIdx) => (
+                      <View key={optIdx} style={s.optionRow}>
+                        <Ionicons
+                          name="radio-button-off"
+                          size={18}
+                          color={ds.subtext}
+                        />
+                        <TextInput
+                          style={s.optionInput}
+                          placeholder={`Option ${optIdx + 1}`}
+                          placeholderTextColor={ds.subtext}
+                          value={opt}
+                          onChangeText={(txt) =>
+                            updateOption(q.id, optIdx, txt)
+                          }
+                        />
+                        {(q.options || []).length > 1 && (
+                          <Pressable
+                            style={s.removeOptionBtn}
+                            onPress={() => removeOption(q.id, optIdx)}
+                            hitSlop={8}
+                          >
+                            <Ionicons name="close" size={18} color={ds.red} />
+                          </Pressable>
+                        )}
+                      </View>
+                    ))}
+                    <Pressable
+                      style={s.addOptionBtn}
+                      onPress={() => addOption(q.id)}
+                    >
+                      <Ionicons name="add" size={16} color={ds.teal} />
+                      <Text style={s.addOptionText}>Add Option</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
             </View>
           ))}
 
-          <Pressable
-            style={[
-              styles.addButton,
-              {
-                backgroundColor: themeColors.bluishWhite,
-                borderColor: themeColors.teal,
-              },
-            ]}
-            onPress={addQuestion}
-          >
-            <Ionicons name="add" size={20} color={themeColors.teal} />
-            <Text style={[styles.addButtonText, { color: themeColors.teal }]}>
-              Add Question
-            </Text>
+          {/* ── Add Question Button ──────────────────────────────────── */}
+          <Pressable style={s.addQuestionBtn} onPress={addQuestion}>
+            <Ionicons name="add-circle-outline" size={20} color={ds.teal} />
+            <Text style={s.addQuestionText}>Add Question</Text>
           </Pressable>
         </ScrollView>
 
-        <View
-          style={[
-            styles.footer,
-            {
-              backgroundColor: themeColors.white,
-              borderTopColor: themeColors.gray,
-            },
-          ]}
-        >
+        {/* ── Save Footer ──────────────────────────────────────────────── */}
+        <View style={s.footer}>
           <Pressable
-            style={[
-              styles.saveButton,
-              { backgroundColor: themeColors.teal },
-              loading && { opacity: 0.7 },
-            ]}
+            style={[s.saveBtn, loading && { opacity: 0.7 }]}
             onPress={handleSave}
             disabled={loading}
           >
-            <Text style={styles.saveButtonText}>
+            {!loading && (
+              <Ionicons name="checkmark-circle-outline" size={20} color={ds.white} />
+            )}
+            <Text style={s.saveBtnText}>
               {loading ? "Saving..." : "Save Form"}
             </Text>
-            {!loading && (
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={20}
-                color="#fff"
-              />
-            )}
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -389,131 +349,200 @@ export default function CreateFormScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
+// ── Styles ────────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: ds.teal },
+  flex: { flex: 1, backgroundColor: ds.bg },
+
+  // Header
+  headerBg: {
+    backgroundColor: ds.teal,
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderColor: themeColors.teal,
+    alignItems: "flex-start",
+    gap: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
   },
-  backButton: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: "700" },
-  content: { padding: 16, gap: 16 },
+  backBtn: {
+    marginTop: 16,
+  },
+  headerText: { flex: 1 },
+  orgLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.85)",
+    marginBottom: 4,
+  },
+  pageTitle: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: ds.white,
+  },
+
+  // Scroll
+  scrollContent: { padding: 16, gap: 16, paddingBottom: 24 },
+
+  // Card
   card: {
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: ds.white,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: themeColors.teal + "40",
-    borderLeftWidth: 4,
-    borderLeftColor: themeColors.teal,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    borderColor: ds.border,
+    overflow: "hidden",
+    shadowColor: ds.teal,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  questionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  cardTopBar: { height: 4, backgroundColor: ds.teal },
+  cardBody:   { padding: 16, gap: 8 },
+
+  // Fields
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: ds.subtext,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
     marginBottom: 8,
   },
-  label: { fontSize: 14, fontWeight: "600", marginBottom: 8 },
   input: {
     borderWidth: 1,
+    borderColor: ds.border,
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     fontSize: 15,
-    backgroundColor: "#fafafa",
-    marginBottom: 16,
+    color: ds.text,
+    backgroundColor: ds.bg,
   },
-  textArea: { minHeight: 100, textAlignVertical: "top", marginBottom: 0 },
+  textArea: {
+    minHeight: 96,
+    textAlignVertical: "top",
+  },
+
+  // Question header
+  questionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  questionNumberBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: ds.teal,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  questionNumberText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: ds.white,
+  },
+  questionHeaderLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: ds.text,
+  },
+  deleteBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: ds.red,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Type selector
   typeSelector: {
     flexDirection: "row",
     gap: 8,
-    marginBottom: 8,
+    marginTop: 8,
   },
   typeBtn: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
+    gap: 8,
+    paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: themeColors.gray,
-    backgroundColor: "#f9f9f9",
+    borderColor: ds.border,
+    backgroundColor: ds.bg,
   },
   typeBtnActive: {
-    borderColor: themeColors.teal,
-    backgroundColor: themeColors.bluishWhite,
+    borderColor: ds.teal,
+    backgroundColor: ds.teal + "12",
   },
   typeBtnText: {
     fontSize: 13,
     fontWeight: "600",
-    color: themeColors.charcoal,
+    color: ds.subtext,
   },
-  typeBtnTextActive: {
-    color: themeColors.teal,
-  },
-  optionsContainer: {
-    marginTop: 4,
-    gap: 8,
-  },
+  typeBtnTextActive: { color: ds.teal },
+
+  // Options
+  optionsContainer: { gap: 8, marginTop: 8 },
   optionRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
   },
   optionInput: {
     flex: 1,
     borderBottomWidth: 1,
-    borderBottomColor: themeColors.gray,
+    borderBottomColor: ds.border,
     paddingVertical: 8,
     fontSize: 15,
-    color: themeColors.charcoal,
+    color: ds.text,
   },
-  removeOptionBtn: {
-    padding: 4,
-  },
+  removeOptionBtn: { padding: 4 },
   addOptionBtn: {
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
     gap: 4,
-    marginTop: 4,
+    marginTop: 8,
     paddingVertical: 8,
-    paddingHorizontal: 4,
   },
-  addOptionText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  addButton: {
+  addOptionText: { fontSize: 14, fontWeight: "600", color: ds.teal },
+
+  // Add Question button
+  addQuestionBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    padding: 14,
-    borderRadius: 12,
+    paddingVertical: 16,
+    borderRadius: 16,
     borderWidth: 1.5,
     borderStyle: "dashed",
+    borderColor: ds.teal,
+    backgroundColor: ds.white,
   },
-  addButtonText: { fontSize: 15, fontWeight: "600" },
-  footer: { padding: 16, borderTopWidth: 1 },
-  saveButton: {
+  addQuestionText: { fontSize: 15, fontWeight: "700", color: ds.teal },
+
+  // Footer / Save
+  footer: {
+    backgroundColor: ds.white,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: ds.border,
+  },
+  saveBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    padding: 14,
+    backgroundColor: ds.teal,
+    paddingVertical: 16,
     borderRadius: 12,
   },
-  saveButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  saveBtnText: { fontSize: 16, fontWeight: "700", color: ds.white },
 });

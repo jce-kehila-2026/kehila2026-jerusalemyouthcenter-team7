@@ -408,4 +408,10 @@ export const COLORS = {
   grayLight: "#f4f6f7",
   border: "#d8e0e0",
   success: "#22c55e",
+  purple: "#6b5ce7",
+  text: "#1a1a2e",
+  sub: "#5a6a7a",
+  muted: "#9aa8b4",
+  bg: "#f5fafe",
+  card: "#ffffff",
 };
