@@ -56,7 +56,7 @@ export default function CreateFormScreen() {
         console.error("Error parsing form data:", error);
       }
     }
-  }, [isEditing, formData]);
+  }, [editing, formData]);
 
   // ── Firebase actions ─────────────────────────────────────────────────────
   const handleSave = async () => {
