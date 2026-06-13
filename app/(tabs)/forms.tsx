@@ -234,34 +234,13 @@ export default function FormsScreen() {
                           </Text>
                           <Ionicons name="people-outline" size={12} color={activeColor} />
                         </View>
-<View style={styles.footer}>
-            <Pressable
-              style={[
-                styles.fillButton,
-                { backgroundColor: activeColor },
-              ]}
-              onPress={() => router.push(`/form/${item.id}` as any)}
-            >
-              <Text style={styles.fillButtonText}>Fill out</Text>
-            </Pressable>
-
-            <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
-              {isAdmin && (
-                <View style={[s.badge, { backgroundColor: activeColor + "22" }]}>
-                  <Text style={[s.badgeText, { color: activeColor }]}>
-                    {submissionCounts[item.id] ?? 0} responses
-                  </Text>
-                  <Ionicons name="people-outline" size={12} color={activeColor} />
-                </View>
-              )}
-              <View style={[s.badge, { backgroundColor: activeColor + "22" }]}>
-                <Text style={[s.badgeText, { color: activeColor }]}>
-                  {questions.length} qs
-                </Text>
-                <Ionicons name="help-circle-outline" size={12} color={activeColor} />
-              </View>
-            </View>
-          </View>
+                      )}
+                      <View style={[s.badge, { backgroundColor: activeColor + "22" }]}>
+                        <Text style={[s.badgeText, { color: activeColor }]}>
+                          {questions.length} qs
+                        </Text>
+                        <Ionicons name="help-circle-outline" size={12} color={activeColor} />
+                      </View>
                     </View>
                   </View>
                 </View>
