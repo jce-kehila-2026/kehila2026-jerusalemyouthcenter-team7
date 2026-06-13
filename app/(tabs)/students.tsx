@@ -1,10 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useLocalSearchParams, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -64,19 +68,23 @@ const VOICE_FILTERS = [
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 export default function StudentsListScreen() {
-  const router = useRouter();
+  const router   = useRouter();
   const { user } = useAuth();
+  const { action } = useLocalSearchParams<{ action?: string }>();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedYearFilter, setSelectedYearFilter] = useState<string | null>(
-    null,
-  );
-  const [selectedVoiceFilter, setSelectedVoiceFilter] = useState<string | null>(
-    null,
-  );
+  const [selectedYearFilter, setSelectedYearFilter] = useState<string | null>(null);
+  const [selectedVoiceFilter, setSelectedVoiceFilter] = useState<string | null>(null);
   const [studentsList, setStudentsList] = useState<StudentWithVoice[]>([]);
-  const [groupsList, setGroupsList] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [groupsList, setGroupsList]     = useState<Group[]>([]);
+  const [loading, setLoading]           = useState(true);
+
+  // ── Add Student modal state ───────────────────────────────────────────────
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [newName, setNewName]   = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newGroupId, setNewGroupId] = useState("");
+  const [addSaving, setAddSaving]   = useState(false);
 
   // ── Data fetching ────────────────────────────────────────────────────────
   useFocusEffect(
@@ -100,6 +108,50 @@ export default function StudentsListScreen() {
       fetchData();
     }, []),
   );
+
+  // ── Open Add modal when arriving with ?action=add ────────────────────────
+  useEffect(() => {
+    if (action === "add" && user?.role === "admin") {
+      setAddModalVisible(true);
+      router.setParams({ action: "" });
+    }
+  }, [action]);
+
+  // ── Add student handler ────────────────────────────────────────────────────
+  const handleAddStudent = async () => {
+    if (!newName.trim()) {
+      Alert.alert("Required", "Please enter the student's full name.");
+      return;
+    }
+    if (!newPhone.trim()) {
+      Alert.alert("Required", "Please enter a phone number.");
+      return;
+    }
+    setAddSaving(true);
+    try {
+      const chosenGroup = groupsList.find((g) => g.id === newGroupId);
+      await studentService.addStudent({
+        full_name:  newName.trim(),
+        phone:      newPhone.trim(),
+        email:      `${newPhone.trim().replace(/\D/g, "")}@kehila.app`,
+        group_id:   newGroupId || undefined,
+        year_id:    chosenGroup?.year_id ?? undefined,
+        program_id: chosenGroup?.program_id ?? undefined,
+      } as any);
+      // Refresh list
+      const fresh = await studentService.getAllStudents();
+      setStudentsList(fresh.length > 0 ? fresh : studentsList);
+      setAddModalVisible(false);
+      setNewName("");
+      setNewPhone("");
+      setNewGroupId("");
+    } catch (e) {
+      Alert.alert("Error", "Could not add student. Please try again.");
+      console.error(e);
+    } finally {
+      setAddSaving(false);
+    }
+  };
 
   // ── Filtering ─────────────────────────────────────────────────────────────
   const filteredStudents = useMemo(() => {
@@ -381,7 +433,88 @@ export default function StudentsListScreen() {
         )}
       </View>
 
-      {/* ── FAB ────────────────────────*/}
+      {/* ── FAB — Add Student ─────────────────────────────────────────── */}
+      {user?.role === "admin" && (
+        <Pressable style={s.fab} onPress={() => setAddModalVisible(true)}>
+          <Ionicons name="person-add" size={22} color="#fff" />
+        </Pressable>
+      )}
+
+      {/* ── Add Student Modal ──────────────────────────────────────────── */}
+      <Modal
+        visible={addModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAddModalVisible(false)}
+      >
+        <View style={s.modalOverlay}>
+          <View style={s.modalSheet}>
+            {/* Handle bar */}
+            <View style={s.modalHandle} />
+
+            <Text style={s.modalTitle}>Add New Student</Text>
+
+            <Text style={s.fieldLabel}>Full Name *</Text>
+            <TextInput
+              style={s.fieldInput}
+              value={newName}
+              onChangeText={setNewName}
+              placeholder="e.g. Sara Cohen"
+              placeholderTextColor={ds.muted}
+              autoFocus
+            />
+
+            <Text style={s.fieldLabel}>Phone Number *</Text>
+            <TextInput
+              style={s.fieldInput}
+              value={newPhone}
+              onChangeText={setNewPhone}
+              placeholder="+972-50-000-0000"
+              placeholderTextColor={ds.muted}
+              keyboardType="phone-pad"
+            />
+
+            <Text style={s.fieldLabel}>Year / Group</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+              <Pressable
+                style={[s.groupChip, !newGroupId && s.groupChipActive]}
+                onPress={() => setNewGroupId("")}
+              >
+                <Text style={[s.groupChipText, !newGroupId && s.groupChipTextActive]}>None</Text>
+              </Pressable>
+              {groupsList.map((g) => {
+                const active = newGroupId === g.id;
+                return (
+                  <Pressable
+                    key={g.id}
+                    style={[s.groupChip, active && s.groupChipActive]}
+                    onPress={() => setNewGroupId(g.id)}
+                  >
+                    <Text style={[s.groupChipText, active && s.groupChipTextActive]}>
+                      {g.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <View style={s.modalActions}>
+              <Pressable
+                style={s.cancelBtn}
+                onPress={() => { setAddModalVisible(false); setNewName(""); setNewPhone(""); setNewGroupId(""); }}
+              >
+                <Text style={s.cancelBtnText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={s.saveBtn} onPress={handleAddStudent} disabled={addSaving}>
+                {addSaving
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={s.saveBtnText}>Add Student</Text>
+                }
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -407,6 +540,112 @@ const s = StyleSheet.create({
   empty: { flex: 1, justifyContent: "center", alignItems: "center" },
   emptyText: { color: ds.muted, marginTop: 8 },
   list: { paddingBottom: 120 },
+
+  // ── FAB
+  fab: {
+    position: "absolute",
+    bottom: 24,
+    right: 20,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: ds.teal,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: ds.teal,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+
+  // ── Add Student modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: ds.border,
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: ds.text,
+    marginBottom: 20,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: ds.subtext,
+    marginBottom: 6,
+    letterSpacing: 0.5,
+  },
+  fieldInput: {
+    borderWidth: 1.5,
+    borderColor: ds.border,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontSize: 15,
+    color: ds.text,
+    marginBottom: 16,
+    backgroundColor: "#f9fbfd",
+  },
+  groupChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#f0f4f8",
+    marginRight: 8,
+    borderWidth: 1.5,
+    borderColor: "transparent",
+  },
+  groupChipActive: {
+    backgroundColor: ds.teal + "18",
+    borderColor: ds.teal,
+  },
+  groupChipText: { fontSize: 13, fontWeight: "600", color: ds.subtext },
+  groupChipTextActive: { color: ds.teal },
+  modalActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  cancelBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: ds.border,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: "center",
+  },
+  cancelBtnText: { fontSize: 14, fontWeight: "700", color: ds.subtext },
+  saveBtn: {
+    flex: 2,
+    backgroundColor: ds.teal,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: "center",
+    shadowColor: ds.teal,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  saveBtnText: { fontSize: 14, fontWeight: "800", color: "#fff" },
   card: { backgroundColor: ds.white, borderRadius: 8, marginBottom: 12, overflow: "hidden" },
   cardTopBar: { height: 6, width: "100%" },
   cardBody: { padding: 12, flexDirection: "row", alignItems: "center" , justifyContent: "space-between"},
