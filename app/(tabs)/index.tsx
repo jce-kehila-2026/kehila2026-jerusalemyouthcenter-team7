@@ -1,17 +1,17 @@
 import { NotificationBell } from "@/src/components/NotificationBell";
+import { ManageAdminsModal } from "@/src/components/ManageAdminsModal";
 import { useAuth } from "@/src/context/AuthContext";
 import { FirestoreMsg, messageService } from "@/src/data/messageService";
-import {
-  COLORS,
-  events as mockEvents,
-  forms as mockForms,
-  students as mockStudents,
-} from "@/src/data/mockData";
 import { notificationService } from "@/src/data/notificationService";
 import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { collection, getDocs } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -23,182 +23,236 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const TEAL   = "#039899";
+const RED    = "#c56451";
+const AMBER  = "#cfad5d";
+const ORANGE = "#e07050";
+const DARK   = "#1a1a2e";
+const SUB    = "#5a6a7a";
+const MUTED  = "#9aa8b4";
+const BORDER = "#e8eef2";
+const BG     = "#f5fafe";
+
+// ── Weekly attendance mock data (replace with real Firestore query if needed) ─
+const WEEKLY = [
+  { day: "Sun", pct: 35 },
+  { day: "Mon", pct: 85 },
+  { day: "Tue", pct: 70 },
+  { day: "Wed", pct: 90 },
+  { day: "Thu", pct: 45 },
+  { day: "Fri", pct: 95 },
+  { day: "Sat", pct: 40 },
+];
+const AVG_PCT = 82;
+const BAR_MAX = 72; // px — tallest possible bar
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 type DashEvent = {
-  id: string | number;
+  id: string;
   title: string;
   date: string;
+  time?: string;
   location: string;
-  registered: number;
-  capacity: number;
-  group_ids?: string[];
+  registered?: number;
+  capacity?: number;
 };
-type DashMsg   = { id: string; sender_name: string; content: string; timestamp: string; is_read: boolean };
-type DashNotif = { id: string | number; title: string; body: string; timestamp: string; is_read: boolean; type: string };
+type DashNotif = {
+  id: string | number;
+  title: string;
+  body: string;
+  timestamp: string;
+  is_read: boolean;
+  type: string;
+};
 
-// ── Static music library highlights (mock until library service is wired up) ──
-const MUSIC_HIGHLIGHTS = [
-  { id: "1", name: "Baruch Hashem — Full Score",       ext: "PDF", color: COLORS.red  },
-  { id: "2", name: "Shabbat Medley — Rehearsal Track", ext: "MP3", color: COLORS.teal },
-  { id: "3", name: "Jerusalem Song — Choir Parts",     ext: "PDF", color: COLORS.red  },
-] as const;
-
-// ── Shared BrandCard (4 px colour bar + teal shadow) ─────────────────────────
-function BrandCard({
-  barColor = COLORS.teal,
-  style,
-  padStyle,
-  children,
-}: {
-  barColor?: string;
-  style?: object;
-  padStyle?: object;
-  children: React.ReactNode;
-}) {
-  return (
-    <View style={[st.shadow, style]}>
-      <View style={st.cardOuter}>
-        <View style={[st.colorBar, { backgroundColor: barColor }]} />
-        <View style={[st.cardPad, padStyle]}>{children}</View>
-      </View>
-    </View>
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function daysUntil(dateStr: string) {
+  return Math.ceil(
+    (new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
   );
 }
 
-// ── Tappable KPI card ─────────────────────────────────────────────────────────
-function StatCard({
-  label,
-  value,
-  icon,
-  barColor,
-  onPress,
-}: {
-  label: string;
-  value: number | string;
-  icon: React.ComponentProps<typeof Ionicons>["name"];
-  barColor: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable onPress={onPress} style={st.statWrap}>
-      <BrandCard barColor={barColor} style={{ flex: 1, marginBottom: 0 }}>
-        <View style={[st.statIconWrap, { backgroundColor: barColor + "22" }]}>
-          <Ionicons name={icon} size={18} color={barColor} />
-        </View>
-        <Text style={st.statValue}>{value}</Text>
-        <Text style={st.statLabel}>{label}</Text>
-        <View style={st.statFooter}>
-          <Text style={[st.statFooterText, { color: barColor }]}>View →</Text>
-        </View>
-      </BrandCard>
-    </Pressable>
-  );
+function relativeTime(ts: string) {
+  const diff = Date.now() - new Date(ts).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1)  return "Just now";
+  if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-// ── Section label ─────────────────────────────────────────────────────────────
-function SectionLabel({ children }: { children: string }) {
-  return <Text style={st.sectionLabel}>{children.toUpperCase()}</Text>;
+function notifDotColor(n: DashNotif) {
+  const t = (n.title + " " + n.body).toLowerCase();
+  if (t.includes("request") || t.includes("join")) return TEAL;
+  if (t.includes("overdue") || t.includes("form"))  return RED;
+  return AMBER;
 }
 
-// ── Widget header: title left, action link right ──────────────────────────────
-function WidgetHeader({
-  icon,
+function todayString() {
+  return new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    year:    "numeric",
+    month:   "long",
+    day:     "numeric",
+  });
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function SectionCard({ children, style }: { children: React.ReactNode; style?: object }) {
+  return <View style={[st.card, style]}>{children}</View>;
+}
+
+function SectionHeader({
   title,
-  actionLabel,
+  action,
   onAction,
 }: {
-  icon: React.ComponentProps<typeof Ionicons>["name"];
   title: string;
-  actionLabel: string;
+  action: string;
   onAction: () => void;
 }) {
   return (
-    <View style={st.widgetHeader}>
-      <View style={st.widgetHeaderLeft}>
-        <Ionicons name={icon} size={15} color={COLORS.teal} />
-        <Text style={st.widgetTitle}>{title}</Text>
-      </View>
-      <Pressable onPress={onAction} hitSlop={12}>
-        <Text style={st.widgetLink}>{actionLabel}</Text>
+    <View style={st.secHeader}>
+      <Text style={st.secTitle}>{title}</Text>
+      <Pressable onPress={onAction} hitSlop={10}>
+        <Text style={st.secAction}>{action}</Text>
       </Pressable>
     </View>
   );
 }
 
-// ── Card footer CTA ──────────────────────────────────────────────────────────
-function CardFooter({ label, onPress }: { label: string; onPress: () => void }) {
+function StatBox({
+  value,
+  label,
+  sub,
+  valueColor,
+  subColor,
+  icon,
+  onPress,
+  last,
+}: {
+  value: number | string;
+  label: string;
+  sub: string;
+  valueColor: string;
+  subColor: string;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  onPress: () => void;
+  last?: boolean;
+}) {
   return (
-    <Pressable onPress={onPress} style={st.cardFooter}>
-      <Text style={st.cardFooterText}>{label}</Text>
-      <Ionicons name="arrow-forward" size={13} color={COLORS.teal} />
+    <Pressable
+      onPress={onPress}
+      style={[st.statBox, !last && st.statBoxBorder]}
+    >
+      <View style={st.statIconRow}>
+        <Ionicons name={icon} size={11} color={MUTED} />
+        <Text style={[st.statValue, { color: valueColor }]}>{value}</Text>
+      </View>
+      <View style={st.statLabelRow}>
+        <Ionicons name="checkbox-outline" size={10} color={MUTED} />
+        <Text style={st.statLabel}>{label}</Text>
+      </View>
+      <Text style={[st.statSub, { color: subColor }]}>{sub}</Text>
     </Pressable>
   );
 }
 
-// ── Event row (lives inside zero-padded BrandCard) ────────────────────────────
+function WeeklyChart() {
+  const low  = Math.min(...WEEKLY.map((d) => d.pct));
+  const high = Math.max(...WEEKLY.map((d) => d.pct));
+
+  return (
+    <View>
+      <View style={st.chartRow}>
+        {WEEKLY.map((item) => (
+          <View key={item.day} style={st.barCol}>
+            <View
+              style={[
+                st.bar,
+                {
+                  height: Math.max(6, (item.pct / 100) * BAR_MAX),
+                  backgroundColor:
+                    item.pct >= AVG_PCT ? TEAL : TEAL + "55",
+                },
+              ]}
+            />
+            <Text style={st.barLabel}>{item.day}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={st.chartFooter}>
+        <Text style={st.chartStat}>
+          <Text style={st.chartStatMuted}>Low </Text>
+          {low}%
+        </Text>
+        <Text style={[st.chartStat, { color: TEAL }]}>
+          Avg {AVG_PCT}%
+        </Text>
+        <Text style={st.chartStat}>
+          <Text style={st.chartStatMuted}>High </Text>
+          {high}%
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 function EventRow({ event, onPress }: { event: DashEvent; onPress: () => void }) {
   const d    = new Date(event.date);
-  const fill = event.capacity > 0 ? Math.round((event.registered / event.capacity) * 100) : 0;
+  const days = daysUntil(event.date);
+  const day  = d.getDate();
+  const mon  = d.toLocaleString("en-US", { month: "short" }).toUpperCase();
+
   return (
     <Pressable onPress={onPress} style={st.eventRow}>
-      <View style={st.dateBox}>
-        <Text style={st.dateDay}>{d.getDate()}</Text>
-        <Text style={st.dateMon}>{d.toLocaleString("en", { month: "short" }).toUpperCase()}</Text>
+      <View style={st.eventDate}>
+        <Text style={st.eventDay}>{day}</Text>
+        <Text style={st.eventMon}>{mon}</Text>
       </View>
+      <View style={st.eventDateBar} />
       <View style={{ flex: 1 }}>
-        <Text style={st.rowTitle} numberOfLines={1}>{event.title}</Text>
-        <Text style={st.rowSub}   numberOfLines={1}>📍 {event.location}</Text>
-        {/* capacity progress bar */}
-        <View style={st.fillTrack}>
-          <View
+        <Text style={st.eventTitle} numberOfLines={1}>{event.title}</Text>
+        <Text style={st.eventSub} numberOfLines={1}>
+          {event.time ? `${event.time} · ` : ""}{event.location}
+        </Text>
+      </View>
+      {days > 0 && (
+        <View
+          style={[
+            st.eventBadge,
+            days <= 7
+              ? { backgroundColor: TEAL + "18" }
+              : { backgroundColor: BORDER },
+          ]}
+        >
+          <Text
             style={[
-              st.fillBar,
-              {
-                width: `${Math.min(fill, 100)}%` as any,
-                backgroundColor: fill > 80 ? COLORS.red : COLORS.teal,
-              },
+              st.eventBadgeText,
+              { color: days <= 7 ? TEAL : MUTED },
             ]}
-          />
+          >
+            {days <= 7 ? `${days} days` : "Upcoming"}
+          </Text>
         </View>
-      </View>
-      <View style={st.eventRight}>
-        <Text style={st.capText}>{event.registered}/{event.capacity}</Text>
-        <Ionicons name="chevron-forward" size={14} color={COLORS.muted} />
-      </View>
+      )}
     </Pressable>
   );
 }
 
-// ── Music Library widget ──────────────────────────────────────────────────────
-function MusicLibraryWidget({ onOpenLibrary }: { onOpenLibrary: () => void }) {
+function ActivityItem({ notif }: { notif: DashNotif }) {
   return (
-    <BrandCard barColor={COLORS.teal} padStyle={{ padding: 0 }}>
-      <WidgetHeader
-        icon="musical-notes"
-        title="Recently Added Music"
-        actionLabel="Open Library →"
-        onAction={onOpenLibrary}
-      />
-
-      {MUSIC_HIGHLIGHTS.map((item) => (
-        <Pressable key={item.id} onPress={onOpenLibrary} style={st.musicRow}>
-          <View style={[st.extBadge, { backgroundColor: item.color + "18" }]}>
-            <Text style={[st.extText, { color: item.color }]}>{item.ext}</Text>
-          </View>
-          <Text style={st.musicName} numberOfLines={1}>{item.name}</Text>
-          <Ionicons
-            name={item.ext === "MP3" ? "play-circle-outline" : "download-outline"}
-            size={20}
-            color={COLORS.teal}
-          />
-        </Pressable>
-      ))}
-
-      <Pressable onPress={onOpenLibrary} style={st.musicFooterBtn}>
-        <Ionicons name="library-outline" size={14} color="#fff" />
-        <Text style={st.musicFooterBtnText}>Browse Full Library</Text>
-      </Pressable>
-    </BrandCard>
+    <View style={st.actRow}>
+      <View style={[st.actDot, { backgroundColor: notifDotColor(notif) }]} />
+      <View style={{ flex: 1 }}>
+        <Text style={st.actTitle} numberOfLines={1}>{notif.title}</Text>
+        <Text style={st.actTime}>{relativeTime(notif.timestamp)}</Text>
+      </View>
+      <View style={st.actCheck} />
+    </View>
   );
 }
 
@@ -209,58 +263,51 @@ export default function DashboardScreen() {
   const insets    = useSafeAreaInsets();
   const isAdmin   = user?.role === "admin";
 
-  const [loading, setLoading]                         = useState(true);
-  const [studentCount, setStudentCount]               = useState((mockStudents || []).length);
-  const [eventList, setEventList]                     = useState<DashEvent[]>((mockEvents as DashEvent[]) || []);
-  const [formCount, setFormCount]                     = useState((mockForms || []).length);
-  const [notifList, setNotifList]                     = useState<DashNotif[]>([]);
-  const [messageList, setMessageList]                 = useState<DashMsg[]>([]);
-  const [myRegisteredEventIds, setMyRegisteredEventIds] = useState<(string | number)[]>([]);
+  const [loading, setLoading]               = useState(true);
+  const [singerCount, setSingerCount]       = useState(0);
+  const [adminCount, setAdminCount]         = useState(0);
+  const [requestCount, setRequestCount]     = useState(0);
+  const [eventList, setEventList]           = useState<DashEvent[]>([]);
+  const [notifList, setNotifList]           = useState<DashNotif[]>([]);
+  const [myEventIds, setMyEventIds]         = useState<string[]>([]);
+  const [manageAdminsOpen, setManageAdminsOpen] = useState(false);
 
-  const now                 = new Date();
-  const unreadNotifications = notifList.filter((n) => !n.is_read).length;
-  const unreadMessages      = isAdmin
-    ? messageList.filter((m) => !m.is_read).length
-    : messageList.filter((m) => !m.is_read && (m as any).receiver_id === user?.uid).length;
-
+  const now            = new Date();
   const upcomingEvents = eventList
     .filter((e) => new Date(e.date) >= now)
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const myUpcomingEvents = upcomingEvents.filter((e) =>
-    myRegisteredEventIds.includes(e.id),
-  );
+  const unreadNotifs = notifList.filter((n) => !n.is_read).length;
+  const firstName    = user?.full_name?.split(" ")[0] ?? "there";
 
-  // ── Firebase load ─────────────────────────────────────────────────────────
+  // ── Data fetch ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!user) { setLoading(false); return; }
 
-    const fetchStatic = async () => {
+    const fetch = async () => {
       try {
-        const [studsSnap, evtsSnap, formsSnap, esSnap] = await Promise.allSettled([
-          getDocs(collection(db, "singer")),
+        const results = await Promise.allSettled([
+          getDocs(query(collection(db, "users"), where("role", "==", "singer"))),
+          getDocs(query(collection(db, "users"), where("role", "==", "admin"))),
+          getDocs(query(collection(db, "users"), where("role", "==", "join-request"))),
           getDocs(collection(db, "events")),
-          getDocs(collection(db, "forms")),
-          getDocs(collection(db, "attendance")),
           getDocs(collection(db, "event_students")),
         ]);
 
-        if (studsSnap.status === "fulfilled" && studsSnap.value.size > 0)
-          setStudentCount(studsSnap.value.size);
+        const [singers, admins, requests, events, es] = results;
 
-        if (evtsSnap.status === "fulfilled" && evtsSnap.value.size > 0)
+        if (singers.status   === "fulfilled") setSingerCount(singers.value.size);
+        if (admins.status    === "fulfilled") setAdminCount(admins.value.size);
+        if (requests.status  === "fulfilled") setRequestCount(requests.value.size);
+        if (events.status    === "fulfilled")
           setEventList(
-            evtsSnap.value.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<DashEvent, "id">) })),
+            events.value.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<DashEvent, "id">) })),
           );
-
-        if (formsSnap.status === "fulfilled" && formsSnap.value.size > 0)
-          setFormCount(formsSnap.value.size);
-
-        if (esSnap.status === "fulfilled" && esSnap.value.size > 0) {
-          const myIds = esSnap.value.docs
-            .filter((d) => d.data().student_id === user?.uid)
-            .map((d) => d.data().event_id as string);
-          if (myIds.length > 0) setMyRegisteredEventIds(myIds);
+        if (es.status === "fulfilled") {
+          const ids = es.value.docs
+            .filter((d) => d.data().student_id === user.uid)
+            .map((d) => String(d.data().event_id));
+          setMyEventIds(ids);
         }
       } catch (e) {
         console.error("Dashboard fetch error:", e);
@@ -269,260 +316,338 @@ export default function DashboardScreen() {
       }
     };
 
-    fetchStatic();
+    fetch();
 
     const unsubNotif = notificationService.subscribe(
-      (notifs) => { if (notifs.length > 0) setNotifList(notifs); },
-      user?.uid,
+      (ns) => setNotifList(ns),
+      user.uid,
       isAdmin ? "admin" : "singer",
     );
 
-    const unsubMessages = messageService.subscribe((msgs: FirestoreMsg[]) => {
-      if (msgs.length > 0) {
-        const relevant = isAdmin
-          ? msgs.filter((m) => m.receiver_id === "admin")
-          : msgs.filter((m) => m.receiver_id === user?.uid || m.sender_id === user?.uid);
-        setMessageList(relevant.slice().reverse());
-      }
-    });
+    const unsubMsg = messageService.subscribe((_msgs: FirestoreMsg[]) => {});
 
-    return () => { unsubNotif(); unsubMessages(); };
+    return () => { unsubNotif(); unsubMsg(); };
   }, [user?.uid]);
 
   if (loading) {
     return (
-      <View style={[st.screen, st.center]}>
-        <ActivityIndicator size="large" color={COLORS.teal} />
+      <View style={[st.screen, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={TEAL} />
       </View>
     );
   }
 
-  const firstName = user?.full_name?.split(" ")[0] ?? "there";
+  // ══════════════════════════════════════════════════════════════════════════
+  //  ADMIN VIEW
+  // ══════════════════════════════════════════════════════════════════════════
+  if (isAdmin) {
+    return (
+      <View style={st.screen}>
+        {/* ── Teal header ─────────────────────────────────────────────── */}
+        <View style={[st.header, { paddingTop: insets.top + 12 }]}>
+          <View style={st.headerTop}>
+            <View style={st.headerLeft}>
+              <Ionicons name="musical-notes" size={18} color="rgba(255,255,255,0.8)" />
+              <Text style={st.headerAppName}>Jerusalem Youth Chorus</Text>
+            </View>
+            <View style={st.headerRight}>
+              <Pressable
+                onPress={() => router.push("/(tabs)/messages" as any)}
+                style={st.headerIconBtn}
+                hitSlop={8}
+              >
+                <Ionicons name="chatbubbles-outline" size={20} color="#fff" />
+                {/* unread badge if needed */}
+              </Pressable>
+              <NotificationBell
+                unreadCount={unreadNotifs}
+                color="#fff"
+                onPress={() => router.push("/(tabs)/notifications" as any)}
+              />
+              <Pressable onPress={() => router.push("/profile" as any)}>
+                <View style={st.avatar}>
+                  <Text style={st.avatarText}>
+                    {user?.full_name?.charAt(0) ?? "A"}
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+          </View>
+          <Text style={st.headerWelcome}>Welcome back</Text>
+          <Text style={st.headerTitle}>Dashboard</Text>
+          <Text style={st.headerDate}>{todayString()}</Text>
+        </View>
+
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={st.scroll}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* ── Attendance + Stats card ─────────────────────────────── */}
+          <SectionCard>
+            {/* Attendance rate */}
+            <Text style={st.attLabel}>ATTENDANCE RATE</Text>
+            <View style={st.attRow}>
+              <Text style={st.attNumber}>{AVG_PCT}</Text>
+              <Text style={st.attPercent}>%</Text>
+            </View>
+            <Text style={st.attSub}>
+              This week · 8 of 10 singers present
+            </Text>
+            <View style={st.progressTrack}>
+              <View
+                style={[st.progressFill, { width: `${AVG_PCT}%` as any }]}
+              />
+            </View>
+
+            {/* Divider */}
+            <View style={st.divider} />
+
+            {/* 4 stat boxes */}
+            <View style={st.statsRow}>
+              <StatBox
+                value={singerCount}
+                label="Singers"
+                sub="in app"
+                valueColor={TEAL}
+                subColor={TEAL}
+                icon="people-outline"
+                onPress={() => router.push("/(tabs)/students" as any)}
+              />
+              <StatBox
+                value={upcomingEvents.length}
+                label="Events"
+                sub={`${upcomingEvents.length} upcoming`}
+                valueColor={AMBER}
+                subColor={AMBER}
+                icon="calendar-outline"
+                onPress={() => router.push("/(tabs)/events" as any)}
+              />
+              <StatBox
+                value={adminCount}
+                label="Admins"
+                sub="manage app"
+                valueColor={DARK}
+                subColor={SUB}
+                icon="shield-checkmark-outline"
+                onPress={() => setManageAdminsOpen(true)}
+              />
+              <StatBox
+                value={requestCount}
+                label="Requests"
+                sub="pending"
+                valueColor={ORANGE}
+                subColor={ORANGE}
+                icon="person-add-outline"
+                onPress={() =>
+                  router.push("/(tabs)/students?action=join-requests" as any)
+                }
+                last
+              />
+            </View>
+          </SectionCard>
+
+          {/* ── Weekly Attendance chart ─────────────────────────────── */}
+          <SectionCard>
+            <SectionHeader
+              title="Weekly Attendance"
+              action="Full stats →"
+              onAction={() => router.push("/statistics" as any)}
+            />
+            <WeeklyChart />
+          </SectionCard>
+
+          {/* ── Upcoming Events ──────────────────────────────────────── */}
+          <SectionCard>
+            <SectionHeader
+              title="Upcoming Events"
+              action="View all →"
+              onAction={() => router.push("/(tabs)/events" as any)}
+            />
+            {upcomingEvents.length === 0 ? (
+              <View style={st.emptyInCard}>
+                <Ionicons name="calendar-outline" size={36} color={MUTED} />
+                <Text style={st.emptyText}>No upcoming events</Text>
+              </View>
+            ) : (
+              upcomingEvents.slice(0, 2).map((e, i) => (
+                <View key={e.id}>
+                  {i > 0 && <View style={st.rowDivider} />}
+                  <EventRow
+                    event={e}
+                    onPress={() => router.push(`/event/${e.id}` as any)}
+                  />
+                </View>
+              ))
+            )}
+          </SectionCard>
+
+          {/* ── Recent Activity ──────────────────────────────────────── */}
+          {notifList.length > 0 && (
+            <SectionCard>
+              <SectionHeader
+                title="Recent Activity"
+                action="See all →"
+                onAction={() => router.push("/(tabs)/notifications" as any)}
+              />
+              {notifList.slice(0, 3).map((n, i) => (
+                <View key={String(n.id)}>
+                  {i > 0 && <View style={st.rowDivider} />}
+                  <ActivityItem notif={n} />
+                </View>
+              ))}
+            </SectionCard>
+          )}
+
+          <View style={{ height: 32 }} />
+        </ScrollView>
+
+        {/* ── Manage Admins Modal ──────────────────────────────────── */}
+        <ManageAdminsModal
+          visible={manageAdminsOpen}
+          onClose={() => setManageAdminsOpen(false)}
+        />
+      </View>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  SINGER VIEW
+  // ══════════════════════════════════════════════════════════════════════════
+  const myUpcoming = upcomingEvents.filter((e) => myEventIds.includes(e.id));
 
   return (
     <View style={st.screen}>
-
-      {/* ── Teal Brand Header ─────────────────────────────────────────────── */}
-      <View style={[st.header, { paddingTop: insets.top + 16 }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={st.headerSub}>🎵 Jerusalem Youth Chorus</Text>
-          <Text style={st.headerTitle}>{isAdmin ? "Dashboard" : `Hey, ${firstName} 👋`}</Text>
-        </View>
-        <View style={st.headerActions}>
-          <Pressable
-            onPress={() => router.push("/(tabs)/messages" as any)}
-            style={st.headerIconWrap}
-            hitSlop={8}
-          >
-            <Ionicons name="chatbubbles-outline" size={22} color="#fff" />
-            {unreadMessages > 0 && (
-              <View style={st.badge}>
-                <Text style={st.badgeText}>{unreadMessages > 9 ? "9+" : unreadMessages}</Text>
+      {/* ── Teal header ───────────────────────────────────────────────── */}
+      <View style={[st.header, { paddingTop: insets.top + 12 }]}>
+        <View style={st.headerTop}>
+          <View style={st.headerLeft}>
+            <Ionicons name="musical-notes" size={18} color="rgba(255,255,255,0.8)" />
+            <Text style={st.headerAppName}>Jerusalem Youth Chorus</Text>
+          </View>
+          <View style={st.headerRight}>
+            <Pressable
+              onPress={() => router.push("/(tabs)/messages" as any)}
+              style={st.headerIconBtn}
+              hitSlop={8}
+            >
+              <Ionicons name="chatbubbles-outline" size={20} color="#fff" />
+            </Pressable>
+            <NotificationBell
+              unreadCount={unreadNotifs}
+              color="#fff"
+              onPress={() => router.push("/(tabs)/notifications" as any)}
+            />
+            <Pressable onPress={() => router.push("/profile" as any)}>
+              <View style={st.avatar}>
+                <Text style={st.avatarText}>
+                  {user?.full_name?.charAt(0) ?? "S"}
+                </Text>
               </View>
-            )}
-          </Pressable>
-          <NotificationBell
-            unreadCount={unreadNotifications}
-            color="#fff"
-            onPress={() => router.push("/(tabs)/notifications" as any)}
-          />
-          <Pressable onPress={() => router.push("/profile" as any)}>
-            <View style={st.avatar}>
-              <Text style={st.avatarText}>{user?.full_name?.charAt(0) ?? "?"}</Text>
-            </View>
-          </Pressable>
+            </Pressable>
+          </View>
         </View>
+        <Text style={st.headerWelcome}>Welcome back</Text>
+        <Text style={st.headerTitle}>Hey, {firstName} 👋</Text>
+        <Text style={st.headerDate}>{todayString()}</Text>
       </View>
 
-      {/* ── Scrollable content ────────────────────────────────────────────── */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={st.scroll}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={st.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Quick stats ─────────────────────────────────────────────── */}
+        <SectionCard>
+          <View style={st.statsRow}>
+            <StatBox
+              value={myEventIds.length}
+              label="My Events"
+              sub="registered"
+              valueColor={TEAL}
+              subColor={TEAL}
+              icon="calendar-outline"
+              onPress={() => router.push("/(tabs)/events" as any)}
+            />
+            <StatBox
+              value={eventList.length}
+              label="All Events"
+              sub="available"
+              valueColor={AMBER}
+              subColor={AMBER}
+              icon="calendar-outline"
+              onPress={() => router.push("/(tabs)/events" as any)}
+              last
+            />
+          </View>
+        </SectionCard>
 
-        {isAdmin ? (
-          /* ═══════════════════════ ADMIN VIEW ═══════════════════════════ */
-          <>
-            {/* ─ 1. Quick Actions launchpad ──────────────────────────── */}
-            <SectionLabel>Quick Actions</SectionLabel>
-            <View style={st.quickRow}>
-              <Pressable style={st.quickBtn} onPress={() => router.push("/(tabs)/students?action=join-requests" as any)}>
-                <Ionicons name="people-outline"        size={22} color={COLORS.teal} />
-                <Text style={st.quickLabel}>{"Join\nRequests"}</Text>
-              </Pressable>
-              <Pressable style={st.quickBtn} onPress={() => router.push("/(tabs)/events?action=add" as any)}>
-                <Ionicons name="calendar-outline"      size={22} color={COLORS.teal} />
-                <Text style={st.quickLabel}>{"New\nEvent"}</Text>
-              </Pressable>
-              <Pressable style={st.quickBtn} onPress={() => router.push("/create-form" as any)}>
-                <Ionicons name="create-outline"        size={22} color={COLORS.teal} />
-                <Text style={st.quickLabel}>{"New\nForm"}</Text>
-              </Pressable>
-              <Pressable style={st.quickBtn} onPress={() => router.push("/(tabs)/library?action=upload" as any)}>
-                <Ionicons name="musical-notes-outline" size={22} color={COLORS.teal} />
-                <Text style={st.quickLabel}>{"Upload\nMusic"}</Text>
-              </Pressable>
-            </View>
-
-            {/* ─ 2. KPI Overview — every card is tappable ───────────── */}
-            <SectionLabel>Overview</SectionLabel>
-            <View style={st.grid}>
-              <StatCard
-                label="Students"  value={studentCount}
-                icon="people"          barColor={COLORS.teal}
-                onPress={() => router.push("/(tabs)/students" as any)}
-              />
-              <StatCard
-                label="Events"    value={eventList.length}
-                icon="calendar"        barColor={COLORS.yellow}
+        {/* ── My Upcoming Events ─────────────────────────────────────── */}
+        <SectionCard>
+          <SectionHeader
+            title="My Schedule"
+            action="Browse →"
+            onAction={() => router.push("/(tabs)/events" as any)}
+          />
+          {myUpcoming.length === 0 ? (
+            <View style={st.emptyInCard}>
+              <Ionicons name="calendar-outline" size={36} color={MUTED} />
+              <Text style={st.emptyText}>No registered events</Text>
+              <Pressable
+                style={st.emptyBtn}
                 onPress={() => router.push("/(tabs)/events" as any)}
-              />
-              <StatCard
-                label="Forms"     value={formCount}
-                icon="document-text"   barColor={COLORS.teal}
-                onPress={() => router.push("/(tabs)/forms" as any)}
-              />
-              <StatCard
-                label="Alerts"    value={unreadNotifications}
-                icon="notifications"   barColor={COLORS.red}
-                onPress={() => router.push("/(tabs)/notifications" as any)}
-              />
+              >
+                <Text style={st.emptyBtnText}>Browse Events</Text>
+              </Pressable>
             </View>
-
-            {/* ─ 3. Our Statistics — full-width CTA banner ──────────── */}
-            <Pressable
-              style={st.statsBtn}
-              onPress={() => router.push("/statistics" as any)}
-            >
-              <View style={st.statsBtnIcon}>
-                <Ionicons name="bar-chart" size={22} color="#fff" />
+          ) : (
+            myUpcoming.slice(0, 3).map((e, i) => (
+              <View key={e.id}>
+                {i > 0 && <View style={st.rowDivider} />}
+                <EventRow
+                  event={e}
+                  onPress={() => router.push(`/event/${e.id}` as any)}
+                />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={st.statsBtnTitle}>Our Statistics</Text>
-                <Text style={st.statsBtnSub}>Attendance · Growth · Demographics</Text>
+            ))
+          )}
+        </SectionCard>
+
+        {/* ── Recent Activity ────────────────────────────────────────── */}
+        {notifList.length > 0 && (
+          <SectionCard>
+            <SectionHeader
+              title="Recent Activity"
+              action="See all →"
+              onAction={() => router.push("/(tabs)/notifications" as any)}
+            />
+            {notifList.slice(0, 3).map((n, i) => (
+              <View key={String(n.id)}>
+                {i > 0 && <View style={st.rowDivider} />}
+                <ActivityItem notif={n} />
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#fff" />
-            </Pressable>
-
-            {/* ─ 4. Music Library widget (replaces Notifications) ───── */}
-            <SectionLabel>Music Library</SectionLabel>
-            <MusicLibraryWidget onOpenLibrary={() => router.push("/(tabs)/library" as any)} />
-
-            {/* ─ 5. Upcoming Events — list + footer CTA ─────────────── */}
-            <SectionLabel>Upcoming Events</SectionLabel>
-            <BrandCard barColor={COLORS.yellow} padStyle={{ padding: 0 }}>
-              <WidgetHeader
-                icon="calendar"
-                title="Next Rehearsals"
-                actionLabel="All Events →"
-                onAction={() => router.push("/(tabs)/events" as any)}
-              />
-              {upcomingEvents.length === 0 ? (
-                <View style={st.emptyInCard}>
-                  <Ionicons name="calendar-outline" size={36} color={COLORS.muted} />
-                  <Text style={st.emptyText}>No upcoming events</Text>
-                  <Pressable
-                    style={[st.outlineBtn, { marginTop: 8 }]}
-                    onPress={() => router.push("/(tabs)/events" as any)}
-                  >
-                    <Text style={st.outlineBtnText}>Create Event</Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <>
-                  {upcomingEvents.slice(0, 3).map((event) => (
-                    <EventRow
-                      key={String(event.id)}
-                      event={event}
-                      onPress={() => router.push(`/event/${event.id}` as any)}
-                    />
-                  ))}
-                  <CardFooter
-                    label="View All Events"
-                    onPress={() => router.push("/(tabs)/events" as any)}
-                  />
-                </>
-              )}
-            </BrandCard>
-          </>
-        ) : (
-          /* ═══════════════════════ STUDENT VIEW ═════════════════════════ */
-          <>
-            {/* ─ 1. KPI Overview — tappable ─────────────────────────── */}
-            <SectionLabel>Overview</SectionLabel>
-            <View style={st.grid}>
-              <StatCard
-                label="My Events"  value={myRegisteredEventIds.length}
-                icon="calendar"        barColor={COLORS.teal}
-                onPress={() => router.push("/(tabs)/events" as any)}
-              />
-              <StatCard
-                label="Forms"      value={formCount}
-                icon="document-text"   barColor={COLORS.yellow}
-                onPress={() => router.push("/(tabs)/forms" as any)}
-              />
-            </View>
-
-            {/* ─ 2. Music Library widget (replaces Notifications) ───── */}
-            <SectionLabel>Music Library</SectionLabel>
-            <MusicLibraryWidget onOpenLibrary={() => router.push("/(tabs)/library" as any)} />
-
-            {/* ─ 3. My Upcoming Events — list + footer CTA ──────────── */}
-            <SectionLabel>My Upcoming Events</SectionLabel>
-            <BrandCard barColor={COLORS.teal} padStyle={{ padding: 0 }}>
-              <WidgetHeader
-                icon="calendar"
-                title="My Schedule"
-                actionLabel="Browse Events →"
-                onAction={() => router.push("/(tabs)/events" as any)}
-              />
-              {myUpcomingEvents.length === 0 ? (
-                <View style={st.emptyInCard}>
-                  <Ionicons name="calendar-outline" size={36} color={COLORS.muted} />
-                  <Text style={st.emptyText}>No registered events</Text>
-                  <Pressable
-                    style={[st.outlineBtn, { marginTop: 8 }]}
-                    onPress={() => router.push("/(tabs)/events" as any)}
-                  >
-                    <Text style={st.outlineBtnText}>Browse Events</Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <>
-                  {myUpcomingEvents.slice(0, 3).map((event) => (
-                    <EventRow
-                      key={String(event.id)}
-                      event={event}
-                      onPress={() => router.push(`/event/${event.id}` as any)}
-                    />
-                  ))}
-                  <CardFooter
-                    label="Browse All Events"
-                    onPress={() => router.push("/(tabs)/events" as any)}
-                  />
-                </>
-              )}
-            </BrandCard>
-
-            {/* ─ 4. Student quick links ─────────────────────────────── */}
-            <SectionLabel>Quick Links</SectionLabel>
-            <View style={st.quickRow}>
-              <Pressable style={st.quickBtn} onPress={() => router.push("/(tabs)/forms" as any)}>
-                <Ionicons name="document-text-outline"  size={22} color={COLORS.teal} />
-                <Text style={st.quickLabel}>{"My\nForms"}</Text>
-              </Pressable>
-              <Pressable style={st.quickBtn} onPress={() => router.push("/(tabs)/calendar" as any)}>
-                <Ionicons name="calendar-outline"        size={22} color={COLORS.teal} />
-                <Text style={st.quickLabel}>{"My\nCalendar"}</Text>
-              </Pressable>
-              <Pressable style={st.quickBtn} onPress={() => router.push("/(tabs)/messages" as any)}>
-                <Ionicons name="chatbubbles-outline"     size={22} color={COLORS.teal} />
-                <Text style={st.quickLabel}>Messages</Text>
-              </Pressable>
-              <Pressable style={st.quickBtn} onPress={() => router.push("/profile" as any)}>
-                <Ionicons name="person-circle-outline"  size={22} color={COLORS.teal} />
-                <Text style={st.quickLabel}>{"My\nProfile"}</Text>
-              </Pressable>
-            </View>
-          </>
+            ))}
+          </SectionCard>
         )}
+
+        {/* ── Quick links ────────────────────────────────────────────── */}
+        <SectionCard style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {[
+            { icon: "document-text-outline" as const, label: "Forms",    route: "/(tabs)/forms" },
+            { icon: "calendar-outline"      as const, label: "Calendar", route: "/(tabs)/calendar" },
+            { icon: "chatbubbles-outline"   as const, label: "Messages", route: "/(tabs)/messages" },
+            { icon: "person-circle-outline" as const, label: "Profile",  route: "/profile" },
+          ].map((q) => (
+            <Pressable
+              key={q.label}
+              style={st.quickLink}
+              onPress={() => router.push(q.route as any)}
+            >
+              <Ionicons name={q.icon} size={20} color={TEAL} />
+              <Text style={st.quickLinkText}>{q.label}</Text>
+            </Pressable>
+          ))}
+        </SectionCard>
 
         <View style={{ height: 32 }} />
       </ScrollView>
@@ -532,175 +657,184 @@ export default function DashboardScreen() {
 
 // ── Styles ─────────────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
-  // Layout
-  screen: { flex: 1, backgroundColor: COLORS.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  screen: { flex: 1, backgroundColor: BG },
 
-  // ── Teal header
+  // ── Header
   header: {
-    backgroundColor: COLORS.teal,
+    backgroundColor: TEAL,
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 20,
+  },
+  headerTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
+  headerAppName: { color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: "600" },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  headerIconBtn: { position: "relative", padding: 4 },
+  avatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  headerWelcome: { color: "rgba(255,255,255,0.8)", fontSize: 13, fontWeight: "500" },
+  headerTitle:   { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 2 },
+  headerDate:    { color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 3 },
+
+  // ── Scroll content
+  scroll: { padding: 14, paddingTop: 16 },
+
+  // ── Card
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+
+  // ── Section header
+  secHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  secTitle:  { fontSize: 16, fontWeight: "800", color: DARK },
+  secAction: { fontSize: 13, fontWeight: "700", color: TEAL },
+
+  // ── Attendance
+  attLabel:  { fontSize: 11, fontWeight: "700", color: MUTED, letterSpacing: 1, marginBottom: 8 },
+  attRow:    { flexDirection: "row", alignItems: "flex-start", gap: 2 },
+  attNumber: { fontSize: 64, fontWeight: "900", color: TEAL, lineHeight: 70 },
+  attPercent:{ fontSize: 28, fontWeight: "700", color: TEAL, marginTop: 12 },
+  attSub:    { fontSize: 13, color: MUTED, marginTop: 4, marginBottom: 12 },
+  progressTrack: {
+    height: 8,
+    backgroundColor: BORDER,
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 4,
+  },
+  progressFill: { height: 8, backgroundColor: TEAL, borderRadius: 4 },
+  divider: { height: 1, backgroundColor: BORDER, marginVertical: 16 },
+
+  // ── Stats row
+  statsRow: { flexDirection: "row" },
+  statBox: { flex: 1, paddingHorizontal: 6, paddingVertical: 2, alignItems: "flex-start" },
+  statBoxBorder: { borderRightWidth: 1, borderRightColor: BORDER },
+  statIconRow:  { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 2 },
+  statLabelRow: { flexDirection: "row", alignItems: "center", gap: 3, marginBottom: 2 },
+  statValue:    { fontSize: 26, fontWeight: "900" },
+  statLabel:    { fontSize: 11, fontWeight: "600", color: DARK },
+  statSub:      { fontSize: 10, fontWeight: "600" },
+
+  // ── Bar chart
+  chartRow: {
     flexDirection: "row",
     alignItems: "flex-end",
-    gap: 8,
+    height: BAR_MAX + 20,
+    gap: 4,
+    marginBottom: 12,
   },
-  headerSub:   { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "500" },
-  headerTitle: { color: "#fff", fontSize: 32, fontWeight: "900", marginTop: 4 },
-  headerActions:  { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 4 },
-  headerIconWrap: { position: "relative", padding: 6 },
-  badge: {
-    position: "absolute", top: 2, right: 2,
-    minWidth: 16, height: 16, borderRadius: 8,
-    backgroundColor: COLORS.red,
-    alignItems: "center", justifyContent: "center", paddingHorizontal: 3,
+  barCol: { flex: 1, alignItems: "center", justifyContent: "flex-end", height: BAR_MAX + 20 },
+  bar:    { width: "70%", borderRadius: 4 },
+  barLabel: { fontSize: 9, fontWeight: "600", color: MUTED, marginTop: 5 },
+  chartFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+    paddingTop: 10,
   },
-  badgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
-  avatar: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    borderWidth: 2, borderColor: "rgba(255,255,255,0.5)",
-    alignItems: "center", justifyContent: "center",
-  },
-  avatarText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  chartStat:     { fontSize: 12, fontWeight: "700", color: SUB },
+  chartStatMuted:{ fontWeight: "400", color: MUTED },
 
-  // ── Scroll
-  scroll: { padding: 16, paddingTop: 8 },
-
-  // ── Section label
-  sectionLabel: {
-    fontSize: 11, fontWeight: "700", color: COLORS.muted,
-    letterSpacing: 1.1, marginTop: 24, marginBottom: 8,
-  },
-
-  // ── BrandCard base
-  shadow: {
-    shadowColor: COLORS.teal, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12, shadowRadius: 8, elevation: 3,
-    borderRadius: 16, marginBottom: 8,
-  },
-  cardOuter: {
-    backgroundColor: COLORS.card, borderRadius: 16,
-    borderWidth: 1, borderColor: "#e8eef2", overflow: "hidden",
-  },
-  colorBar: { height: 4 },
-  cardPad:  { padding: 16 },
-
-  // ── Quick Actions launchpad
-  quickRow: { flexDirection: "row", gap: 8 },
-  quickBtn: {
-    flex: 1,
-    alignItems: "center", justifyContent: "center",
-    paddingVertical: 14, borderRadius: 14,
-    borderWidth: 1.5, borderColor: COLORS.teal,
-    backgroundColor: "#e0f5f5", gap: 5,
-  },
-  quickLabel: {
-    fontSize: 10, fontWeight: "700", color: COLORS.teal,
-    textAlign: "center", lineHeight: 13,
-  },
-
-  // ── KPI stat cards
-  grid:    { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  statWrap:{ flex: 1, minWidth: "45%", marginBottom: 0 },
-  statIconWrap: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: "center", justifyContent: "center", marginBottom: 8,
-  },
-  statValue:      { fontSize: 28, fontWeight: "900", color: COLORS.text },
-  statLabel:      { fontSize: 12, fontWeight: "600", color: COLORS.sub, marginTop: 2 },
-  statFooter:     {
-    marginTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#e8eef2",
-    paddingTop: 7,
-  },
-  statFooterText: { fontSize: 11, fontWeight: "700" },
-
-  // ── Widget header (title + action link)
-  widgetHeader: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10,
-  },
-  widgetHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
-  widgetTitle:      { fontSize: 14, fontWeight: "800", color: COLORS.text },
-  widgetLink:       { fontSize: 12, fontWeight: "700", color: COLORS.teal },
-
-  // ── Card footer CTA
-  cardFooter: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#e8eef2",
-  },
-  cardFooterText: { fontSize: 13, fontWeight: "700", color: COLORS.teal },
-
-  // ── Our Statistics banner
-  statsBtn: {
-    flexDirection: "row", alignItems: "center",
-    borderRadius: 16, padding: 16, backgroundColor: COLORS.teal,
-    gap: 16, marginTop: 16, marginBottom: 8,
-    shadowColor: COLORS.teal, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.32, shadowRadius: 10, elevation: 5,
-  },
-  statsBtnIcon: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center", justifyContent: "center",
-  },
-  statsBtnTitle: { fontSize: 16, fontWeight: "800", color: "#fff" },
-  statsBtnSub:   { fontSize: 12, color: "rgba(255,255,255,0.75)", marginTop: 2 },
-
-  // ── Music Library widget
-  musicRow: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    paddingHorizontal: 16, paddingVertical: 11,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#e8eef2",
-  },
-  extBadge: {
-    width: 40, height: 40, borderRadius: 10,
-    alignItems: "center", justifyContent: "center",
-  },
-  extText:  { fontSize: 10, fontWeight: "800", letterSpacing: 0.4 },
-  musicName:{ flex: 1, fontSize: 13, fontWeight: "600", color: COLORS.text },
-  musicFooterBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    margin: 12, marginTop: 8,
-    backgroundColor: COLORS.teal, borderRadius: 10, paddingVertical: 11,
-  },
-  musicFooterBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
-
-  // ── Event rows (inside zero-padded BrandCard)
+  // ── Event row
   eventRow: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#e8eef2",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 10,
   },
-  dateBox: {
-    width: 46, height: 46, borderRadius: 12,
-    backgroundColor: COLORS.teal + "18",
-    alignItems: "center", justifyContent: "center",
+  eventDate: { alignItems: "center", minWidth: 36 },
+  eventDay:  { fontSize: 22, fontWeight: "900", color: TEAL, lineHeight: 24 },
+  eventMon:  { fontSize: 9,  fontWeight: "700", color: TEAL, letterSpacing: 0.5 },
+  eventDateBar: {
+    width: 2,
+    height: 36,
+    backgroundColor: AMBER,
+    borderRadius: 1,
   },
-  dateDay: { fontSize: 18, fontWeight: "900", color: COLORS.teal },
-  dateMon: { fontSize: 9,  fontWeight: "700", color: COLORS.teal, letterSpacing: 0.5 },
-  rowTitle: { fontSize: 13, fontWeight: "700", color: COLORS.text, marginBottom: 2 },
-  rowSub:   { fontSize: 11, color: COLORS.sub },
-  fillTrack: {
-    marginTop: 5, height: 3, borderRadius: 2,
-    backgroundColor: "#e8eef2", overflow: "hidden",
+  eventTitle: { fontSize: 14, fontWeight: "700", color: DARK, marginBottom: 3 },
+  eventSub:   { fontSize: 12, color: SUB },
+  eventBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
   },
-  fillBar: { height: 3, borderRadius: 2 },
-  eventRight: { alignItems: "flex-end", gap: 4 },
-  capText: { fontSize: 11, fontWeight: "700", color: COLORS.teal },
+  eventBadgeText: { fontSize: 11, fontWeight: "700" },
 
-  // ── Empty state (inside card)
-  emptyInCard: {
-    alignItems: "center", paddingVertical: 24, paddingBottom: 20, gap: 6,
+  // ── Activity item
+  actRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 12,
   },
-  emptyText: { fontSize: 13, color: COLORS.muted },
+  actDot:   { width: 10, height: 10, borderRadius: 5 },
+  actTitle: { fontSize: 14, fontWeight: "600", color: DARK, marginBottom: 2 },
+  actTime:  { fontSize: 12, color: MUTED },
+  actCheck: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: BORDER,
+  },
 
-  // ── Outline button (empty-state CTA)
-  outlineBtn: {
-    borderWidth: 1.5, borderColor: COLORS.teal, borderRadius: 10,
-    paddingHorizontal: 18, paddingVertical: 8,
+  // ── Row divider
+  rowDivider: { height: 1, backgroundColor: BORDER },
+
+  // ── Empty states
+  emptyInCard: { alignItems: "center", paddingVertical: 24, gap: 8 },
+  emptyText:   { fontSize: 13, color: MUTED },
+  emptyBtn: {
+    marginTop: 4,
+    borderWidth: 1.5,
+    borderColor: TEAL,
+    borderRadius: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 7,
   },
-  outlineBtnText: { fontSize: 13, fontWeight: "700", color: COLORS.teal },
+  emptyBtnText: { fontSize: 13, fontWeight: "700", color: TEAL },
+
+  // ── Quick links (singer)
+  quickLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+    minWidth: "45%",
+    borderWidth: 1.5,
+    borderColor: TEAL + "44",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: TEAL + "08",
+  },
+  quickLinkText: { fontSize: 13, fontWeight: "700", color: TEAL },
 });
