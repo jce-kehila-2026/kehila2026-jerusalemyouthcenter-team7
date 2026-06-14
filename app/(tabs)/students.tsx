@@ -16,6 +16,17 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { db } from "@/src/firebase/firebase";
+import {
+  collection,
+  doc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { useAuth, UserType } from "../../src/context/AuthContext";
 import {
   Group,
@@ -32,11 +43,11 @@ const ds = {
   yellow: "#cfad5d",
   purple: "#6b5ce7",
   white: "#ffffff",
-  bg: "#f5fafe",      // Background
-  text: "#1a1a2e",    // Text
-  subtext: "#5a6a7a", // Text Sub
-  muted: "#9aa8b4",   // Muted
-  border: "#e8eef2",  // Border
+  bg: "#f5fafe",
+  text: "#1a1a2e",
+  subtext: "#5a6a7a",
+  muted: "#9aa8b4",
+  border: "#e8eef2",
 } as const;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -48,6 +59,16 @@ type StudentWithGroup = Omit<StudentWithVoice, "year_id"> & {
   group_name: string;
   voice_type?: UserType["voice_type"];
   year_id: number | null;
+};
+
+type JoinRequest = {
+  uid: string;
+  full_name: string;
+  phone: string;
+  email: string | null;
+  voice_type: string | null;
+  school_name: string | null;
+  status: string;
 };
 
 // ── Filter data ───────────────────────────────────────────────────────────────
@@ -79,12 +100,10 @@ export default function StudentsListScreen() {
   const [groupsList, setGroupsList]     = useState<Group[]>([]);
   const [loading, setLoading]           = useState(true);
 
-  // ── Add Student modal state ───────────────────────────────────────────────
-  const [addModalVisible, setAddModalVisible] = useState(false);
-  const [newName, setNewName]   = useState("");
-  const [newPhone, setNewPhone] = useState("");
-  const [newGroupId, setNewGroupId] = useState("");
-  const [addSaving, setAddSaving]   = useState(false);
+  // ── Join Requests state ───────────────────────────────────────────────────
+  const [joinRequestsVisible, setJoinRequestsVisible] = useState(false);
+  const [joinRequests, setJoinRequests]               = useState<JoinRequest[]>([]);
+  const [joinRequestsLoading, setJoinRequestsLoading] = useState(false);
 
   // ── Data fetching ────────────────────────────────────────────────────────
   useFocusEffect(
@@ -109,48 +128,112 @@ export default function StudentsListScreen() {
     }, []),
   );
 
-  // ── Open Add modal when arriving with ?action=add ────────────────────────
+  // ── Fetch pending join requests ───────────────────────────────────────────
+  const fetchJoinRequests = async () => {
+    if (user?.role !== "admin") return;
+    setJoinRequestsLoading(true);
+    try {
+      console.log("JOIN_REQUESTS: fetching pending requests...");
+      const q = query(
+        collection(db, "users"),
+        where("role", "==", "join-request"),
+      );
+      const snap = await getDocs(q);
+      const requests: JoinRequest[] = snap.docs.map((d) => ({
+        uid: d.id,
+        full_name: d.data().full_name || "",
+        phone: d.data().phone || "",
+        email: d.data().email || null,
+        voice_type: d.data().voice_type || null,
+        school_name: d.data().school_name || null,
+        status: d.data().status || "pending",
+      }));
+      console.log("JOIN_REQUESTS: found", requests.length, "pending requests");
+      setJoinRequests(requests);
+    } catch (e: any) {
+      console.error("JOIN_REQUESTS fetch error:", e.message);
+    } finally {
+      setJoinRequestsLoading(false);
+    }
+  };
+
+  // ── Open Join Requests modal when arriving with ?action=join-requests ────
   useEffect(() => {
-    if (action === "add" && user?.role === "admin") {
-      setAddModalVisible(true);
+    if (action === "join-requests" && user?.role === "admin") {
+      fetchJoinRequests();
+      setJoinRequestsVisible(true);
       router.setParams({ action: "" });
     }
   }, [action]);
 
-  // ── Add student handler ────────────────────────────────────────────────────
-  const handleAddStudent = async () => {
-    if (!newName.trim()) {
-      Alert.alert("Required", "Please enter the student's full name.");
-      return;
-    }
-    if (!newPhone.trim()) {
-      Alert.alert("Required", "Please enter a phone number.");
-      return;
-    }
-    setAddSaving(true);
+  // ── Approve handler ───────────────────────────────────────────────────────
+  const handleApprove = async (request: JoinRequest) => {
     try {
-      const chosenGroup = groupsList.find((g) => g.id === newGroupId);
-      await studentService.addStudent({
-        full_name:  newName.trim(),
-        phone:      newPhone.trim(),
-        email:      `${newPhone.trim().replace(/\D/g, "")}@kehila.app`,
-        group_id:   newGroupId || undefined,
-        year_id:    chosenGroup?.year_id ?? undefined,
-        program_id: chosenGroup?.program_id ?? undefined,
-      } as any);
-      // Refresh list
+      console.log("APPROVE: approving", request.full_name, request.uid);
+      await updateDoc(doc(db, "users", request.uid), {
+        role: "singer",
+        status: "approved",
+        year_id: 1,
+      });
+      setJoinRequests((prev) => prev.filter((r) => r.uid !== request.uid));
+      Alert.alert(
+        "Approved",
+        `${request.full_name} has been approved and can now log in.`,
+      );
+      // Refresh student list
       const fresh = await studentService.getAllStudents();
-      setStudentsList(fresh.length > 0 ? fresh : studentsList);
-      setAddModalVisible(false);
-      setNewName("");
-      setNewPhone("");
-      setNewGroupId("");
-    } catch (e) {
-      Alert.alert("Error", "Could not add student. Please try again.");
-      console.error(e);
-    } finally {
-      setAddSaving(false);
+      if (fresh.length > 0) setStudentsList(fresh);
+    } catch (e: any) {
+      console.error("APPROVE ERROR:", e.message);
+      Alert.alert("Error", "Could not approve the request. Please try again.");
     }
+  };
+
+  // ── Reject handler ────────────────────────────────────────────────────────
+  const handleReject = (request: JoinRequest) => {
+    Alert.alert(
+      "Reject Request",
+      `Are you sure you want to reject ${request.full_name}'s join request?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reject",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              console.log("REJECT: rejecting", request.full_name, request.uid);
+              const phoneDigits = request.phone.replace(/\D/g, "");
+
+              // Save rejection record so they cannot re-register
+              await setDoc(doc(db, "join_requests", phoneDigits), {
+                uid: request.uid,
+                full_name: request.full_name,
+                phone: request.phone,
+                email: request.email,
+                status: "rejected",
+                rejectedAt: serverTimestamp(),
+              });
+
+              // Mark user as rejected
+              await updateDoc(doc(db, "users", request.uid), {
+                role: "rejected",
+                status: "rejected",
+              });
+
+              setJoinRequests((prev) =>
+                prev.filter((r) => r.uid !== request.uid),
+              );
+            } catch (e: any) {
+              console.error("REJECT ERROR:", e.message);
+              Alert.alert(
+                "Error",
+                "Could not reject the request. Please try again.",
+              );
+            }
+          },
+        },
+      ],
+    );
   };
 
   // ── Filtering ─────────────────────────────────────────────────────────────
@@ -232,14 +315,10 @@ export default function StudentsListScreen() {
   // ── Helpers ───────────────────────────────────────────────────────────────
   const getGroupColor = (groupName: string): string => {
     switch (groupName) {
-      case "Year 1":
-        return ds.yellow;
-      case "Year 2":
-        return ds.red;
-      case "Year 3":
-        return ds.purple;
-      default:
-        return ds.teal;
+      case "Year 1": return ds.yellow;
+      case "Year 2": return ds.red;
+      case "Year 3": return ds.purple;
+      default:       return ds.teal;
     }
   };
 
@@ -265,11 +344,8 @@ export default function StudentsListScreen() {
         ]}
         android_ripple={{ color: ds.teal + "20" }}
       >
-        {/* Colored top accent bar */}
         <View style={[s.cardTopBar, { backgroundColor: groupColor }]} />
-
         <View style={s.cardBody}>
-          {/* Top — badges */}
           <View style={s.badgesRow}>
             <View style={[s.badge, { backgroundColor: groupColor + "22" }]}>
               <Text style={[s.badgeText, { color: groupColor }]}>
@@ -282,8 +358,6 @@ export default function StudentsListScreen() {
               </Text>
             </View>
           </View>
-
-          {/* Middle — avatar + name */}
           <View style={s.nameRow}>
             <View
               style={[
@@ -291,15 +365,12 @@ export default function StudentsListScreen() {
                 { backgroundColor: ds.bg, borderColor: ds.border, borderWidth: 1 },
               ]}
             >
-              <Text style={[s.avatarText, { color: ds.text }]}>
-                {initials}
-              </Text>
+              <Text style={[s.avatarText, { color: ds.text }]}>{initials}</Text>
             </View>
             <Text style={s.cardTitle} numberOfLines={1}>
               {item.full_name}
             </Text>
           </View>
-
           <View style={s.actionsRow}>
             <Pressable
               hitSlop={8}
@@ -417,9 +488,7 @@ export default function StudentsListScreen() {
           <View style={s.empty}>
             <Ionicons name="people-outline" size={48} color={ds.border} />
             <Text style={s.emptyText}>
-              {searchQuery
-                ? "No students match your search"
-                : "No students found"}
+              {searchQuery ? "No students match your search" : "No students found"}
             </Text>
           </View>
         ) : (
@@ -433,85 +502,109 @@ export default function StudentsListScreen() {
         )}
       </View>
 
-      {/* ── FAB — Add Student ─────────────────────────────────────────── */}
+      {/* ── FAB — Join Requests (admin only) ─────────────────────────── */}
       {user?.role === "admin" && (
-        <Pressable style={s.fab} onPress={() => setAddModalVisible(true)}>
-          <Ionicons name="person-add" size={22} color="#fff" />
+        <Pressable
+          style={s.fab}
+          onPress={() => {
+            fetchJoinRequests();
+            setJoinRequestsVisible(true);
+          }}
+        >
+          <Ionicons name="people" size={22} color="#fff" />
         </Pressable>
       )}
 
-      {/* ── Add Student Modal ──────────────────────────────────────────── */}
+      {/* ── Join Requests Modal ────────────────────────────────────────── */}
       <Modal
-        visible={addModalVisible}
+        visible={joinRequestsVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setAddModalVisible(false)}
+        onRequestClose={() => setJoinRequestsVisible(false)}
       >
         <View style={s.modalOverlay}>
           <View style={s.modalSheet}>
-            {/* Handle bar */}
             <View style={s.modalHandle} />
 
-            <Text style={s.modalTitle}>Add New Student</Text>
-
-            <Text style={s.fieldLabel}>Full Name *</Text>
-            <TextInput
-              style={s.fieldInput}
-              value={newName}
-              onChangeText={setNewName}
-              placeholder="e.g. Sara Cohen"
-              placeholderTextColor={ds.muted}
-              autoFocus
-            />
-
-            <Text style={s.fieldLabel}>Phone Number *</Text>
-            <TextInput
-              style={s.fieldInput}
-              value={newPhone}
-              onChangeText={setNewPhone}
-              placeholder="+972-50-000-0000"
-              placeholderTextColor={ds.muted}
-              keyboardType="phone-pad"
-            />
-
-            <Text style={s.fieldLabel}>Year / Group</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+            <View style={s.modalTitleRow}>
+              <Text style={s.modalTitle}>Join Requests</Text>
               <Pressable
-                style={[s.groupChip, !newGroupId && s.groupChipActive]}
-                onPress={() => setNewGroupId("")}
+                onPress={fetchJoinRequests}
+                hitSlop={12}
+                disabled={joinRequestsLoading}
               >
-                <Text style={[s.groupChipText, !newGroupId && s.groupChipTextActive]}>None</Text>
-              </Pressable>
-              {groupsList.map((g) => {
-                const active = newGroupId === g.id;
-                return (
-                  <Pressable
-                    key={g.id}
-                    style={[s.groupChip, active && s.groupChipActive]}
-                    onPress={() => setNewGroupId(g.id)}
-                  >
-                    <Text style={[s.groupChipText, active && s.groupChipTextActive]}>
-                      {g.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            <View style={s.modalActions}>
-              <Pressable
-                style={s.cancelBtn}
-                onPress={() => { setAddModalVisible(false); setNewName(""); setNewPhone(""); setNewGroupId(""); }}
-              >
-                <Text style={s.cancelBtnText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={s.saveBtn} onPress={handleAddStudent} disabled={addSaving}>
-                {addSaving
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={s.saveBtnText}>Add Student</Text>
-                }
+                <Ionicons
+                  name="refresh-outline"
+                  size={22}
+                  color={joinRequestsLoading ? ds.muted : ds.teal}
+                />
               </Pressable>
             </View>
+
+            {joinRequestsLoading ? (
+              <ActivityIndicator
+                color={ds.teal}
+                size="large"
+                style={{ marginVertical: 32 }}
+              />
+            ) : joinRequests.length === 0 ? (
+              <View style={s.emptyRequests}>
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={48}
+                  color={ds.muted}
+                />
+                <Text style={s.emptyRequestsText}>No pending join requests</Text>
+              </View>
+            ) : (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                style={{ maxHeight: 420 }}
+              >
+                {joinRequests.map((req) => (
+                  <View key={req.uid} style={s.requestCard}>
+                    <Text style={s.requestName}>{req.full_name}</Text>
+                    <Text style={s.requestDetail}>📞 {req.phone}</Text>
+                    {req.email ? (
+                      <Text style={s.requestDetail}>✉️ {req.email}</Text>
+                    ) : null}
+                    {req.voice_type ? (
+                      <Text style={s.requestDetail}>
+                        🎵{" "}
+                        {req.voice_type.charAt(0).toUpperCase() +
+                          req.voice_type.slice(1)}
+                      </Text>
+                    ) : null}
+                    {req.school_name ? (
+                      <Text style={s.requestDetail}>🏫 {req.school_name}</Text>
+                    ) : null}
+                    <View style={s.requestActions}>
+                      <Pressable
+                        style={[s.actionBtn, { backgroundColor: ds.teal }]}
+                        onPress={() => handleApprove(req)}
+                      >
+                        <Ionicons name="checkmark" size={15} color="#fff" />
+                        <Text style={s.actionBtnText}>Approve</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[s.actionBtn, { backgroundColor: ds.red }]}
+                        onPress={() => handleReject(req)}
+                      >
+                        <Ionicons name="close" size={15} color="#fff" />
+                        <Text style={s.actionBtnText}>Reject</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
+            <Pressable
+              style={s.closeBtn}
+              onPress={() => setJoinRequestsVisible(false)}
+            >
+              <Text style={s.closeBtnText}>Close</Text>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -527,12 +620,27 @@ const s = StyleSheet.create({
   pageTitle: { color: ds.white, fontSize: 20, fontWeight: "700", marginTop: 6 },
   content: { flex: 1, padding: 12 },
   searchSection: { marginBottom: 12 },
-  searchWrap: { flexDirection: "row", alignItems: "center", backgroundColor: ds.white, padding: 8, borderRadius: 8 },
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: ds.white,
+    padding: 8,
+    borderRadius: 8,
+  },
   searchInput: { marginLeft: 8, flex: 1, color: ds.text },
   filterSection: { marginBottom: 12 },
   filterLabel: { color: ds.subtext, fontSize: 12, marginBottom: 6 },
   filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  filterChip: { flexDirection: "row", alignItems: "center", paddingVertical: 6, paddingHorizontal: 10, borderRadius: 16, backgroundColor: ds.white, marginRight: 8, marginBottom: 8 },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    backgroundColor: ds.white,
+    marginRight: 8,
+    marginBottom: 8,
+  },
   filterChipActive: { backgroundColor: ds.teal },
   filterDot: { width: 8, height: 8, borderRadius: 8, marginRight: 8 },
   filterChipText: { color: ds.text },
@@ -559,7 +667,7 @@ const s = StyleSheet.create({
     elevation: 6,
   },
 
-  // ── Add Student modal
+  // ── Modal shell
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
@@ -580,80 +688,100 @@ const s = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 20,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: ds.text,
+  modalTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 20,
   },
-  fieldLabel: {
-    fontSize: 12,
+  modalTitle: { fontSize: 20, fontWeight: "800", color: ds.text },
+
+  // ── Empty state inside modal
+  emptyRequests: {
+    alignItems: "center",
+    paddingVertical: 32,
+    gap: 8,
+  },
+  emptyRequestsText: { color: ds.muted, fontSize: 14 },
+
+  // ── Request cards
+  requestCard: {
+    backgroundColor: ds.bg,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: ds.border,
+  },
+  requestName: {
+    fontSize: 16,
     fontWeight: "700",
-    color: ds.subtext,
-    marginBottom: 6,
-    letterSpacing: 0.5,
-  },
-  fieldInput: {
-    borderWidth: 1.5,
-    borderColor: ds.border,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    fontSize: 15,
     color: ds.text,
-    marginBottom: 16,
-    backgroundColor: "#f9fbfd",
+    marginBottom: 6,
   },
-  groupChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#f0f4f8",
-    marginRight: 8,
-    borderWidth: 1.5,
-    borderColor: "transparent",
-  },
-  groupChipActive: {
-    backgroundColor: ds.teal + "18",
-    borderColor: ds.teal,
-  },
-  groupChipText: { fontSize: 13, fontWeight: "600", color: ds.subtext },
-  groupChipTextActive: { color: ds.teal },
-  modalActions: {
+  requestDetail: { fontSize: 13, color: ds.subtext, marginTop: 2 },
+  requestActions: {
     flexDirection: "row",
-    gap: 12,
-    marginTop: 8,
+    gap: 8,
+    marginTop: 12,
   },
-  cancelBtn: {
+  actionBtn: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 9,
+    borderRadius: 8,
+    gap: 4,
+  },
+  actionBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+
+  // ── Close button
+  closeBtn: {
+    marginTop: 16,
     borderWidth: 1.5,
     borderColor: ds.border,
     borderRadius: 12,
     paddingVertical: 13,
     alignItems: "center",
   },
-  cancelBtnText: { fontSize: 14, fontWeight: "700", color: ds.subtext },
-  saveBtn: {
-    flex: 2,
-    backgroundColor: ds.teal,
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: "center",
-    shadowColor: ds.teal,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
+  closeBtnText: { fontSize: 14, fontWeight: "700", color: ds.subtext },
+
+  // ── Student cards (unchanged)
+  card: {
+    backgroundColor: ds.white,
+    borderRadius: 8,
+    marginBottom: 12,
+    overflow: "hidden",
   },
-  saveBtnText: { fontSize: 14, fontWeight: "800", color: "#fff" },
-  card: { backgroundColor: ds.white, borderRadius: 8, marginBottom: 12, overflow: "hidden" },
   cardTopBar: { height: 6, width: "100%" },
-  cardBody: { padding: 12, flexDirection: "row", alignItems: "center" , justifyContent: "space-between"},
+  cardBody: {
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   badgesRow: { flexDirection: "row", gap: 8, alignItems: "center" },
-  badge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 12, marginRight: 8 },
+  badge: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    marginRight: 8,
+  },
   badgeText: { fontSize: 12 },
-  nameRow: { flex: 1, flexDirection: "row", alignItems: "center", marginLeft: 8 },
-  avatar: { width: 48, height: 48, borderRadius: 24, justifyContent: "center", alignItems: "center" },
+  nameRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   avatarText: { fontWeight: "700" },
   cardTitle: { marginLeft: 12, fontWeight: "600", color: ds.text, flex: 1 },
   actionsRow: { marginLeft: 8 },

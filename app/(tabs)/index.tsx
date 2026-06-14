@@ -343,9 +343,9 @@ export default function DashboardScreen() {
             {/* ─ 1. Quick Actions launchpad ──────────────────────────── */}
             <SectionLabel>Quick Actions</SectionLabel>
             <View style={st.quickRow}>
-              <Pressable style={st.quickBtn} onPress={() => router.push("/(tabs)/students?action=add" as any)}>
-                <Ionicons name="person-add-outline"    size={22} color={COLORS.teal} />
-                <Text style={st.quickLabel}>{"Add\nStudent"}</Text>
+              <Pressable style={st.quickBtn} onPress={() => router.push("/(tabs)/students?action=join-requests" as any)}>
+                <Ionicons name="people-outline"        size={22} color={COLORS.teal} />
+                <Text style={st.quickLabel}>{"Join\nRequests"}</Text>
               </Pressable>
               <Pressable style={st.quickBtn} onPress={() => router.push("/(tabs)/events?action=add" as any)}>
                 <Ionicons name="calendar-outline"      size={22} color={COLORS.teal} />

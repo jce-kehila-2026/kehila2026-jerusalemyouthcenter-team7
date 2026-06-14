@@ -206,12 +206,11 @@ const EMPTY: FormState = {
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 export default function SignupScreen() {
-  // const { submitJoinRequest } = useAuth();
   const { signupStudent } = useAuth();
   const router = useRouter();
 
   const [step, setStep] = useState(1);
-  // const [submitted, setSubmitted] = useState(false); // Old join-request flow: track pending-approval state
+  const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -325,14 +324,16 @@ export default function SignupScreen() {
       password: form.password,
     };
 
-    // const ok = await submitJoinRequest(payload);
-    const ok = await signupStudent(payload);
+    const result = await signupStudent(payload);
 
     setLoading(false);
 
-    if (ok) {
-      // setSubmitted(true); // Old join-request flow: show "Request Sent" pending-approval card
-      router.replace("/(tabs)" as any);
+    if (result === "submitted") {
+      setSubmitted(true);
+    } else if (result === "rejected") {
+      setError(
+        "Your join request was previously rejected. Please contact the administrator.",
+      );
     } else {
       setError(
         "Could not sign up. This phone number may already be registered.",
@@ -566,32 +567,114 @@ export default function SignupScreen() {
       );
   };
 
-  // if (submitted) {
+  if (submitted) {
+    return (
+      <View style={s.successContainer}>
+        <View style={s.successCard}>
+          <View style={s.successIconWrap}>
+            <Text style={s.successEmoji}>🎶</Text>
+          </View>
+          <Text style={s.successTitle}>Request Sent!</Text>
+          <Text style={s.successBody}>
+            {
+              "Your request to join Jerusalem Youth Chorus has been sent to the admin.\n\nYou will be notified once your account is approved."
+            }
+          </Text>
+          <View style={s.successDots}>
+            {["#0fb8b8", "#c0342c", "#e8a820"].map((c) => (
+              <View key={c} style={[s.successDot, { backgroundColor: c }]} />
+            ))}
+          </View>
+          <Pressable
+            style={s.successBtn}
+            onPress={() => router.replace("/(auth)/login" as any)}
+          >
+            <Text style={s.successBtnTxt}>Back to Login</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   //   return (
-  //     <View style={s.successContainer}>
-  //       <View style={s.successCard}>
-  //         <View style={s.successIconWrap}>
-  //           <Text style={s.successEmoji}>🎶</Text>
+  //     <KeyboardAvoidingView
+  //       style={s.container}
+  //       behavior={Platform.OS === "ios" ? "padding" : undefined}
+  //     >
+  //       <ScrollView
+  //         contentContainerStyle={s.scroll}
+  //         keyboardShouldPersistTaps="handled"
+  //       >
+  //         {/* Header */}
+  //         <View style={s.hero}>
+  //           <View style={s.ring}>
+  //             <BirdLogo size={56} />
+  //           </View>
+  //           <View>
+  //             <Text style={s.appName}>Jerusalem Youth Chorus</Text>
+  //             <Text style={s.tagline}>Singer Registration</Text>
+  //           </View>
   //         </View>
-  //         <Text style={s.successTitle}>Request Sent!</Text>
-  //         <Text style={s.successBody}>
-  //           {
-  //             "Your request to join Jerusalem Youth Chorus has been sent to the admin.\n\nYou will be notified once your account is approved."
-  //           }
-  //         </Text>
-  //         <View style={s.successDots}>
-  //           {["#0fb8b8", "#c0342c", "#e8a820"].map((c) => (
-  //             <View key={c} style={[s.successDot, { backgroundColor: c }]} />
+
+  //         <View style={s.badge}>
+  //           <Text style={s.badgeText}> 🎤 Singer Sign Up</Text>
+  //         </View>
+
+  //         <StepBar current={step} total={3} />
+
+  //         {/* Form card */}
+  //         <View style={s.card}>
+  //           {error ? (
+  //             <View style={s.errBox}>
+  //               <Text style={s.errText}>⚠ {error}</Text>
+  //             </View>
+  //           ) : null}
+
+  //           {renderStep()}
+
+  //           {/* Navigation */}
+  //           <View style={s.navRow}>
+  //             {step > 1 ? (
+  //               <Pressable style={s.backBtn} onPress={back}>
+  //                 <Text style={s.backTxt}>← Back</Text>
+  //               </Pressable>
+  //             ) : (
+  //               <View style={{ flex: 1 }} />
+  //             )}
+  //             <Pressable
+  //               style={({ pressed }) => [
+  //                 s.nextBtn,
+  //                 pressed && { opacity: 0.85 },
+  //                 loading && { opacity: 0.55 },
+  //               ]}
+  //               onPress={step === 3 ? handleSubmit : next}
+  //               disabled={loading}
+  //             >
+  //               {loading ? (
+  //                 <ActivityIndicator color={COLORS.white} />
+  //               ) : (
+  //                 <Text style={s.nextTxt}>
+  //                   {step === 3 ? "Create Account ✓" : "Next →"}
+  //                 </Text>
+  //               )}
+  //             </Pressable>
+  //           </View>
+
+  //           <View style={s.footer}>
+  //             <Text style={s.footerTxt}>Already have an account? </Text>
+  //             <Link href={"/(auth)/login" as any} style={s.link}>
+  //               Sign in
+  //             </Link>
+  //           </View>
+  //         </View>
+
+  //         <View style={s.dots}>
+  //           {[COLORS.teal, COLORS.red, COLORS.yellow].map((c) => (
+  //             <View key={c} style={[s.dot, { backgroundColor: c }]} />
   //           ))}
   //         </View>
-  //         <Pressable
-  //           style={s.successBtn}
-  //           onPress={() => router.replace("/(auth)/login" as any)}
-  //         >
-  //           <Text style={s.successBtnTxt}>Back to Login</Text>
-  //         </Pressable>
-  //       </View>
-  //     </View>
+  //       </ScrollView>
+  //     </KeyboardAvoidingView>
   //   );
   // }
 
@@ -611,7 +694,7 @@ export default function SignupScreen() {
           </View>
           <View>
             <Text style={s.appName}>Jerusalem Youth Chorus</Text>
-            <Text style={s.tagline}>Singer Registration</Text>
+            <Text style={s.tagline}> 🎤 Singer Registration</Text>
           </View>
         </View>
 
@@ -653,7 +736,7 @@ export default function SignupScreen() {
                 <ActivityIndicator color={COLORS.white} />
               ) : (
                 <Text style={s.nextTxt}>
-                  {step === 3 ? "Create Account ✓" : "Next →"}
+                  {step === 3 ? "Send Join Request 🎶" : "Next →"}
                 </Text>
               )}
             </Pressable>
@@ -676,88 +759,6 @@ export default function SignupScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-//   return (
-//     <KeyboardAvoidingView
-//       style={s.container}
-//       behavior={Platform.OS === "ios" ? "padding" : undefined}
-//     >
-//       <ScrollView
-//         contentContainerStyle={s.scroll}
-//         keyboardShouldPersistTaps="handled"
-//       >
-//         {/* Header */}
-//         <View style={s.hero}>
-//           <View style={s.ring}>
-//             <BirdLogo size={56} />
-//           </View>
-//           <View>
-//             <Text style={s.appName}>Jerusalem Youth Chorus</Text>
-//             <Text style={s.tagline}> 🎤 Singer Registration</Text>
-//           </View>
-//         </View>
-
-//         <View style={s.badge}>
-//           <Text style={s.badgeText}> 🎤 Singer Sign Up</Text>
-//         </View>
-
-//         <StepBar current={step} total={3} />
-
-//         {/* Form card */}
-//         <View style={s.card}>
-//           {error ? (
-//             <View style={s.errBox}>
-//               <Text style={s.errText}>⚠ {error}</Text>
-//             </View>
-//           ) : null}
-
-//           {renderStep()}
-
-//           {/* Navigation */}
-//           <View style={s.navRow}>
-//             {step > 1 ? (
-//               <Pressable style={s.backBtn} onPress={back}>
-//                 <Text style={s.backTxt}>← Back</Text>
-//               </Pressable>
-//             ) : (
-//               <View style={{ flex: 1 }} />
-//             )}
-//             <Pressable
-//               style={({ pressed }) => [
-//                 s.nextBtn,
-//                 pressed && { opacity: 0.85 },
-//                 loading && { opacity: 0.55 },
-//               ]}
-//               onPress={step === 3 ? handleSubmit : next}
-//               disabled={loading}
-//             >
-//               {loading ? (
-//                 <ActivityIndicator color={COLORS.white} />
-//               ) : (
-//                 <Text style={s.nextTxt}>
-//                   {step === 3 ? "Send Join Request 🎶" : "Next →"}
-//                 </Text>
-//               )}
-//             </Pressable>
-//           </View>
-
-//           <View style={s.footer}>
-//             <Text style={s.footerTxt}>Already have an account? </Text>
-//             <Link href={"/(auth)/login" as any} style={s.link}>
-//               Sign in
-//             </Link>
-//           </View>
-//         </View>
-
-//         <View style={s.dots}>
-//           {[COLORS.teal, COLORS.red, COLORS.yellow].map((c) => (
-//             <View key={c} style={[s.dot, { backgroundColor: c }]} />
-//           ))}
-//         </View>
-//       </ScrollView>
-//     </KeyboardAvoidingView>
-//   );
-// }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f0fafa" },
