@@ -62,7 +62,7 @@ type AuthContextType = {
     password: string,
     role: UserRole,
   ) => Promise<boolean | "pending" | "rejected">;
-  // Returns "submitted" on success, "rejected" if previously rejected, false on error
+  // Returns "submitted" on success, "rejected" if previously rejected, false if phone already registered, throws on other errors
   signupStudent: (
     payload: StudentSignupPayload,
   ) => Promise<"submitted" | "rejected" | false>;
@@ -99,10 +99,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
 
             // Only allow singer and admin roles to have an active session
             if (userRole !== "singer" && userRole !== "admin") {
-              console.log(
-                "AUTH: blocking session restore for role:",
-                userRole,
-              );
+              console.log("AUTH: blocking session restore for role:", userRole);
               if (!isSigningUpRef.current) {
                 await signOut(auth);
               }
@@ -163,10 +160,15 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         }
 
         // Fast-path rejection check before Auth call
-        const rejectedDoc = await getDoc(doc(db, "rejection", singerPhone));
+        const rejectedDoc = await getDoc(
+          doc(db, "join_requests", singerPhone),
+        );
         if (rejectedDoc.exists()) {
-          console.log("LOGIN: phone is in rejection list");
-          return "rejected";
+          const rd = rejectedDoc.data();
+          if (rd.status === "rejected") {
+            console.log("LOGIN: phone is rejected");
+            return "rejected";
+          }
         }
 
         email = phoneToEmail(singerPhone);
@@ -307,8 +309,11 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
       const phoneDigits = fields.phone.replace(/\D/g, "");
 
       // Block re-registration for previously rejected phones
-      const rejectedDoc = await getDoc(doc(db, "rejection", phoneDigits));
-      if (rejectedDoc.exists()) {
+      const rejectedDoc = await getDoc(doc(db, "join_requests", phoneDigits));
+      if (
+        rejectedDoc.exists() &&
+        rejectedDoc.data().status === "rejected"
+      ) {
         console.log("SIGNUP: phone previously rejected");
         isSigningUpRef.current = false;
         return "rejected";
@@ -376,7 +381,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
     } catch (e: any) {
       isSigningUpRef.current = false;
       console.log("SIGNUP ERROR:", e.message);
-      return false;
+      throw e;
     }
   };
 

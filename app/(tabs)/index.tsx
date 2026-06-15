@@ -1,18 +1,13 @@
-import { NotificationBell } from "@/src/components/NotificationBell";
-import { ManageAdminsModal } from "@/src/components/ManageAdminsModal";
 import { JoinRequestsModal } from "@/src/components/JoinRequestsModal";
+import { ManageAdminsModal } from "@/src/components/ManageAdminsModal";
+import { NotificationBell } from "@/src/components/NotificationBell";
 import { useAuth } from "@/src/context/AuthContext";
 import { FirestoreMsg, messageService } from "@/src/data/messageService";
 import { notificationService } from "@/src/data/notificationService";
 import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -25,15 +20,15 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-const TEAL   = "#039899";
-const RED    = "#c56451";
-const AMBER  = "#cfad5d";
+const TEAL = "#039899";
+const RED = "#c56451";
+const AMBER = "#cfad5d";
 const ORANGE = "#e07050";
-const DARK   = "#1a1a2e";
-const SUB    = "#5a6a7a";
-const MUTED  = "#9aa8b4";
+const DARK = "#1a1a2e";
+const SUB = "#5a6a7a";
+const MUTED = "#9aa8b4";
 const BORDER = "#e8eef2";
-const BG     = "#f5fafe";
+const BG = "#f5fafe";
 
 // ── Weekly attendance mock data (replace with real Firestore query if needed) ─
 const WEEKLY = [
@@ -77,32 +72,41 @@ function daysUntil(dateStr: string) {
 function relativeTime(ts: string) {
   const diff = Date.now() - new Date(ts).getTime();
   const mins = Math.floor(diff / 60_000);
-  if (mins < 1)  return "Just now";
+  if (mins < 1) return "Just now";
   if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24)  return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
-  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+  return new Date(ts).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function notifDotColor(n: DashNotif) {
   const t = (n.title + " " + n.body).toLowerCase();
   if (t.includes("request") || t.includes("join")) return TEAL;
-  if (t.includes("overdue") || t.includes("form"))  return RED;
+  if (t.includes("overdue") || t.includes("form")) return RED;
   return AMBER;
 }
 
 function todayString() {
   return new Date().toLocaleDateString("en-US", {
     weekday: "long",
-    year:    "numeric",
-    month:   "long",
-    day:     "numeric",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function SectionCard({ children, style }: { children: React.ReactNode; style?: object }) {
+function SectionCard({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: object;
+}) {
   return <View style={[st.card, style]}>{children}</View>;
 }
 
@@ -163,7 +167,7 @@ function StatBox({
 }
 
 function WeeklyChart() {
-  const low  = Math.min(...WEEKLY.map((d) => d.pct));
+  const low = Math.min(...WEEKLY.map((d) => d.pct));
   const high = Math.max(...WEEKLY.map((d) => d.pct));
 
   return (
@@ -176,8 +180,7 @@ function WeeklyChart() {
                 st.bar,
                 {
                   height: Math.max(6, (item.pct / 100) * BAR_MAX),
-                  backgroundColor:
-                    item.pct >= AVG_PCT ? TEAL : TEAL + "55",
+                  backgroundColor: item.pct >= AVG_PCT ? TEAL : TEAL + "55",
                 },
               ]}
             />
@@ -190,9 +193,7 @@ function WeeklyChart() {
           <Text style={st.chartStatMuted}>Low </Text>
           {low}%
         </Text>
-        <Text style={[st.chartStat, { color: TEAL }]}>
-          Avg {AVG_PCT}%
-        </Text>
+        <Text style={[st.chartStat, { color: TEAL }]}>Avg {AVG_PCT}%</Text>
         <Text style={st.chartStat}>
           <Text style={st.chartStatMuted}>High </Text>
           {high}%
@@ -202,11 +203,17 @@ function WeeklyChart() {
   );
 }
 
-function EventRow({ event, onPress }: { event: DashEvent; onPress: () => void }) {
-  const d    = new Date(event.date);
+function EventRow({
+  event,
+  onPress,
+}: {
+  event: DashEvent;
+  onPress: () => void;
+}) {
+  const d = new Date(event.date);
   const days = daysUntil(event.date);
-  const day  = d.getDate();
-  const mon  = d.toLocaleString("en-US", { month: "short" }).toUpperCase();
+  const day = d.getDate();
+  const mon = d.toLocaleString("en-US", { month: "short" }).toUpperCase();
 
   return (
     <Pressable onPress={onPress} style={st.eventRow}>
@@ -216,9 +223,12 @@ function EventRow({ event, onPress }: { event: DashEvent; onPress: () => void })
       </View>
       <View style={st.eventDateBar} />
       <View style={{ flex: 1 }}>
-        <Text style={st.eventTitle} numberOfLines={1}>{event.title}</Text>
+        <Text style={st.eventTitle} numberOfLines={1}>
+          {event.title}
+        </Text>
         <Text style={st.eventSub} numberOfLines={1}>
-          {event.time ? `${event.time} · ` : ""}{event.location}
+          {event.time ? `${event.time} · ` : ""}
+          {event.location}
         </Text>
       </View>
       {days > 0 && (
@@ -231,10 +241,7 @@ function EventRow({ event, onPress }: { event: DashEvent; onPress: () => void })
           ]}
         >
           <Text
-            style={[
-              st.eventBadgeText,
-              { color: days <= 7 ? TEAL : MUTED },
-            ]}
+            style={[st.eventBadgeText, { color: days <= 7 ? TEAL : MUTED }]}
           >
             {days <= 7 ? `${days} days` : "Upcoming"}
           </Text>
@@ -249,7 +256,9 @@ function ActivityItem({ notif }: { notif: DashNotif }) {
     <View style={st.actRow}>
       <View style={[st.actDot, { backgroundColor: notifDotColor(notif) }]} />
       <View style={{ flex: 1 }}>
-        <Text style={st.actTitle} numberOfLines={1}>{notif.title}</Text>
+        <Text style={st.actTitle} numberOfLines={1}>
+          {notif.title}
+        </Text>
         <Text style={st.actTime}>{relativeTime(notif.timestamp)}</Text>
       </View>
       <View style={st.actCheck} />
@@ -259,51 +268,62 @@ function ActivityItem({ notif }: { notif: DashNotif }) {
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function DashboardScreen() {
-  const { user }  = useAuth();
-  const router    = useRouter();
-  const insets    = useSafeAreaInsets();
-  const isAdmin   = user?.role === "admin";
+  const { user } = useAuth();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const isAdmin = user?.role === "admin";
 
-  const [loading, setLoading]               = useState(true);
-  const [singerCount, setSingerCount]       = useState(0);
-  const [adminCount, setAdminCount]         = useState(0);
-  const [requestCount, setRequestCount]     = useState(0);
-  const [eventList, setEventList]           = useState<DashEvent[]>([]);
-  const [notifList, setNotifList]           = useState<DashNotif[]>([]);
-  const [myEventIds, setMyEventIds]         = useState<string[]>([]);
-  const [manageAdminsOpen,   setManageAdminsOpen]   = useState(false);
-  const [joinRequestsOpen,   setJoinRequestsOpen]   = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [singerCount, setSingerCount] = useState(0);
+  const [adminCount, setAdminCount] = useState(0);
+  const [requestCount, setRequestCount] = useState(0);
+  const [eventList, setEventList] = useState<DashEvent[]>([]);
+  const [notifList, setNotifList] = useState<DashNotif[]>([]);
+  const [myEventIds, setMyEventIds] = useState<string[]>([]);
+  const [manageAdminsOpen, setManageAdminsOpen] = useState(false);
+  const [joinRequestsOpen, setJoinRequestsOpen] = useState(false);
 
-  const now            = new Date();
+  const now = new Date();
   const upcomingEvents = eventList
     .filter((e) => new Date(e.date) >= now)
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const unreadNotifs = notifList.filter((n) => !n.is_read).length;
-  const firstName    = user?.full_name?.split(" ")[0] ?? "there";
+  const firstName = user?.full_name?.split(" ")[0] ?? "there";
 
   // ── Data fetch ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!user) { setLoading(false); return; }
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     const fetch = async () => {
       try {
         const results = await Promise.allSettled([
-          getDocs(query(collection(db, "users"), where("role", "==", "singer"))),
+          getDocs(
+            query(collection(db, "users"), where("role", "==", "singer")),
+          ),
           getDocs(query(collection(db, "users"), where("role", "==", "admin"))),
-          getDocs(query(collection(db, "users"), where("role", "==", "join-request"))),
+          getDocs(
+            query(collection(db, "users"), where("role", "==", "join-request")),
+          ),
           getDocs(collection(db, "events")),
           getDocs(collection(db, "event_students")),
         ]);
 
         const [singers, admins, requests, events, es] = results;
 
-        if (singers.status   === "fulfilled") setSingerCount(singers.value.size);
-        if (admins.status    === "fulfilled") setAdminCount(admins.value.size);
-        if (requests.status  === "fulfilled") setRequestCount(requests.value.size);
-        if (events.status    === "fulfilled")
+        if (singers.status === "fulfilled") setSingerCount(singers.value.size);
+        if (admins.status === "fulfilled") setAdminCount(admins.value.size);
+        if (requests.status === "fulfilled")
+          setRequestCount(requests.value.size);
+        if (events.status === "fulfilled")
           setEventList(
-            events.value.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<DashEvent, "id">) })),
+            events.value.docs.map((d) => ({
+              id: d.id,
+              ...(d.data() as Omit<DashEvent, "id">),
+            })),
           );
         if (es.status === "fulfilled") {
           const ids = es.value.docs
@@ -328,12 +348,17 @@ export default function DashboardScreen() {
 
     const unsubMsg = messageService.subscribe((_msgs: FirestoreMsg[]) => {});
 
-    return () => { unsubNotif(); unsubMsg(); };
+    return () => {
+      unsubNotif();
+      unsubMsg();
+    };
   }, [user?.uid]);
 
   if (loading) {
     return (
-      <View style={[st.screen, { justifyContent: "center", alignItems: "center" }]}>
+      <View
+        style={[st.screen, { justifyContent: "center", alignItems: "center" }]}
+      >
         <ActivityIndicator size="large" color={TEAL} />
       </View>
     );
@@ -349,7 +374,11 @@ export default function DashboardScreen() {
         <View style={[st.header, { paddingTop: insets.top + 12 }]}>
           <View style={st.headerTop}>
             <View style={st.headerLeft}>
-              <Ionicons name="musical-notes" size={18} color="rgba(255,255,255,0.8)" />
+              <Ionicons
+                name="musical-notes"
+                size={18}
+                color="rgba(255,255,255,0.8)"
+              />
               <Text style={st.headerAppName}>Jerusalem Youth Chorus</Text>
             </View>
             <View style={st.headerRight}>
@@ -393,9 +422,7 @@ export default function DashboardScreen() {
               <Text style={st.attNumber}>{AVG_PCT}</Text>
               <Text style={st.attPercent}>%</Text>
             </View>
-            <Text style={st.attSub}>
-              This week · 8 of 10 singers present
-            </Text>
+            <Text style={st.attSub}>This week · 8 of 10 singers present</Text>
             <View style={st.progressTrack}>
               <View
                 style={[st.progressFill, { width: `${AVG_PCT}%` as any }]}
@@ -528,7 +555,11 @@ export default function DashboardScreen() {
       <View style={[st.header, { paddingTop: insets.top + 12 }]}>
         <View style={st.headerTop}>
           <View style={st.headerLeft}>
-            <Ionicons name="musical-notes" size={18} color="rgba(255,255,255,0.8)" />
+            <Ionicons
+              name="musical-notes"
+              size={18}
+              color="rgba(255,255,255,0.8)"
+            />
             <Text style={st.headerAppName}>Jerusalem Youth Chorus</Text>
           </View>
           <View style={st.headerRight}>
@@ -639,10 +670,26 @@ export default function DashboardScreen() {
         {/* ── Quick links ────────────────────────────────────────────── */}
         <SectionCard style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
           {[
-            { icon: "document-text-outline" as const, label: "Forms",    route: "/(tabs)/forms" },
-            { icon: "calendar-outline"      as const, label: "Calendar", route: "/(tabs)/calendar" },
-            { icon: "chatbubbles-outline"   as const, label: "Messages", route: "/(tabs)/messages" },
-            { icon: "person-circle-outline" as const, label: "Profile",  route: "/profile" },
+            {
+              icon: "document-text-outline" as const,
+              label: "Forms",
+              route: "/(tabs)/forms",
+            },
+            {
+              icon: "calendar-outline" as const,
+              label: "Calendar",
+              route: "/(tabs)/calendar",
+            },
+            {
+              icon: "chatbubbles-outline" as const,
+              label: "Messages",
+              route: "/(tabs)/messages",
+            },
+            {
+              icon: "person-circle-outline" as const,
+              label: "Profile",
+              route: "/profile",
+            },
           ].map((q) => (
             <Pressable
               key={q.label}
@@ -678,7 +725,11 @@ const st = StyleSheet.create({
     marginBottom: 14,
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
-  headerAppName: { color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: "600" },
+  headerAppName: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 13,
+    fontWeight: "600",
+  },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   headerIconBtn: { position: "relative", padding: 4 },
   avatar: {
@@ -692,9 +743,13 @@ const st = StyleSheet.create({
     justifyContent: "center",
   },
   avatarText: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  headerWelcome: { color: "rgba(255,255,255,0.8)", fontSize: 13, fontWeight: "500" },
-  headerTitle:   { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 2 },
-  headerDate:    { color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 3 },
+  headerWelcome: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  headerTitle: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 2 },
+  headerDate: { color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 3 },
 
   // ── Scroll content
   scroll: { padding: 14, paddingTop: 16 },
@@ -719,15 +774,21 @@ const st = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 14,
   },
-  secTitle:  { fontSize: 16, fontWeight: "800", color: DARK },
+  secTitle: { fontSize: 16, fontWeight: "800", color: DARK },
   secAction: { fontSize: 13, fontWeight: "700", color: TEAL },
 
   // ── Attendance
-  attLabel:  { fontSize: 11, fontWeight: "700", color: MUTED, letterSpacing: 1, marginBottom: 8 },
-  attRow:    { flexDirection: "row", alignItems: "flex-start", gap: 2 },
+  attLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: MUTED,
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  attRow: { flexDirection: "row", alignItems: "flex-start", gap: 2 },
   attNumber: { fontSize: 64, fontWeight: "900", color: TEAL, lineHeight: 70 },
-  attPercent:{ fontSize: 28, fontWeight: "700", color: TEAL, marginTop: 12 },
-  attSub:    { fontSize: 13, color: MUTED, marginTop: 4, marginBottom: 12 },
+  attPercent: { fontSize: 28, fontWeight: "700", color: TEAL, marginTop: 12 },
+  attSub: { fontSize: 13, color: MUTED, marginTop: 4, marginBottom: 12 },
   progressTrack: {
     height: 8,
     backgroundColor: BORDER,
@@ -740,13 +801,28 @@ const st = StyleSheet.create({
 
   // ── Stats row
   statsRow: { flexDirection: "row" },
-  statBox: { flex: 1, paddingHorizontal: 6, paddingVertical: 2, alignItems: "flex-start" },
+  statBox: {
+    flex: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    alignItems: "flex-start",
+  },
   statBoxBorder: { borderRightWidth: 1, borderRightColor: BORDER },
-  statIconRow:  { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 2 },
-  statLabelRow: { flexDirection: "row", alignItems: "center", gap: 3, marginBottom: 2 },
-  statValue:    { fontSize: 26, fontWeight: "900" },
-  statLabel:    { fontSize: 11, fontWeight: "600", color: DARK },
-  statSub:      { fontSize: 10, fontWeight: "600" },
+  statIconRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 2,
+  },
+  statLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    marginBottom: 2,
+  },
+  statValue: { fontSize: 26, fontWeight: "900" },
+  statLabel: { fontSize: 11, fontWeight: "600", color: DARK },
+  statSub: { fontSize: 10, fontWeight: "600" },
 
   // ── Bar chart
   chartRow: {
@@ -756,8 +832,13 @@ const st = StyleSheet.create({
     gap: 4,
     marginBottom: 12,
   },
-  barCol: { flex: 1, alignItems: "center", justifyContent: "flex-end", height: BAR_MAX + 20 },
-  bar:    { width: "70%", borderRadius: 4 },
+  barCol: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    height: BAR_MAX + 20,
+  },
+  bar: { width: "70%", borderRadius: 4 },
   barLabel: { fontSize: 9, fontWeight: "600", color: MUTED, marginTop: 5 },
   chartFooter: {
     flexDirection: "row",
@@ -766,8 +847,8 @@ const st = StyleSheet.create({
     borderTopColor: BORDER,
     paddingTop: 10,
   },
-  chartStat:     { fontSize: 12, fontWeight: "700", color: SUB },
-  chartStatMuted:{ fontWeight: "400", color: MUTED },
+  chartStat: { fontSize: 12, fontWeight: "700", color: SUB },
+  chartStatMuted: { fontWeight: "400", color: MUTED },
 
   // ── Event row
   eventRow: {
@@ -777,8 +858,8 @@ const st = StyleSheet.create({
     gap: 10,
   },
   eventDate: { alignItems: "center", minWidth: 36 },
-  eventDay:  { fontSize: 22, fontWeight: "900", color: TEAL, lineHeight: 24 },
-  eventMon:  { fontSize: 9,  fontWeight: "700", color: TEAL, letterSpacing: 0.5 },
+  eventDay: { fontSize: 22, fontWeight: "900", color: TEAL, lineHeight: 24 },
+  eventMon: { fontSize: 9, fontWeight: "700", color: TEAL, letterSpacing: 0.5 },
   eventDateBar: {
     width: 2,
     height: 36,
@@ -786,7 +867,7 @@ const st = StyleSheet.create({
     borderRadius: 1,
   },
   eventTitle: { fontSize: 14, fontWeight: "700", color: DARK, marginBottom: 3 },
-  eventSub:   { fontSize: 12, color: SUB },
+  eventSub: { fontSize: 12, color: SUB },
   eventBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -801,9 +882,9 @@ const st = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
   },
-  actDot:   { width: 10, height: 10, borderRadius: 5 },
+  actDot: { width: 10, height: 10, borderRadius: 5 },
   actTitle: { fontSize: 14, fontWeight: "600", color: DARK, marginBottom: 2 },
-  actTime:  { fontSize: 12, color: MUTED },
+  actTime: { fontSize: 12, color: MUTED },
   actCheck: {
     width: 18,
     height: 18,
@@ -817,7 +898,7 @@ const st = StyleSheet.create({
 
   // ── Empty states
   emptyInCard: { alignItems: "center", paddingVertical: 24, gap: 8 },
-  emptyText:   { fontSize: 13, color: MUTED },
+  emptyText: { fontSize: 13, color: MUTED },
   emptyBtn: {
     marginTop: 4,
     borderWidth: 1.5,
