@@ -1,4 +1,5 @@
 import { useAuth } from "@/src/context/AuthContext";
+import { db } from "@/src/firebase/firebase";
 import {
   Group,
   attendance as mockAttendance,
@@ -9,8 +10,10 @@ import {
 import { studentService } from "@/src/data/studentService";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { doc, updateDoc } from "firebase/firestore";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Modal,
@@ -19,6 +22,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -58,6 +62,39 @@ const InfoRow = ({
   </View>
 );
 
+const EditRow = ({
+  icon,
+  label,
+  value,
+  onChange,
+  isLast,
+  keyboardType = "default",
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  onChange: (text: string) => void;
+  isLast?: boolean;
+  keyboardType?: "default" | "phone-pad" | "email-address";
+}) => (
+  <View style={[s.row, !isLast && s.rowBorder]}>
+    <View style={s.rowIcon}>
+      <Ionicons name={icon as any} size={20} color={ds.teal} />
+    </View>
+    <View style={s.rowText}>
+      <Text style={s.rowLabel}>{label}</Text>
+      <TextInput
+        style={s.editInput}
+        value={value}
+        onChangeText={onChange}
+        keyboardType={keyboardType}
+        placeholderTextColor={ds.subtext}
+        autoCorrect={false}
+      />
+    </View>
+  </View>
+);
+
 const InfoCard = ({
   title,
   children,
@@ -82,6 +119,9 @@ export default function StudentDetailScreen() {
   const [student, setStudent] = useState<Student | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [draft, setDraft] = useState<Record<string, string>>({});
   const { user } = useAuth();
 
   const rawStudent = student as any;
@@ -165,6 +205,8 @@ export default function StudentDetailScreen() {
   const isAdmin = user?.role === "admin";
   const isOwnProfile = user?.uid === student.id;
   const canViewAll = isAdmin || isOwnProfile;
+
+  // Derived display values
   const age = rawStudent?.age ?? "N/A";
   const dob = rawStudent?.birth_date || rawStudent?.date_of_birth || "N/A";
   const gender = rawStudent?.gender || "N/A";
@@ -179,6 +221,54 @@ export default function StudentDetailScreen() {
     rawStudent?.medical_situation || rawStudent?.medical_notes || "None";
   const foodNotes = rawStudent?.food_notes || rawStudent?.allergies || "None";
 
+  const enterEditMode = () => {
+    setDraft({
+      birth_date: rawStudent?.birth_date || rawStudent?.date_of_birth || "",
+      gender: rawStudent?.gender || "",
+      school_name: rawStudent?.school_name || "",
+      voice_type: rawStudent?.voice_type || "",
+      shirt_size: rawStudent?.shirt_size || "",
+      phone: student.phone || "",
+      email: student.email || "",
+      neighborhood: rawStudent?.neighborhood || rawStudent?.address || "",
+      parent_name: rawStudent?.parent_name || "",
+      parent_phone: rawStudent?.parent_phone || "",
+      medical_situation:
+        rawStudent?.medical_situation || rawStudent?.medical_notes || "",
+      food_notes: rawStudent?.food_notes || rawStudent?.allergies || "",
+    });
+    setIsEditing(true);
+  };
+
+  const handleSave = async () => {
+    if (!id) return;
+    setIsSaving(true);
+    try {
+      await updateDoc(doc(db, "users", id), {
+        birth_date: draft.birth_date,
+        gender: draft.gender,
+        school_name: draft.school_name,
+        voice_type: draft.voice_type,
+        shirt_size: draft.shirt_size,
+        phone: draft.phone,
+        email: draft.email,
+        neighborhood: draft.neighborhood,
+        parent_name: draft.parent_name,
+        parent_phone: draft.parent_phone,
+        medical_situation: draft.medical_situation,
+        food_notes: draft.food_notes,
+      });
+      await fetchStudentData(false);
+      setIsEditing(false);
+      Alert.alert("Success", "Profile updated successfully.");
+    } catch (error) {
+      console.error("Error saving student profile:", error);
+      Alert.alert("Error", "Failed to save changes. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const statusColors: Record<string, string> = {
     attended: ds.teal,
     registered: "#f59e0b",
@@ -190,6 +280,9 @@ export default function StudentDetailScreen() {
     .map((n: string) => n[0])
     .join("");
 
+  const set = (field: string) => (text: string) =>
+    setDraft((d) => ({ ...d, [field]: text }));
+
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -197,13 +290,31 @@ export default function StudentDetailScreen() {
 
       {/* ── Teal Header ───────────────────────────────────────────────────── */}
       <View style={s.headerBg}>
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={s.backBtn}
+          onPress={() => router.back()}
+          disabled={isSaving}
+        >
           <Ionicons name="chevron-back" size={26} color={ds.white} />
         </TouchableOpacity>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
           <Text style={s.pageTitle}>Student Profile</Text>
         </View>
+        {isAdmin && (
+          <TouchableOpacity
+            style={s.editBtn}
+            onPress={isEditing ? () => setIsEditing(false) : enterEditMode}
+            disabled={isSaving}
+          >
+            <Ionicons
+              name={isEditing ? "close-outline" : "create-outline"}
+              size={18}
+              color={ds.white}
+            />
+            <Text style={s.editBtnText}>{isEditing ? "Cancel" : "Edit"}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* ── Avatar Hero ───────────────────────────────────────────────────── */}
@@ -228,92 +339,235 @@ export default function StudentDetailScreen() {
         style={s.scrollBase}
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Personal Information */}
         <InfoCard title="Personal Information">
+          {/* Age is derived — always read-only */}
           <InfoRow
             icon="person-outline"
             label="Age"
             value={age !== "N/A" ? `${age} years` : "N/A"}
           />
-          <InfoRow icon="calendar-outline" label="Date of Birth" value={dob} />
-          {canViewAll && (
-            <InfoRow icon="male-female-outline" label="Gender" value={gender} />
+          {isEditing ? (
+            <EditRow
+              icon="calendar-outline"
+              label="Date of Birth"
+              value={draft.birth_date}
+              onChange={set("birth_date")}
+            />
+          ) : (
+            <InfoRow icon="calendar-outline" label="Date of Birth" value={dob} />
           )}
-          {canViewAll && (
-            <InfoRow icon="school-outline" label="School" value={schoolName} />
+          {canViewAll &&
+            (isEditing ? (
+              <EditRow
+                icon="male-female-outline"
+                label="Gender"
+                value={draft.gender}
+                onChange={set("gender")}
+              />
+            ) : (
+              <InfoRow
+                icon="male-female-outline"
+                label="Gender"
+                value={gender}
+              />
+            ))}
+          {canViewAll &&
+            (isEditing ? (
+              <EditRow
+                icon="school-outline"
+                label="School"
+                value={draft.school_name}
+                onChange={set("school_name")}
+              />
+            ) : (
+              <InfoRow icon="school-outline" label="School" value={schoolName} />
+            ))}
+          {isEditing ? (
+            <EditRow
+              icon="mic-outline"
+              label="Voice Type"
+              value={draft.voice_type}
+              onChange={set("voice_type")}
+            />
+          ) : (
+            <InfoRow icon="mic-outline" label="Voice Type" value={voiceType} />
           )}
-          <InfoRow icon="mic-outline" label="Voice Type" value={voiceType} />
-          {canViewAll && (
-            <InfoRow icon="shirt-outline" label="Shirt Size" value={shirtSize} />
-          )}
+          {canViewAll &&
+            (isEditing ? (
+              <EditRow
+                icon="shirt-outline"
+                label="Shirt Size"
+                value={draft.shirt_size}
+                onChange={set("shirt_size")}
+              />
+            ) : (
+              <InfoRow
+                icon="shirt-outline"
+                label="Shirt Size"
+                value={shirtSize}
+              />
+            ))}
+          {/* Year Joined is managed via the group modal — always read-only */}
           <InfoRow
             icon="star-outline"
             label="Year Joined"
             value={yearJoined}
             isLast={!isAdmin}
           />
-          {isAdmin && (
-            <>
-              <InfoRow
-                icon="medkit-outline"
-                label="Medical Situation"
-                value={medicalSituation}
-              />
-              <InfoRow
-                icon="restaurant-outline"
-                label="Food Notes"
-                value={foodNotes}
-                isLast
-              />
-            </>
-          )}
+          {isAdmin &&
+            (isEditing ? (
+              <>
+                <EditRow
+                  icon="medkit-outline"
+                  label="Medical Situation"
+                  value={draft.medical_situation}
+                  onChange={set("medical_situation")}
+                />
+                <EditRow
+                  icon="restaurant-outline"
+                  label="Food Notes"
+                  value={draft.food_notes}
+                  onChange={set("food_notes")}
+                  isLast
+                />
+              </>
+            ) : (
+              <>
+                <InfoRow
+                  icon="medkit-outline"
+                  label="Medical Situation"
+                  value={medicalSituation}
+                />
+                <InfoRow
+                  icon="restaurant-outline"
+                  label="Food Notes"
+                  value={foodNotes}
+                  isLast
+                />
+              </>
+            ))}
         </InfoCard>
 
         {/* Contact Information — full for admin/self, phone-only for peers */}
         <InfoCard title="Contact Information">
-          {canViewAll && (
+          {canViewAll &&
+            (isEditing ? (
+              <EditRow
+                icon="mail-outline"
+                label="Email"
+                value={draft.email}
+                onChange={set("email")}
+                keyboardType="email-address"
+              />
+            ) : (
+              <InfoRow
+                icon="mail-outline"
+                label="Email"
+                value={student.email || "N/A"}
+              />
+            ))}
+          {isEditing ? (
+            <EditRow
+              icon="call-outline"
+              label="Phone"
+              value={draft.phone}
+              onChange={set("phone")}
+              keyboardType="phone-pad"
+              isLast={!canViewAll}
+            />
+          ) : (
             <InfoRow
-              icon="mail-outline"
-              label="Email"
-              value={student.email || "N/A"}
+              icon="call-outline"
+              label="Phone"
+              value={student.phone || "N/A"}
+              isLast={!canViewAll}
             />
           )}
-          <InfoRow
-            icon="call-outline"
-            label="Phone"
-            value={student.phone || "N/A"}
-            isLast={!canViewAll}
-          />
-          {canViewAll && (
-            <InfoRow
-              icon="location-outline"
-              label="Neighborhood"
-              value={neighborhood}
-              isLast
-            />
-          )}
+          {canViewAll &&
+            (isEditing ? (
+              <EditRow
+                icon="location-outline"
+                label="Neighborhood"
+                value={draft.neighborhood}
+                onChange={set("neighborhood")}
+                isLast
+              />
+            ) : (
+              <InfoRow
+                icon="location-outline"
+                label="Neighborhood"
+                value={neighborhood}
+                isLast
+              />
+            ))}
         </InfoCard>
 
         {/* Parent / Guardian — admin and self only */}
         {canViewAll && (
           <InfoCard title="Parent / Guardian">
-            <InfoRow
-              icon="person-circle-outline"
-              label="Parent Name"
-              value={parentName}
-            />
-            <InfoRow
-              icon="call-outline"
-              label="Parent Phone"
-              value={parentPhone}
-              isLast
-            />
+            {isEditing ? (
+              <>
+                <EditRow
+                  icon="person-circle-outline"
+                  label="Parent Name"
+                  value={draft.parent_name}
+                  onChange={set("parent_name")}
+                />
+                <EditRow
+                  icon="call-outline"
+                  label="Parent Phone"
+                  value={draft.parent_phone}
+                  onChange={set("parent_phone")}
+                  keyboardType="phone-pad"
+                  isLast
+                />
+              </>
+            ) : (
+              <>
+                <InfoRow
+                  icon="person-circle-outline"
+                  label="Parent Name"
+                  value={parentName}
+                />
+                <InfoRow
+                  icon="call-outline"
+                  label="Parent Phone"
+                  value={parentPhone}
+                  isLast
+                />
+              </>
+            )}
           </InfoCard>
         )}
 
+        {/* Save Changes — edit mode only */}
+        {isEditing && (
+          <TouchableOpacity
+            style={[s.saveBtn, isSaving && s.saveBtnDisabled]}
+            onPress={handleSave}
+            disabled={isSaving}
+            activeOpacity={0.8}
+          >
+            {isSaving ? (
+              <ActivityIndicator color={ds.white} />
+            ) : (
+              <>
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={20}
+                  color={ds.white}
+                />
+                <Text style={s.saveBtnText}>Save Changes</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+
         {/* Management Actions — admin only */}
-        {isAdmin && (
+        {isAdmin && !isEditing && (
           <View style={s.managementSection}>
             <Text style={s.sectionLabel}>Management</Text>
             <Pressable
@@ -327,49 +581,51 @@ export default function StudentDetailScreen() {
         )}
 
         {/* Event Attendance */}
-        <View style={s.attendanceSection}>
-          <Text style={s.sectionLabel}>
-            Event Attendance ({attendedEvents.length})
-          </Text>
-          {attendedEvents.length === 0 ? (
-            <View style={s.emptyCard}>
-              <Text style={s.emptyText}>No events recorded</Text>
-            </View>
-          ) : (
-            attendedEvents.map((a) => (
-              <View key={a.event_id} style={s.attendanceRow}>
-                <View style={s.attendanceInfo}>
-                  <Text style={s.eventTitle}>{a.event?.title}</Text>
-                  <Text style={s.eventDate}>
-                    {new Date(a.event!.date).toLocaleDateString("en-GB", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    s.statusBadge,
-                    {
-                      backgroundColor:
-                        (statusColors[a.status] || ds.subtext) + "20",
-                    },
-                  ]}
-                >
-                  <Text
+        {!isEditing && (
+          <View style={s.attendanceSection}>
+            <Text style={s.sectionLabel}>
+              Event Attendance ({attendedEvents.length})
+            </Text>
+            {attendedEvents.length === 0 ? (
+              <View style={s.emptyCard}>
+                <Text style={s.emptyText}>No events recorded</Text>
+              </View>
+            ) : (
+              attendedEvents.map((a) => (
+                <View key={a.event_id} style={s.attendanceRow}>
+                  <View style={s.attendanceInfo}>
+                    <Text style={s.eventTitle}>{a.event?.title}</Text>
+                    <Text style={s.eventDate}>
+                      {new Date(a.event!.date).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </Text>
+                  </View>
+                  <View
                     style={[
-                      s.statusText,
-                      { color: statusColors[a.status] || ds.subtext },
+                      s.statusBadge,
+                      {
+                        backgroundColor:
+                          (statusColors[a.status] || ds.subtext) + "20",
+                      },
                     ]}
                   >
-                    {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
-                  </Text>
+                    <Text
+                      style={[
+                        s.statusText,
+                        { color: statusColors[a.status] || ds.subtext },
+                      ]}
+                    >
+                      {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            ))
-          )}
-        </View>
+              ))
+            )}
+          </View>
+        )}
 
         <View style={{ height: 30 }} />
       </ScrollView>
@@ -464,6 +720,23 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   pageTitle: { fontSize: 32, fontWeight: "900", color: ds.white },
+  editBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.5)",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    marginTop: 6,
+  },
+  editBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: ds.white,
+  },
 
   // Avatar hero
   avatarHero: {
@@ -550,6 +823,34 @@ const s = StyleSheet.create({
   rowText: { flex: 1 },
   rowLabel: { fontSize: 11, color: ds.subtext, marginBottom: 2, fontWeight: "500" },
   rowValue: { fontSize: 15, fontWeight: "700", color: ds.text },
+  editInput: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: ds.text,
+    borderBottomWidth: 1.5,
+    borderBottomColor: ds.teal,
+    paddingVertical: 4,
+    paddingHorizontal: 0,
+  },
+
+  // Save button
+  saveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: ds.teal,
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginBottom: 16,
+    shadowColor: ds.teal,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  saveBtnDisabled: { opacity: 0.6 },
+  saveBtnText: { fontSize: 16, fontWeight: "800", color: ds.white },
 
   // Management
   managementSection: { marginBottom: 16 },
