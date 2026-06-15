@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { deleteApp, getApps, initializeApp } from "firebase/app";
+import { createUserWithEmailAndPassword, getAuth } from "firebase/auth";
 import {
   collection,
   deleteDoc,
@@ -25,7 +26,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { db, secondaryAuth } from "@/src/firebase/firebase";
+import { db } from "@/src/firebase/firebase";
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 const C = {
@@ -75,12 +76,13 @@ type Props = { visible: boolean; onClose: () => void };
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function ManageAdminsModal({ visible, onClose }: Props) {
-  const [view, setView]             = useState<"list" | "form">("list");
-  const [admins, setAdmins]         = useState<AdminUser[]>([]);
+  const [view, setView]               = useState<"list" | "form">("list");
+  const [admins, setAdmins]           = useState<AdminUser[]>([]);
   const [listLoading, setListLoading] = useState(true);
-  const [form, setForm]             = useState<AdminForm>(EMPTY_FORM);
-  const [saving, setSaving]         = useState(false);
-  const [error, setError]           = useState("");
+  const [form, setForm]               = useState<AdminForm>(EMPTY_FORM);
+  const [saving, setSaving]           = useState(false);
+  const [error, setError]             = useState("");
+  const [deletingId, setDeletingId]   = useState<string | null>(null);
 
   // ── Live admin list via onSnapshot ─────────────────────────────────────────
   useEffect(() => {
@@ -121,7 +123,8 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
   const setField = (k: keyof AdminForm) => (v: string) =>
     setForm((p) => ({ ...p, [k]: v }));
 
-  // ── Create admin ───────────────────────────────────────────────────────────
+  // ── Create admin (fresh secondary app each time so the current admin
+  //    session is never affected, matches old working implementation) ─────────
   const handleSave = async () => {
     const { full_name, email, password } = form;
     if (!full_name.trim()) return setError("Full name is required.");
@@ -130,29 +133,36 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
 
     setSaving(true);
     setError("");
+    let secondaryApp: ReturnType<typeof initializeApp> | null = null;
     try {
-      console.log("ADMIN CREATE: creating auth account for", email.trim());
-      // Use secondary auth so the current admin session stays intact
-      const cred = await createUserWithEmailAndPassword(
-        secondaryAuth,
+      const SECONDARY_NAME = "admin-creator-secondary";
+      const existing = getApps().find((a) => a.name === SECONDARY_NAME);
+      if (existing) await deleteApp(existing);
+
+      const mainOptions =
+        (getApps().find((a) => a.name === "[DEFAULT]") as any)?.options ?? {};
+      secondaryApp = initializeApp(mainOptions, SECONDARY_NAME);
+      const secAuth = getAuth(secondaryApp);
+
+      const credential = await createUserWithEmailAndPassword(
+        secAuth,
         email.trim(),
         password,
       );
-      const newUid = cred.user.uid;
-      await signOut(secondaryAuth); // clean up secondary session
+      const newUid = credential.user.uid;
+      await secAuth.signOut();
 
       await setDoc(doc(db, "users", newUid), {
         uid:        newUid,
         role:       "admin",
-        full_name:  form.full_name.trim(),
-        email:      form.email.trim(),
+        full_name:  full_name.trim(),
+        email:      email.trim(),
         phone:      form.phone.trim()    || null,
         birthday:   form.birthday.trim() || null,
         staff_type: form.staff_type,
         createdAt:  serverTimestamp(),
       });
 
-      console.log("ADMIN CREATE: success for", email.trim());
       resetForm();
       setView("list");
     } catch (e: any) {
@@ -163,41 +173,48 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
           : e.message || "Failed to create admin account.",
       );
     } finally {
+      if (secondaryApp) {
+        try { await deleteApp(secondaryApp); } catch { /* cleanup */ }
+      }
       setSaving(false);
     }
   };
 
-  // ── Delete admin (double confirmation) ────────────────────────────────────
+  // ── Delete admin (double confirmation matches old working implementation) ──
   const handleDelete = (admin: AdminUser) => {
     Alert.alert(
-      "Are you sure?",
-      `Remove ${admin.full_name} as admin?`,
+      "Delete Admin",
+      `Are you sure you want to remove ${admin.full_name} as an admin?`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Continue",
           style: "destructive",
-          onPress: () =>
+          onPress: () => {
             Alert.alert(
-              "Delete Permanently?",
-              `This will permanently remove ${admin.full_name}. This cannot be undone.`,
+              "⚠️ Final Confirmation",
+              `This will permanently delete ${admin.full_name}'s admin account. This cannot be undone.`,
               [
                 { text: "Cancel", style: "cancel" },
                 {
                   text: "Delete Permanently",
                   style: "destructive",
                   onPress: async () => {
+                    setDeletingId(admin.uid);
                     try {
-                      console.log("ADMIN DELETE:", admin.uid);
                       await deleteDoc(doc(db, "users", admin.uid));
+                      Alert.alert("Deleted", `${admin.full_name} has been removed.`);
                     } catch (e: any) {
                       console.error("ADMIN DELETE ERROR:", e.message);
-                      Alert.alert("Error", "Could not delete admin. Please try again.");
+                      Alert.alert("Error", e.message || "Could not delete admin.");
+                    } finally {
+                      setDeletingId(null);
                     }
                   },
                 },
               ],
-            ),
+            );
+          },
         },
       ],
     );
