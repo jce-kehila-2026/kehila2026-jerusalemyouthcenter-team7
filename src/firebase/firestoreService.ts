@@ -1,12 +1,12 @@
 import {
-    addDoc,
-    collection,
-    deleteDoc,
-    doc,
-    getDoc,
-    getDocs,
-    query,
-    where,
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { QuestionnaireTemplate, Response } from "./interfaces";
@@ -109,7 +109,7 @@ export async function restoreOldForms() {
       title: "Event Registration: Shabbat Dinner",
       description: "Register for the upcoming Shabbat dinner.",
       date: "2026-04-20",
-      target_audience: "both",
+      target_audience: "singer",
       questions: [
         {
           id: "q1",
@@ -123,7 +123,7 @@ export async function restoreOldForms() {
       title: "Program Feedback - Spring 2026",
       description: "Help us improve our programs.",
       date: "2026-04-25",
-      target_audience: "both",
+      target_audience: "singer",
       questions: [
         {
           id: "q1",
