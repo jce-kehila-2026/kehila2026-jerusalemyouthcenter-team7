@@ -1,5 +1,16 @@
+import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import {
+  collection,
+  doc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,17 +27,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { db } from "@/src/firebase/firebase";
-import {
-  collection,
-  doc,
-  getDocs,
-  query,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  where,
-} from "firebase/firestore";
 import { useAuth, UserType } from "../../src/context/AuthContext";
 import {
   Group,
@@ -89,20 +89,24 @@ const VOICE_FILTERS = [
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 export default function StudentsListScreen() {
-  const router   = useRouter();
+  const router = useRouter();
   const { user } = useAuth();
   const { action } = useLocalSearchParams<{ action?: string }>();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedYearFilter, setSelectedYearFilter] = useState<string | null>(null);
-  const [selectedVoiceFilter, setSelectedVoiceFilter] = useState<string | null>(null);
+  const [selectedYearFilter, setSelectedYearFilter] = useState<string | null>(
+    null,
+  );
+  const [selectedVoiceFilter, setSelectedVoiceFilter] = useState<string | null>(
+    null,
+  );
   const [studentsList, setStudentsList] = useState<StudentWithVoice[]>([]);
-  const [groupsList, setGroupsList]     = useState<Group[]>([]);
-  const [loading, setLoading]           = useState(true);
+  const [groupsList, setGroupsList] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // ── Join Requests state ───────────────────────────────────────────────────
   const [joinRequestsVisible, setJoinRequestsVisible] = useState(false);
-  const [joinRequests, setJoinRequests]               = useState<JoinRequest[]>([]);
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [joinRequestsLoading, setJoinRequestsLoading] = useState(false);
 
   // ── Data fetching ────────────────────────────────────────────────────────
@@ -191,49 +195,37 @@ export default function StudentsListScreen() {
 
   // ── Reject handler ────────────────────────────────────────────────────────
   const handleReject = (request: JoinRequest) => {
-    Alert.alert(
-      "Reject Request",
+    const confirmed = window.confirm(
       `Are you sure you want to reject ${request.full_name}'s join request?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reject",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              console.log("REJECT: rejecting", request.full_name, request.uid);
-              const phoneDigits = request.phone.replace(/\D/g, "");
-
-              // Save rejection record so they cannot re-register
-              await setDoc(doc(db, "join_requests", phoneDigits), {
-                uid: request.uid,
-                full_name: request.full_name,
-                phone: request.phone,
-                email: request.email,
-                status: "rejected",
-                rejectedAt: serverTimestamp(),
-              });
-
-              // Mark user as rejected
-              await updateDoc(doc(db, "users", request.uid), {
-                role: "rejected",
-                status: "rejected",
-              });
-
-              setJoinRequests((prev) =>
-                prev.filter((r) => r.uid !== request.uid),
-              );
-            } catch (e: any) {
-              console.error("REJECT ERROR:", e.message);
-              Alert.alert(
-                "Error",
-                "Could not reject the request. Please try again.",
-              );
-            }
-          },
-        },
-      ],
     );
+
+    if (!confirmed) return;
+
+    (async () => {
+      try {
+        console.log("REJECT: rejecting", request.full_name, request.uid);
+        const phoneDigits = request.phone.replace(/\D/g, "");
+
+        await setDoc(doc(db, "join_requests", phoneDigits), {
+          uid: request.uid,
+          full_name: request.full_name,
+          phone: request.phone,
+          email: request.email,
+          status: "rejected",
+          rejectedAt: serverTimestamp(),
+        });
+
+        await updateDoc(doc(db, "users", request.uid), {
+          role: "rejected",
+          status: "rejected",
+        });
+
+        setJoinRequests((prev) => prev.filter((r) => r.uid !== request.uid));
+      } catch (e: any) {
+        console.error("REJECT ERROR:", e.message);
+        window.alert("Could not reject the request. Please try again.");
+      }
+    })();
   };
 
   // ── Filtering ─────────────────────────────────────────────────────────────
@@ -315,10 +307,14 @@ export default function StudentsListScreen() {
   // ── Helpers ───────────────────────────────────────────────────────────────
   const getGroupColor = (groupName: string): string => {
     switch (groupName) {
-      case "Year 1": return ds.yellow;
-      case "Year 2": return ds.red;
-      case "Year 3": return ds.purple;
-      default:       return ds.teal;
+      case "Year 1":
+        return ds.yellow;
+      case "Year 2":
+        return ds.red;
+      case "Year 3":
+        return ds.purple;
+      default:
+        return ds.teal;
     }
   };
 
@@ -362,7 +358,11 @@ export default function StudentsListScreen() {
             <View
               style={[
                 s.avatar,
-                { backgroundColor: ds.bg, borderColor: ds.border, borderWidth: 1 },
+                {
+                  backgroundColor: ds.bg,
+                  borderColor: ds.border,
+                  borderWidth: 1,
+                },
               ]}
             >
               <Text style={[s.avatarText, { color: ds.text }]}>{initials}</Text>
@@ -488,7 +488,9 @@ export default function StudentsListScreen() {
           <View style={s.empty}>
             <Ionicons name="people-outline" size={48} color={ds.border} />
             <Text style={s.emptyText}>
-              {searchQuery ? "No students match your search" : "No students found"}
+              {searchQuery
+                ? "No students match your search"
+                : "No students found"}
             </Text>
           </View>
         ) : (
@@ -554,7 +556,9 @@ export default function StudentsListScreen() {
                   size={48}
                   color={ds.muted}
                 />
-                <Text style={s.emptyRequestsText}>No pending join requests</Text>
+                <Text style={s.emptyRequestsText}>
+                  No pending join requests
+                </Text>
               </View>
             ) : (
               <ScrollView
