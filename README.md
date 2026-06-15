@@ -6,13 +6,13 @@ This project is developed for the Jerusalem Youth Center, an organization that w
 
 ## Team Members
 
-| Name | Role |
-|------|------|
-| Rania Shqerat | Full Stack Developer :Events, Attendance, Calendar & Music Library (UI + Firebase Integration) |
-| Hadeel Shehadeh | Full Stack Developer :Student Management Module (UI + Firebase Integration) |
-| Afnan Rabeih | Full Stack Developer : Authentication (Login & Signup) (UI + Firebase Integration) |
-| Mahmoud Masri | Full Stack Developer :Forms Module (UI + Firebase Integration) |
-| George Abo Saeed | Full Stack Developer : Dashboard, Notifications & Statistics (UI + Firebase Integration) |
+| Name             | Role                                                                                           |
+| ---------------- | ---------------------------------------------------------------------------------------------- |
+| Rania Shqerat    | Full Stack Developer :Events, Attendance, Calendar & Music Library (UI + Firebase Integration) |
+| Hadeel Shehadeh  | Full Stack Developer :Student Management Module (UI + Firebase Integration)                    |
+| Afnan Rabeih     | Full Stack Developer : Authentication (Login & Signup) (UI + Firebase Integration)             |
+| Mahmoud Masri    | Full Stack Developer :Forms Module (UI + Firebase Integration)                                 |
+| George Abo Saeed | Full Stack Developer : Dashboard, Notifications & Statistics (UI + Firebase Integration)       |
 
 ---
 
@@ -24,34 +24,36 @@ A cross-platform mobile app (iOS / Android / Web) for managing the Jerusalem You
 
 ## Tech Stack
 
-| Technology | Purpose |
-|------------|---------|
-| React Native + Expo | Mobile framework |
-| Expo Router | File-based navigation |
-| Firebase Auth | Authentication |
-| Cloud Firestore | Database |
-| Firebase Storage | File storage |
+| Technology              | Purpose               |
+| ----------------------- | --------------------- |
+| React Native + Expo     | Mobile framework      |
+| Expo Router             | File-based navigation |
+| Firebase Auth           | Authentication        |
+| Cloud Firestore         | Database              |
+| Firebase Storage        | File storage          |
 | TypeScript / JavaScript | Programming languages |
 
 ---
 
-##  Roles
+## Roles
 
 ### Admin
+
 - Manage events (create, edit, delete)
 - Mark and save attendance
 - Upload materials to Music Library
 - View Calendar with event dots
-- Manage students
+- Manage singers (users with role "singer")
 
-### Student
+### Singer (Student)
+
 - View upcoming events (by year group)
 - View Calendar
 - Access Music Library materials
 
 ---
 
-##  Project Structure
+## Project Structure
 
 ```
 mobile-app/
@@ -137,16 +139,15 @@ mobile-app/
 
 ---
 
-##  Firebase Collections
+## Firebase Collections
 
-| Collection | Description |
-|-----------|-------------|
-| `events` | Choir events — title, date, time, location, group |
-| `students` | Student profiles — name, phone, year, group_id |
-| `admins` | Admin profiles — name, email, role |
-| `attendance` | Attendance records per event |
-| `library` | Music library — files (Firebase Storage) + YouTube links |
-| `forms` | Forms and surveys |
+| Collection   | Description                                                                          |
+| ------------ | ------------------------------------------------------------------------------------ |
+| `events`     | Choir events — title, date, time, location, group                                    |
+| `users`      | Unified user profiles (Singers, Admins, Join Requests) — name, role, phone, group_id |
+| `attendance` | Attendance records per event                                                         |
+| `library`    | Music library — files (Firebase Storage) + YouTube links                             |
+| `forms`      | Forms and surveys                                                                    |
 
 ---
 
@@ -154,31 +155,33 @@ mobile-app/
 
 ### Colors — 60/30/10 Rule
 
-| Color | HEX | Usage |
-|-------|-----|-------|
+| Color          | HEX       | Usage                          |
+| -------------- | --------- | ------------------------------ |
 | Teal (Primary) | `#039899` | Headers, buttons, badges — 30% |
-| White / Light | `#f5fafe` | Background, cards — 60% |
-| Red (Accent) | `#c56451` | Delete, Year 2 — 10% |
-| Yellow | `#cfad5d` | Attendance, Year 1 |
-| Purple | `#6b5ce7` | Year 3 |
+| White / Light  | `#f5fafe` | Background, cards — 60%        |
+| Red (Accent)   | `#c56451` | Delete, Year 2 — 10%           |
+| Yellow         | `#cfad5d` | Attendance, Year 1             |
+| Purple         | `#6b5ce7` | Year 3                         |
 
 ### Spacing
+
 All spacing uses multiples of 8px: `8, 16, 24, 32...`
 
 ### Typography
 
-| Element | Size | Weight |
-|---------|------|--------|
-| Page Title | 32px | 900 |
-| Card Title | 18px | 800 |
-| Body | 15px | 400 |
-| Badge | 11px | 700 |
+| Element    | Size | Weight |
+| ---------- | ---- | ------ |
+| Page Title | 32px | 900    |
+| Card Title | 18px | 800    |
+| Body       | 15px | 400    |
+| Badge      | 11px | 700    |
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
+
 - Node.js 18+
 - Expo CLI
 - Expo Go app (for mobile testing)
@@ -201,9 +204,10 @@ npx expo start
 
 ---
 
-##  Features
+## Features
 
 ### Events Module
+
 - Create, edit, delete events
 - Filter by year group (Year 1, 2, 3, All Groups)
 - Date format: DD/MM/YYYY
@@ -211,17 +215,20 @@ npx expo start
 - List + Calendar toggle view
 
 ### Attendance Module
+
 - Mark students: On Time, Late, Absent, School Trip, Sick
 - Save attendance to Firestore
 - Load previously saved attendance
 - Statistics counter per status
 
 ### Calendar Module
+
 - Integrated inside Events screen (no separate tab)
 - Color-coded dots per group
 - Click on date to filter events
 
 ### Music Library
+
 - Upload files to Firebase Storage (PDF, MP3, ZIP, images, etc.)
 - Add YouTube links with group assignment
 - Filter by year group (Admin only)
@@ -229,7 +236,7 @@ npx expo start
 
 ---
 
-##  Security
+## Security
 
 - Firebase Auth required for all operations
 - Firestore rules enforce role-based access
@@ -238,14 +245,13 @@ npx expo start
 
 ---
 
-##  Test Plan
+## Test Plan
 
-| TC | Module | Description | Status |
-|----|--------|-------------|--------|
-| TC-01 | Events | Add new event with valid data | Pass |
-| TC-02 | Attendance | Mark and save attendance | Pass |
-| TC-03 | Calendar | Event dots appear on correct dates | Pass |
-| TC-04 | Library | Admin uploads file to Music Library | Pass |
+| TC    | Module     | Description                         | Status |
+| ----- | ---------- | ----------------------------------- | ------ |
+| TC-01 | Events     | Add new event with valid data       | Pass   |
+| TC-02 | Attendance | Mark and save attendance            | Pass   |
+| TC-03 | Calendar   | Event dots appear on correct dates  | Pass   |
+| TC-04 | Library    | Admin uploads file to Music Library | Pass   |
 
 ---
-

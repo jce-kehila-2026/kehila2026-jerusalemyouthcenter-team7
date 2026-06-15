@@ -44,20 +44,22 @@ app/
 ### Auth & roles
 
 `src/context/AuthContext.tsx` is the single source of truth for the session.
-- Two roles: `"student"` and `"admin"`. Students log in with phone number (mapped to `<digits>@kehila.app`); admins use email directly.
+
+- Two main roles: `"singer"` and `"admin"`. Singers log in with phone number (mapped to `<digits>@kehila.app`); admins use email directly.
 - `useAuth()` exposes `{ user, isAuthenticated, isLoading, login, signupStudent, logout }`.
 - `user.role` drives every conditional branch in the UI (admin sees full CRUD; students see their own data).
-- Firebase Auth UID is the document ID in both the `students` and `admins` Firestore collections.
+- Firebase Auth UID is the document ID in the `users` Firestore collection.
 
 ### Firebase
 
 `src/firebase/firebase.ts` initialises the app and exports `db` (Firestore) and `auth` (Firebase Auth). Always import from there, never re-initialise.
 
-Firestore collections in use: `students`, `admins`, `events`, `event_students`, `forms`, `attendance`, `notifications`, `messages`, `groups`.
+Firestore collections in use: `users`, `events`, `event_students`, `forms`, `attendance`, `notifications`, `messages`, `groups`.
 
 ### Data layer
 
 Services in `src/data/` wrap Firestore operations:
+
 - `studentService.ts` — CRUD for students and groups
 - `notificationService.ts` — real-time `onSnapshot` subscription + `markRead`
 - `messageService.ts` — real-time messaging subscription
@@ -71,6 +73,7 @@ For screens that still use mock data fallbacks, mock data lives in `src/data/moc
 All screens use `StyleSheet.create()` — no Tailwind or CSS modules.
 
 `constants/theme.ts` exports:
+
 - `AppColors` — brand palette (`primary`, `secondary`, `success`, `danger`, `warning`, `purple` + light variants)
 - `Colors` — light/dark token maps (`text`, `subtext`, `background`, `card`, `border`, `icon`, `tint`, `tabIcon*`)
 - `Fonts` — platform-specific font stacks

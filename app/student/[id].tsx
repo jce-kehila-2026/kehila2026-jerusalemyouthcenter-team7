@@ -5,7 +5,6 @@ import {
   attendance as mockAttendance,
   events as mockEvents,
   groups as mockGroups,
-  students as mockStudents,
   Student,
 } from "@/src/data/mockData";
 import { studentService } from "@/src/data/studentService";
@@ -74,18 +73,12 @@ export default function StudentDetailScreen() {
           studentService.getGroups(),
         ]);
 
-        if (foundStudent) {
-          setStudent(foundStudent);
-          setGroups(allGroups.length > 0 ? allGroups : mockGroups);
-        } else {
-          // Fallback to check mock data if not in DB
-          setStudent(mockStudents.find((s) => s.id === id) || null);
-          setGroups(allGroups.length > 0 ? allGroups : mockGroups);
-        }
+        setStudent(foundStudent);
+        setGroups(allGroups.length > 0 ? allGroups : mockGroups);
       } catch (error) {
         console.error("Error fetching student details:", error);
-        setStudent(mockStudents.find((s) => s.id === id) || null);
-        setGroups(mockGroups);
+        setStudent(null);
+        setGroups([]);
       } finally {
         setInitialLoading(false);
         setLoading(false);
