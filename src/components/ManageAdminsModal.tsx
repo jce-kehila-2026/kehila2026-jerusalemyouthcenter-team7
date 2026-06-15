@@ -1,3 +1,5 @@
+import { useAuth } from "@/src/context/AuthContext";
+import { db, secondaryAuth } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import {
@@ -22,35 +24,32 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { db, secondaryAuth } from "@/src/firebase/firebase";
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 const C = {
-  teal:       "#039899",
-  tealLight:  "#e0f5f5",
-  red:        "#c56451",
-  purple:     "#6b5ce7",
-  dark:       "#1a1a2e",
-  sub:        "#5a6a7a",
-  muted:      "#9aa8b4",
-  border:     "#e8eef2",
-  bg:         "#f5fafe",
-  white:      "#ffffff",
+  teal: "#039899",
+  tealLight: "#e0f5f5",
+  red: "#c56451",
+  purple: "#6b5ce7",
+  dark: "#1a1a2e",
+  sub: "#5a6a7a",
+  muted: "#9aa8b4",
+  border: "#e8eef2",
+  bg: "#f5fafe",
+  white: "#ffffff",
 } as const;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type StaffType = "administrative" | "educational";
-
 type AdminUser = {
   uid: string;
   full_name: string;
   email: string;
   phone?: string | null;
   birthday?: string | null;
-  staff_type?: StaffType | null;
 };
 
 type AdminForm = {
@@ -59,28 +58,27 @@ type AdminForm = {
   password: string;
   phone: string;
   birthday: string;
-  staff_type: StaffType;
 };
 
 const EMPTY_FORM: AdminForm = {
-  full_name:  "",
-  email:      "",
-  password:   "",
-  phone:      "",
-  birthday:   "",
-  staff_type: "administrative",
+  full_name: "",
+  email: "",
+  password: "",
+  phone: "",
+  birthday: "",
 };
 
 type Props = { visible: boolean; onClose: () => void };
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function ManageAdminsModal({ visible, onClose }: Props) {
-  const [view, setView]             = useState<"list" | "form">("list");
-  const [admins, setAdmins]         = useState<AdminUser[]>([]);
+  const { user: currentUser } = useAuth();
+  const [view, setView] = useState<"list" | "form">("list");
+  const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [listLoading, setListLoading] = useState(true);
-  const [form, setForm]             = useState<AdminForm>(EMPTY_FORM);
-  const [saving, setSaving]         = useState(false);
-  const [error, setError]           = useState("");
+  const [form, setForm] = useState<AdminForm>(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   // ── Live admin list via onSnapshot ─────────────────────────────────────────
   useEffect(() => {
@@ -92,12 +90,11 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
       (snap) => {
         setAdmins(
           snap.docs.map((d) => ({
-            uid:        d.id,
-            full_name:  d.data().full_name  || "",
-            email:      d.data().email      || "",
-            phone:      d.data().phone      ?? null,
-            birthday:   d.data().birthday   ?? null,
-            staff_type: d.data().staff_type ?? null,
+            uid: d.id,
+            full_name: d.data().full_name || "",
+            email: d.data().email || "",
+            phone: d.data().phone ?? null,
+            birthday: d.data().birthday ?? null,
           })),
         );
         setListLoading(false);
@@ -110,7 +107,10 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
     return () => unsub();
   }, [visible]);
 
-  const resetForm = () => { setForm(EMPTY_FORM); setError(""); };
+  const resetForm = () => {
+    setForm(EMPTY_FORM);
+    setError("");
+  };
 
   const handleClose = () => {
     setView("list");
@@ -125,8 +125,9 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
   const handleSave = async () => {
     const { full_name, email, password } = form;
     if (!full_name.trim()) return setError("Full name is required.");
-    if (!email.trim())     return setError("Email is required.");
-    if (password.length < 6) return setError("Password must be at least 6 characters.");
+    if (!email.trim()) return setError("Email is required.");
+    if (password.length < 6)
+      return setError("Password must be at least 6 characters.");
 
     setSaving(true);
     setError("");
@@ -142,14 +143,13 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
       await signOut(secondaryAuth); // clean up secondary session
 
       await setDoc(doc(db, "users", newUid), {
-        uid:        newUid,
-        role:       "admin",
-        full_name:  form.full_name.trim(),
-        email:      form.email.trim(),
-        phone:      form.phone.trim()    || null,
-        birthday:   form.birthday.trim() || null,
-        staff_type: form.staff_type,
-        createdAt:  serverTimestamp(),
+        uid: newUid,
+        role: "admin",
+        full_name: form.full_name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim() || null,
+        birthday: form.birthday.trim() || null,
+        createdAt: serverTimestamp(),
       });
 
       console.log("ADMIN CREATE: success for", email.trim());
@@ -169,38 +169,55 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
 
   // ── Delete admin (double confirmation) ────────────────────────────────────
   const handleDelete = (admin: AdminUser) => {
-    Alert.alert(
-      "Are you sure?",
-      `Remove ${admin.full_name} as admin?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Continue",
-          style: "destructive",
-          onPress: () =>
-            Alert.alert(
-              "Delete Permanently?",
-              `This will permanently remove ${admin.full_name}. This cannot be undone.`,
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Delete Permanently",
-                  style: "destructive",
-                  onPress: async () => {
-                    try {
-                      console.log("ADMIN DELETE:", admin.uid);
-                      await deleteDoc(doc(db, "users", admin.uid));
-                    } catch (e: any) {
-                      console.error("ADMIN DELETE ERROR:", e.message);
-                      Alert.alert("Error", "Could not delete admin. Please try again.");
-                    }
-                  },
-                },
-              ],
-            ),
-        },
-      ],
-    );
+    const currentUserId = currentUser?.uid || (currentUser as any)?.id; // Robust check for current user's UID
+    if (currentUserId === admin.uid) {
+      Alert.alert("Action Denied", "You cannot delete your own admin account.");
+      return;
+    }
+
+    const performDelete = async () => {
+      try {
+        console.log("ADMIN DELETE START:", admin.uid);
+        await deleteDoc(doc(db, "users", admin.uid));
+        console.log("ADMIN DELETE SUCCESS:", admin.uid);
+        // The list updates automatically because of the onSnapshot listener
+      } catch (e: any) {
+        console.error("ADMIN DELETE ERROR:", e.message);
+        const msg =
+          e.code === "permission-denied"
+            ? "Permission denied. Check your Firestore Security Rules."
+            : e.message || "Unknown error occurred.";
+        Alert.alert("Deletion Failed", msg);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      // Native Alert.alert doesn't always work on Web browsers
+      if (
+        window.confirm(
+          `Are you sure you want to permanently remove ${admin.full_name}?`,
+        )
+      ) {
+        performDelete();
+      }
+    } else {
+      // Use a small timeout to ensure the Alert appears correctly over the Modal on Mobile
+      setTimeout(() => {
+        Alert.alert(
+          "Confirm Deletion",
+          `Are you sure you want to permanently remove ${admin.full_name} as an administrator?`,
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Delete Permanently",
+              style: "destructive",
+              onPress: performDelete,
+            },
+          ],
+          { cancelable: true },
+        );
+      }, 100);
+    }
   };
 
   // ── List view ─────────────────────────────────────────────────────────────
@@ -213,7 +230,10 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
         <Text style={s.headerTitle}>Manage Admins</Text>
         <Pressable
           style={s.addChip}
-          onPress={() => { resetForm(); setView("form"); }}
+          onPress={() => {
+            resetForm();
+            setView("form");
+          }}
         >
           <Ionicons name="add" size={18} color={C.teal} />
           <Text style={s.addChipText}>Add</Text>
@@ -226,7 +246,11 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
         showsVerticalScrollIndicator={false}
       >
         {listLoading ? (
-          <ActivityIndicator color={C.teal} size="large" style={{ marginTop: 48 }} />
+          <ActivityIndicator
+            color={C.teal}
+            size="large"
+            style={{ marginTop: 48 }}
+          />
         ) : admins.length === 0 ? (
           <View style={s.emptyBox}>
             <Ionicons name="shield-outline" size={52} color={C.muted} />
@@ -246,39 +270,14 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
                 {admin.phone ? (
                   <Text style={s.adminMeta}>📞 {admin.phone}</Text>
                 ) : null}
-                {admin.staff_type ? (
-                  <View
-                    style={[
-                      s.staffBadge,
-                      {
-                        backgroundColor:
-                          admin.staff_type === "administrative"
-                            ? C.tealLight
-                            : "#ede9fb",
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        s.staffBadgeText,
-                        {
-                          color:
-                            admin.staff_type === "administrative"
-                              ? C.teal
-                              : C.purple,
-                        },
-                      ]}
-                    >
-                      {admin.staff_type === "administrative"
-                        ? "Administrative"
-                        : "Educational"}
-                    </Text>
-                  </View>
-                ) : null}
               </View>
-              <Pressable onPress={() => handleDelete(admin)} hitSlop={8} style={{ padding: 8 }}>
+              <TouchableOpacity
+                onPress={() => handleDelete(admin)}
+                hitSlop={20}
+                style={{ padding: 10 }}
+              >
                 <Ionicons name="trash-outline" size={20} color={C.red} />
-              </Pressable>
+              </TouchableOpacity>
             </View>
           ))
         )}
@@ -290,7 +289,13 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
   const renderForm = () => (
     <>
       <View style={s.header}>
-        <Pressable onPress={() => { setView("list"); resetForm(); }} hitSlop={12}>
+        <Pressable
+          onPress={() => {
+            setView("list");
+            resetForm();
+          }}
+          hitSlop={12}
+        >
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </Pressable>
         <Text style={s.headerTitle}>Add New Admin</Text>
@@ -363,26 +368,6 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
             placeholderTextColor={C.muted}
           />
 
-          <FieldLabel text="Staff Type" />
-          <View style={s.pillRow}>
-            {(["administrative", "educational"] as StaffType[]).map((type) => (
-              <Pressable
-                key={type}
-                style={[s.pill, form.staff_type === type && s.pillActive]}
-                onPress={() => setForm((p) => ({ ...p, staff_type: type }))}
-              >
-                <Text
-                  style={[
-                    s.pillText,
-                    form.staff_type === type && s.pillTextActive,
-                  ]}
-                >
-                  {type === "administrative" ? "Administrative" : "Educational"}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
           <Pressable
             style={[s.saveBtn, saving && { opacity: 0.6 }]}
             onPress={handleSave}
@@ -401,7 +386,10 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: C.white }} edges={["top"]}>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: C.white }}
+        edges={["top"]}
+      >
         {view === "list" ? renderList() : renderForm()}
       </SafeAreaView>
     </Modal>
@@ -429,7 +417,13 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  headerTitle: { color: "#fff", fontSize: 18, fontWeight: "700", flex: 1, textAlign: "center" },
+  headerTitle: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    flex: 1,
+    textAlign: "center",
+  },
   addChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -442,7 +436,7 @@ const s = StyleSheet.create({
   addChipText: { color: C.teal, fontSize: 13, fontWeight: "700" },
 
   // Empty
-  emptyBox:  { alignItems: "center", paddingTop: 64, gap: 12 },
+  emptyBox: { alignItems: "center", paddingTop: 64, gap: 12 },
   emptyText: { color: C.muted, fontSize: 15 },
 
   // Admin card
@@ -466,9 +460,14 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   adminInitial: { fontSize: 20, fontWeight: "700", color: C.teal },
-  adminName:    { fontSize: 15, fontWeight: "700", color: C.dark, marginBottom: 2 },
-  adminEmail:   { fontSize: 13, color: C.sub },
-  adminMeta:    { fontSize: 12, color: C.muted, marginTop: 2 },
+  adminName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: C.dark,
+    marginBottom: 2,
+  },
+  adminEmail: { fontSize: 13, color: C.sub },
+  adminMeta: { fontSize: 12, color: C.muted, marginTop: 2 },
   staffBadge: {
     alignSelf: "flex-start",
     paddingHorizontal: 8,
@@ -521,8 +520,8 @@ const s = StyleSheet.create({
     alignItems: "center",
     backgroundColor: C.bg,
   },
-  pillActive:     { backgroundColor: C.teal, borderColor: C.teal },
-  pillText:       { fontSize: 13, fontWeight: "600", color: C.sub },
+  pillActive: { backgroundColor: C.teal, borderColor: C.teal },
+  pillText: { fontSize: 13, fontWeight: "600", color: C.sub },
   pillTextActive: { color: "#fff" },
 
   // Save button
