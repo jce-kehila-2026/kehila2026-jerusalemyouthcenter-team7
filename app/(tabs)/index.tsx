@@ -1,5 +1,6 @@
 import { NotificationBell } from "@/src/components/NotificationBell";
 import { ManageAdminsModal } from "@/src/components/ManageAdminsModal";
+import { JoinRequestsModal } from "@/src/components/JoinRequestsModal";
 import { useAuth } from "@/src/context/AuthContext";
 import { FirestoreMsg, messageService } from "@/src/data/messageService";
 import { notificationService } from "@/src/data/notificationService";
@@ -270,7 +271,8 @@ export default function DashboardScreen() {
   const [eventList, setEventList]           = useState<DashEvent[]>([]);
   const [notifList, setNotifList]           = useState<DashNotif[]>([]);
   const [myEventIds, setMyEventIds]         = useState<string[]>([]);
-  const [manageAdminsOpen, setManageAdminsOpen] = useState(false);
+  const [manageAdminsOpen,   setManageAdminsOpen]   = useState(false);
+  const [joinRequestsOpen,   setJoinRequestsOpen]   = useState(false);
 
   const now            = new Date();
   const upcomingEvents = eventList
@@ -374,7 +376,7 @@ export default function DashboardScreen() {
             </View>
           </View>
           <Text style={st.headerWelcome}>Welcome back</Text>
-          <Text style={st.headerTitle}>Dashboard</Text>
+          <Text style={st.headerTitle}>{user?.full_name ?? "Dashboard"}</Text>
           <Text style={st.headerDate}>{todayString()}</Text>
         </View>
 
@@ -439,9 +441,7 @@ export default function DashboardScreen() {
                 valueColor={ORANGE}
                 subColor={ORANGE}
                 icon="person-add-outline"
-                onPress={() =>
-                  router.push("/(tabs)/students?action=join-requests" as any)
-                }
+                onPress={() => setJoinRequestsOpen(true)}
                 last
               />
             </View>
@@ -506,6 +506,12 @@ export default function DashboardScreen() {
         <ManageAdminsModal
           visible={manageAdminsOpen}
           onClose={() => setManageAdminsOpen(false)}
+        />
+
+        {/* ── Join Requests Modal ───────────────────────────────────── */}
+        <JoinRequestsModal
+          visible={joinRequestsOpen}
+          onClose={() => setJoinRequestsOpen(false)}
         />
       </View>
     );

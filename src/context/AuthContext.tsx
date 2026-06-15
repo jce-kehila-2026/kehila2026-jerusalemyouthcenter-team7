@@ -28,6 +28,7 @@ export type UserType = {
   voice_type?: string | null;
   current_year_id?: number | null;
   group_id?: string | null;
+  mustChangePassword?: boolean;
 };
 
 export type StudentSignupPayload = {
@@ -124,6 +125,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
                     : d.year !== undefined && d.year !== null
                       ? Number(d.year)
                       : null,
+                mustChangePassword: d.mustChangePassword ?? false,
               });
             }
           } else {
@@ -161,15 +163,10 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         }
 
         // Fast-path rejection check before Auth call
-        const rejectedDoc = await getDoc(
-          doc(db, "join_requests", singerPhone),
-        );
+        const rejectedDoc = await getDoc(doc(db, "rejection", singerPhone));
         if (rejectedDoc.exists()) {
-          const rd = rejectedDoc.data();
-          if (rd.status === "rejected") {
-            console.log("LOGIN: phone is rejected");
-            return "rejected";
-          }
+          console.log("LOGIN: phone is in rejection list");
+          return "rejected";
         }
 
         email = phoneToEmail(singerPhone);
@@ -220,6 +217,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
               : d.year !== undefined && d.year !== null
                 ? Number(d.year)
                 : null,
+          mustChangePassword: d.mustChangePassword ?? false,
         });
         return true;
       } else {
@@ -279,6 +277,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
                     : d.year !== undefined && d.year !== null
                       ? Number(d.year)
                       : null,
+                mustChangePassword: d.mustChangePassword ?? false,
               });
               return true;
             } else {
@@ -308,11 +307,8 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
       const phoneDigits = fields.phone.replace(/\D/g, "");
 
       // Block re-registration for previously rejected phones
-      const rejectedDoc = await getDoc(doc(db, "join_requests", phoneDigits));
-      if (
-        rejectedDoc.exists() &&
-        rejectedDoc.data().status === "rejected"
-      ) {
+      const rejectedDoc = await getDoc(doc(db, "rejection", phoneDigits));
+      if (rejectedDoc.exists()) {
         console.log("SIGNUP: phone previously rejected");
         isSigningUpRef.current = false;
         return "rejected";
