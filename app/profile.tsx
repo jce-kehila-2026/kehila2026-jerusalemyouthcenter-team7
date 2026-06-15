@@ -2,17 +2,12 @@ import { useAuth } from "@/src/context/AuthContext";
 import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { useRouter } from "expo-router";
-import {
-  doc,
-  getDoc,
-  updateDoc
-} from "firebase/firestore";
+import { Stack, useRouter } from "expo-router";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,92 +16,74 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// ── الألوان الرسمية للتطبيق ──────────────────────────────────────────────────────────
-const themeColors = {
+// ── Design System ─────────────────────────────────────────────────────────────
+const ds = {
   teal: "#039899",
   red: "#c56451",
-  yellow: "#cfad5d",
-  bluishWhite: "#f5fafe",
-  charcoal: "#353535",
   white: "#ffffff",
-  gray: "#f0f0f0",
-  textMuted: "#687076",
-};
+  bg: "#f5fafe",
+  text: "#1a1a2e",
+  subtext: "#5a6a7a",
+  border: "#e8eef2",
+} as const;
 
+// ── Sub-components ────────────────────────────────────────────────────────────
 const ProfileAvatar = ({
   name,
   url,
-  allowEdit,
   onPress,
   uploading,
 }: {
   name: string;
   url?: string | null;
-  allowEdit: boolean;
   onPress: () => void;
   uploading: boolean;
-}) => {
-  return (
-    <TouchableOpacity
-      style={styles.avatarContainer}
-      onPress={onPress}
-      disabled={!allowEdit || uploading}
-    >
-      {uploading ? (
-        <View style={[styles.avatarImage, styles.avatarPlaceholder]}>
-          <ActivityIndicator color={themeColors.white} />
-        </View>
-      ) : url ? (
-        <Image source={{ uri: url }} style={styles.avatarImage} />
-      ) : (
-        <View style={[styles.avatarImage, styles.avatarPlaceholder]}>
-          <Text style={styles.avatarInitial}>
-            {name.charAt(0).toUpperCase()}
-          </Text>
-        </View>
-      )}
-      {allowEdit && (
-        <View style={styles.editAvatarBtn}>
-          <Ionicons name="camera" size={16} color={themeColors.white} />
-        </View>
-      )}
-    </TouchableOpacity>
-  );
-};
-// 2. مكون صف المعلومات (Info Row)
+}) => (
+  <TouchableOpacity
+    style={s.avatarWrap}
+    onPress={onPress}
+    activeOpacity={0.85}
+    disabled={uploading}
+  >
+    {uploading ? (
+      <View style={[s.avatar, s.avatarPlaceholder]}>
+        <ActivityIndicator color={ds.white} />
+      </View>
+    ) : url ? (
+      <Image source={{ uri: url }} style={s.avatar} />
+    ) : (
+      <View style={[s.avatar, s.avatarPlaceholder]}>
+        <Text style={s.avatarInitial}>{name.charAt(0).toUpperCase()}</Text>
+      </View>
+    )}
+    <View style={s.cameraBtn}>
+      <Ionicons name="camera" size={15} color={ds.white} />
+    </View>
+  </TouchableOpacity>
+);
+
 const InfoRow = ({
   icon,
   label,
   value,
-  showEdit,
   isLast,
 }: {
   icon: string;
   label: string;
   value: string | number;
-  showEdit?: boolean;
   isLast?: boolean;
 }) => (
-  <View style={[styles.infoRow, !isLast && styles.infoRowBorder]}>
-    <View style={styles.iconCircle}>
-      <Ionicons name={icon as any} size={22} color={themeColors.teal} />
+  <View style={[s.row, !isLast && s.rowBorder]}>
+    <View style={s.rowIcon}>
+      <Ionicons name={icon as any} size={20} color={ds.teal} />
     </View>
-    <View style={styles.infoTextContainer}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+    <View style={s.rowText}>
+      <Text style={s.rowLabel}>{label}</Text>
+      <Text style={s.rowValue}>{String(value)}</Text>
     </View>
-    {showEdit && (
-      <Pressable
-        onPress={() => alert(`Edit ${label}`)}
-        style={styles.inlineEditBtn}
-      >
-        <Ionicons name="pencil" size={16} color={themeColors.textMuted} />
-      </Pressable>
-    )}
   </View>
 );
 
-// 3. مكون البطاقة (Card Wrapper)
 const InfoCard = ({
   title,
   children,
@@ -114,391 +91,355 @@ const InfoCard = ({
   title: string;
   children: React.ReactNode;
 }) => (
-  <View style={styles.card}>
-    <Text style={styles.cardTitle}>{title}</Text>
-    <View style={styles.cardContent}>{children}</View>
+  <View style={s.card}>
+    <View style={s.cardBar} />
+    <View style={s.cardInner}>
+      <Text style={s.cardTitle}>{title}</Text>
+      {children}
+    </View>
   </View>
 );
 
-// ── الشاشة الرئيسية (Main Screen) ──────────────────────────────────────────────
-// ── الشاشة الرئيسية (Main Screen) ──────────────────────────────────────────────
+// ── Screen ────────────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
-  // 1. جلب بيانات المستخدم الحقيقي اللي مسجل دخول
   const { user, logout } = useAuth() as any;
   const router = useRouter();
   const [fullData, setFullData] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    const getFullData = async () => {
-      if (!user?.uid) return;
-      try {
-        // Use UID-based lookup from unified users collection
-        const snap = await getDoc(doc(db, "users", user.uid));
-        if (snap.exists()) {
-          setFullData(snap.data());
-        }
-      } catch (error) {
-        console.error("Error fetching full data:", error);
-      }
-    };
-    getFullData();
+    if (!user?.uid) return;
+    getDoc(doc(db, "users", user.uid))
+      .then((snap) => {
+        if (snap.exists()) setFullData(snap.data());
+      })
+      .catch(console.error);
   }, [user]);
 
   const handlePhotoUpdate = async () => {
-    try {
-      const permissionResult =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        alert("Permission to access media library is required!");
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.2, // Small file size for Base64 compatibility
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets && result.assets[0].base64) {
-        setUploading(true);
-        const base64Image = "data:image/jpeg;base64," + result.assets[0].base64;
-
-        // Update user document in unified users collection
-        if (user?.uid) {
-          const docRef = doc(db, "users", user.uid);
-          await updateDoc(docRef, { photoURL: base64Image });
-          setFullData((prev: any) => ({ ...prev, photoURL: base64Image }));
-        }
-        setUploading(false);
-      }
-    } catch (error) {
-      console.error("Error updating photo:", error);
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      alert("Permission to access media library is required!");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.2,
+      base64: true,
+    });
+    if (!result.canceled && result.assets?.[0]?.base64 && user?.uid) {
+      setUploading(true);
+      const base64Image = "data:image/jpeg;base64," + result.assets[0].base64;
+      await updateDoc(doc(db, "users", user.uid), { photoURL: base64Image });
+      setFullData((prev: any) => ({ ...prev, photoURL: base64Image }));
       setUploading(false);
     }
   };
 
-  // 2. فحص نوع المستخدم
-  const isViewingStudent = user?.role === "student";
-  const isViewingAdmin = user?.role === "admin" || user?.role === "staff";
-  const isOwner = true; // بما إنه فاتح بروفايله الشخصي، إذن هو المالك بيقدر يعدل
+  // ── Derived data ──────────────────────────────────────────────────────────
+  const isSinger = user?.role === "singer";
+  const isAdmin = user?.role === "admin";
 
-  // 3. تجهيز البيانات (عشان لو في معلومة ناقصة بالداتابيس ما يضرب التطبيق)
-  // Name
-  const profileName =
-    fullData?.full_name ||
-    fullData?.["full-name"] ||
-    user?.["full-name"] ||
-    "Unknown User";
-
-  // Role & Contact
-  const profileRole =
-    fullData?.role?.toUpperCase() || user?.role?.toUpperCase() || "STUDENT";
+  const profileName = fullData?.full_name || user?.full_name || "Unknown User";
+  const profileRole = isAdmin ? "ADMIN" : "SINGER";
   const profileEmail = fullData?.email || user?.email || "N/A";
   const profilePhone = fullData?.phone || user?.phone || "N/A";
-  const address =
-    fullData?.neighborhood || fullData?.address || user?.address || "N/A";
-
-  // Student Info
-  const age = fullData?.age || user?.age || "N/A";
-  const dob =
-    fullData?.birth_date ||
-    fullData?.date_of_birth ||
-    user?.date_of_birth ||
-    "N/A";
-  const studyYear =
-    fullData?.study_year || fullData?.year_joined || user?.study_year || "N/A";
+  const age = fullData?.age ?? "N/A";
+  const dob = fullData?.birth_date || "N/A";
+  const gender = fullData?.gender || "N/A";
+  const schoolName = fullData?.school_name || user?.school_name || "N/A";
   const voiceType = fullData?.voice_type || user?.voice_type || "N/A";
-
-  // Admin Info (fallback)
-  const jobTitle = fullData?.job_title || user?.job_title || "N/A";
-  const staffType = fullData?.staff_type || user?.staff_type || "N/A";
+  const shirtSize = fullData?.shirt_size || "N/A";
+  const yearJoined = fullData?.year_joined || user?.current_year_id || "N/A";
+  const neighborhood = fullData?.neighborhood || fullData?.address || "N/A";
+  const parentName = fullData?.parent_name || "N/A";
+  const parentPhone = fullData?.parent_phone || "N/A";
+  const jobTitle = fullData?.job_title || "N/A";
+  const staffType = fullData?.staff_type || "N/A";
+  const responsibleCategory =
+    fullData?.responsible_category || user?.responsible_category;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* ── قسم الترويسة والصورة ── */}
-        <View style={styles.headerSection}>
-          <ProfileAvatar
-            name={profileName}
-            url={
-              fullData?.photoURL || user?.photoURL || user?.avatar_url || null
-            }
-            allowEdit={isOwner}
-            onPress={handlePhotoUpdate}
-            uploading={uploading}
-          />
-          <Text style={styles.profileName}>{profileName}</Text>
-          <View
-            style={[
-              styles.roleBadge,
-              {
-                backgroundColor: isViewingAdmin
-                  ? themeColors.red + "20"
-                  : themeColors.teal + "20",
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.roleBadgeText,
-                { color: isViewingAdmin ? themeColors.red : themeColors.teal },
-              ]}
-            >
-              {profileRole}
-            </Text>
-          </View>
-        </View>
+    <SafeAreaView style={s.safe} edges={["top"]}>
+      <Stack.Screen options={{ headerShown: false }} />
 
-        {/* ── عرض حساب الطالب (Student Profile) ── */}
-        {isViewingStudent && (
+      {/* ── Teal Header ───────────────────────────────────────────────────── */}
+      <View style={s.headerBg}>
+        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={26} color={ds.white} />
+        </TouchableOpacity>
+        <View>
+          <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
+          <Text style={s.pageTitle}>My Profile</Text>
+        </View>
+      </View>
+
+      {/* ── Avatar Hero (still teal bg) ───────────────────────────────────── */}
+      <View style={s.avatarHero}>
+        <ProfileAvatar
+          name={profileName}
+          url={fullData?.photoURL || user?.photoURL || null}
+          onPress={handlePhotoUpdate}
+          uploading={uploading}
+        />
+        <Text style={s.heroName}>{profileName}</Text>
+        <View
+          style={[
+            s.roleBadge,
+            { backgroundColor: isAdmin ? ds.red + "33" : "rgba(255,255,255,0.2)" },
+          ]}
+        >
+          <Text style={s.roleBadgeText}>{profileRole}</Text>
+        </View>
+      </View>
+
+      {/* ── Content ───────────────────────────────────────────────────────── */}
+      <ScrollView
+        style={s.scrollBase}
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Singer cards */}
+        {isSinger && (
           <>
-            <InfoCard title="Basic Information">
+            <InfoCard title="Personal Information">
               <InfoRow
                 icon="person-outline"
                 label="Age"
-                value={`${age} years`}
-                showEdit={isOwner}
+                value={age !== "N/A" ? `${age} years` : "N/A"}
               />
+              <InfoRow icon="calendar-outline" label="Date of Birth" value={dob} />
+              <InfoRow icon="male-female-outline" label="Gender" value={gender} />
+              <InfoRow icon="school-outline" label="School" value={schoolName} />
+              <InfoRow icon="mic-outline" label="Voice Type" value={voiceType} />
+              <InfoRow icon="shirt-outline" label="Shirt Size" value={shirtSize} />
               <InfoRow
-                icon="calendar-outline"
-                label="Date of Birth"
-                value={dob}
-                showEdit={isOwner}
-              />
-              <InfoRow
-                icon="school-outline"
-                label="Study Year"
-                value={studyYear}
-                showEdit={isOwner}
-              />
-              <InfoRow
-                icon="mic-outline"
-                label="Voice Type"
-                value={voiceType}
-                showEdit={isOwner}
-                isLast={true}
+                icon="star-outline"
+                label="Year Joined"
+                value={yearJoined}
+                isLast
               />
             </InfoCard>
 
             <InfoCard title="Contact Information">
+              <InfoRow icon="mail-outline" label="Email" value={profileEmail} />
+              <InfoRow icon="call-outline" label="Phone" value={profilePhone} />
               <InfoRow
-                icon="mail-outline"
-                label="Email"
-                value={profileEmail}
-                showEdit={isOwner}
+                icon="location-outline"
+                label="Neighborhood"
+                value={neighborhood}
+                isLast
+              />
+            </InfoCard>
+
+            <InfoCard title="Parent / Guardian">
+              <InfoRow
+                icon="person-circle-outline"
+                label="Parent Name"
+                value={parentName}
               />
               <InfoRow
                 icon="call-outline"
-                label="Phone"
-                value={profilePhone}
-                showEdit={isOwner}
-              />
-              <InfoRow
-                icon="location-outline"
-                label="Address"
-                value={address}
-                showEdit={isOwner}
-                isLast={true}
+                label="Parent Phone"
+                value={parentPhone}
+                isLast
               />
             </InfoCard>
           </>
         )}
 
-        {/* ── عرض حساب الإدارة/الطاقم (Admin / Staff Profile) ── */}
-        {isViewingAdmin && (
+        {/* Admin cards */}
+        {isAdmin && (
           <InfoCard title="Staff Information">
             <InfoRow icon="mail-outline" label="Email" value={profileEmail} />
             <InfoRow icon="call-outline" label="Phone" value={profilePhone} />
-            <InfoRow
-              icon="calendar-outline"
-              label="Date of Birth"
-              value={dob}
-            />
-            <InfoRow
-              icon="briefcase-outline"
-              label="Job Title"
-              value={jobTitle}
-            />
+            <InfoRow icon="calendar-outline" label="Date of Birth" value={dob} />
+            <InfoRow icon="briefcase-outline" label="Job Title" value={jobTitle} />
             <InfoRow
               icon="business-outline"
               label="Staff Type"
               value={staffType}
-              isLast={!user?.responsible_category}
+              isLast={!responsibleCategory}
             />
-            {user?.responsible_category && (
+            {responsibleCategory && (
               <InfoRow
                 icon="people-outline"
                 label="Responsible For"
-                value={user?.responsible_category}
-                isLast={true}
+                value={responsibleCategory}
+                isLast
               />
             )}
           </InfoCard>
         )}
 
-        {/* ── Sign Out ── */}
+        {/* Sign Out */}
         <TouchableOpacity
-          style={styles.signOutBtn}
+          style={s.signOutBtn}
           onPress={async () => {
             await logout();
             router.replace("/(auth)/login" as any);
           }}
           activeOpacity={0.75}
         >
-          <Ionicons name="log-out-outline" size={20} color={themeColors.red} />
-          <Text style={styles.signOutText}>Sign Out</Text>
+          <Ionicons name="log-out-outline" size={20} color={ds.red} />
+          <Text style={s.signOutText}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
-// ── الأنماط (Styles) ──────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: themeColors.bluishWhite,
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: ds.teal },
+
+  // Header
+  headerBg: {
+    backgroundColor: ds.teal,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
   },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  headerSection: {
+  backBtn: {
+    width: 40,
+    height: 40,
     alignItems: "center",
-    marginBottom: 24,
+    justifyContent: "center",
+    marginTop: 2,
   },
-  avatarContainer: {
-    position: "relative",
-    marginBottom: 12,
+  orgLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.85)",
+    marginBottom: 4,
   },
-  avatarImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+  pageTitle: { fontSize: 32, fontWeight: "900", color: ds.white },
+
+  // Avatar hero
+  avatarHero: {
+    backgroundColor: ds.teal,
+    alignItems: "center",
+    paddingBottom: 24,
+    paddingTop: 8,
+  },
+  avatarWrap: { position: "relative", marginBottom: 12 },
+  avatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 3,
+    borderColor: ds.white,
   },
   avatarPlaceholder: {
-    backgroundColor: themeColors.teal,
+    backgroundColor: "rgba(255,255,255,0.25)",
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarInitial: {
-    fontSize: 40,
-    fontWeight: "bold",
-    color: themeColors.white,
-  },
-  editAvatarBtn: {
+  avatarInitial: { fontSize: 38, fontWeight: "800", color: ds.white },
+  cameraBtn: {
     position: "absolute",
     bottom: 0,
     right: 0,
-    backgroundColor: themeColors.charcoal,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#353535",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 3,
-    borderColor: themeColors.bluishWhite,
+    borderWidth: 2,
+    borderColor: ds.white,
   },
-  profileName: {
+  heroName: {
     fontSize: 22,
     fontWeight: "800",
-    color: themeColors.charcoal,
-    marginBottom: 6,
+    color: ds.white,
+    marginBottom: 8,
   },
   roleBadge: {
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
   },
   roleBadgeText: {
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.5,
+    color: ds.white,
   },
 
-  // ── الستايلات الجديدة للبطاقات (Cards) ──
+  // Scroll
+  scrollBase: { backgroundColor: ds.bg },
+  scroll: { padding: 16, paddingBottom: 40 },
+
+  // Card
   card: {
-    backgroundColor: "#F8F9FA",
+    backgroundColor: ds.white,
     borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: ds.border,
+    marginBottom: 16,
+    overflow: "hidden",
+    shadowColor: ds.teal,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
+  cardBar: { height: 4, backgroundColor: ds.teal },
+  cardInner: { padding: 16 },
   cardTitle: {
-    fontSize: 15,
+    fontSize: 11,
     fontWeight: "700",
-    color: themeColors.charcoal,
+    color: ds.subtext,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
     marginBottom: 8,
-    marginTop: 8,
   },
-  cardContent: {
-    flexDirection: "column",
-  },
-  infoRow: {
+
+  // Row
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 14,
+    paddingVertical: 12,
+    gap: 16,
   },
-  infoRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  iconCircle: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: themeColors.white,
+  rowBorder: { borderBottomWidth: 1, borderBottomColor: ds.border },
+  rowIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: ds.teal + "15",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
   },
-  infoTextContainer: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: "#6B7280",
+  rowText: { flex: 1 },
+  rowLabel: {
+    fontSize: 11,
+    color: ds.subtext,
     marginBottom: 2,
+    fontWeight: "500",
   },
-  infoValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  inlineEditBtn: {
-    padding: 6,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 8,
-  },
+  rowValue: { fontSize: 15, fontWeight: "700", color: ds.text },
+
+  // Sign out
   signOutBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
     marginTop: 8,
-    marginBottom: 8,
-    paddingVertical: 14,
-    borderRadius: 14,
+    paddingVertical: 16,
+    borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: themeColors.red + "55",
-    backgroundColor: themeColors.red + "0D",
+    borderColor: ds.red + "55",
+    backgroundColor: ds.red + "0D",
   },
-  signOutText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: themeColors.red,
-  },
+  signOutText: { fontSize: 15, fontWeight: "700", color: ds.red },
 });

@@ -11,7 +11,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { Calendar } from "react-native-calendars";
 import { useEvents } from "../context/EventsContext";
 
 const T = {
@@ -27,6 +26,8 @@ const T = {
   textSub: "#5a6a7a",
   muted: "#9aa8b4",
 };
+
+const sp = (n) => n * 8;
 
 const GROUP_COLORS = {
   "All Groups": T.teal,
@@ -56,6 +57,8 @@ export default function EventStudentScreen({
   const { events } = useEvents();
   const [activeTab, setActiveTab] = useState("list");
   const [selectedDate, setSelectedDate] = useState(null);
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
   const myEvents = events.filter(
     (e) =>
@@ -80,24 +83,60 @@ export default function EventStudentScreen({
   };
 
   // ── Calendar helpers ────────────────────────────────────────────────
-  const markedDates = {};
+  const eventsByDate = {};
   myEvents.forEach((event) => {
     const date = (event.date || "").split("T")[0];
     if (!date) return;
-    const color = getGroupColor(event);
-    if (markedDates[date]) {
-      markedDates[date].dots.push({ color });
-    } else {
-      markedDates[date] = { dots: [{ color }] };
+    if (!eventsByDate[date]) {
+      eventsByDate[date] = [];
     }
+    eventsByDate[date].push(event);
   });
-  if (selectedDate) {
-    markedDates[selectedDate] = {
-      ...(markedDates[selectedDate] || {}),
-      selected: true,
-      selectedColor: T.teal,
-    };
+
+  // Generate calendar grid
+  const calendarDays = [];
+  const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+  for (let i = 0; i < firstDay; i++) {
+    calendarDays.push(null);
   }
+  for (let i = 1; i <= daysInMonth; i++) {
+    calendarDays.push(i);
+  }
+
+  const monthNames = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+
+  const goToPrevMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear(currentYear - 1);
+    } else {
+      setCurrentMonth(currentMonth - 1);
+    }
+  };
+
+  const goToNextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(currentYear + 1);
+    } else {
+      setCurrentMonth(currentMonth + 1);
+    }
+  };
 
   const calendarEvents = selectedDate
     ? myEvents.filter((e) => (e.date || "").split("T")[0] === selectedDate)
@@ -139,17 +178,40 @@ export default function EventStudentScreen({
         <View style={[s.calCardBar, { backgroundColor: color }]} />
         <View style={s.calCardContent}>
           <View
-            style={{ flexDirection: "row", justifyContent: "space-between" }}
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: sp(1),
+            }}
           >
+            <View style={{ alignItems: "flex-start" }}>
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "700",
+                  color: color,
+                  marginBottom: 2,
+                }}
+              >
+                {formatDate(item.date).split("/")[0]}
+              </Text>
+              <Text style={{ fontSize: 12, color: color, fontWeight: "500" }}>
+                {formatDate(item.date).split("/").slice(1).join("/")}
+              </Text>
+            </View>
             <View style={[s.badge, { backgroundColor: color + "18" }]}>
               <Text style={[s.badgeText, { color }]}>
                 {item.groupLabel || item.group_name}
               </Text>
             </View>
-            <Text style={s.dateText}>🕐 {item.time}</Text>
           </View>
           <Text style={s.calCardTitle}>{item.title}</Text>
-          <Text style={s.calCardLoc}>📍 {item.location}</Text>
+          <Text
+            style={{ fontSize: 13, color: T.textSub, marginBottom: sp(0.5) }}
+          >
+            {item.time} · {item.location}
+          </Text>
         </View>
       </View>
     );
@@ -169,40 +231,42 @@ export default function EventStudentScreen({
           </View>
         </View>
         {/* List / Calendar toggle */}
-        <View style={s.tabToggle}>
-          <Pressable
-            style={[
-              s.tabToggleBtn,
-              activeTab === "list" && s.tabToggleBtnActive,
-            ]}
-            onPress={() => setActiveTab("list")}
-          >
-            <Text
+        {activeTab === "list" && (
+          <View style={s.tabToggle}>
+            <Pressable
               style={[
-                s.tabToggleText,
-                activeTab === "list" && s.tabToggleTextActive,
+                s.tabToggleBtn,
+                activeTab === "list" && s.tabToggleBtnActive,
               ]}
+              onPress={() => setActiveTab("list")}
             >
-              List
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              s.tabToggleBtn,
-              activeTab === "calendar" && s.tabToggleBtnActive,
-            ]}
-            onPress={() => setActiveTab("calendar")}
-          >
-            <Text
+              <Text
+                style={[
+                  s.tabToggleText,
+                  activeTab === "list" && s.tabToggleTextActive,
+                ]}
+              >
+                List
+              </Text>
+            </Pressable>
+            <Pressable
               style={[
-                s.tabToggleText,
-                activeTab === "calendar" && s.tabToggleTextActive,
+                s.tabToggleBtn,
+                activeTab === "calendar" && s.tabToggleBtnActive,
               ]}
+              onPress={() => setActiveTab("calendar")}
             >
-              Calendar
-            </Text>
-          </Pressable>
-        </View>
+              <Text
+                style={[
+                  s.tabToggleText,
+                  activeTab === "calendar" && s.tabToggleTextActive,
+                ]}
+              >
+                Calendar
+              </Text>
+            </Pressable>
+          </View>
+        )}
       </View>
 
       {/* Welcome */}
@@ -225,39 +289,98 @@ export default function EventStudentScreen({
             data={myEvents}
             keyExtractor={(item) => String(item.id ?? item.event_id)}
             renderItem={renderEvent}
-            contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}
+            contentContainerStyle={{
+              padding: sp(2),
+              gap: sp(1.5),
+              paddingBottom: 100,
+            }}
             showsVerticalScrollIndicator={false}
           />
         ))}
 
       {/* ── CALENDAR VIEW ── */}
       {activeTab === "calendar" && (
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <Calendar
-            markingType="multi-dot"
-            markedDates={markedDates}
-            onDayPress={(day) =>
-              setSelectedDate(
-                selectedDate === day.dateString ? null : day.dateString,
-              )
-            }
-            theme={{
-              backgroundColor: "#fff",
-              calendarBackground: "#fff",
-              textSectionTitleColor: T.teal,
-              selectedDayBackgroundColor: T.teal,
-              selectedDayTextColor: "#fff",
-              todayTextColor: T.teal,
-              dayTextColor: "#111",
-              textDisabledColor: "#ccc",
-              monthTextColor: "#111",
-              arrowColor: T.teal,
-              textMonthFontWeight: "700",
-              textDayFontSize: 14,
-              textMonthFontSize: 16,
-            }}
-            style={s.calendar}
-          />
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          style={s.calendarScroll}
+        >
+          <View style={s.calendarContainer}>
+            <View style={s.monthNavigation}>
+              <Pressable onPress={goToPrevMonth} style={s.monthNavBtn}>
+                <Text style={s.monthNavBtnText}>←</Text>
+              </Pressable>
+              <Text style={s.monthTitle}>
+                {monthNames[currentMonth]} {currentYear}
+              </Text>
+              <Pressable onPress={goToNextMonth} style={s.monthNavBtn}>
+                <Text style={s.monthNavBtnText}>→</Text>
+              </Pressable>
+            </View>
+
+            {/* Week day headers */}
+            <View style={s.weekHeaderRow}>
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                <Text key={`header-${day}`} style={s.weekDayHeader}>
+                  {day}
+                </Text>
+              ))}
+            </View>
+
+            {/* Calendar grid */}
+            <View style={s.calendarGrid}>
+              {/* Calendar days */}
+              {calendarDays.map((day, idx) => {
+                const dateStr = day
+                  ? `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+                  : null;
+                const hasEvent = dateStr && eventsByDate[dateStr];
+                const eventColor = hasEvent
+                  ? GROUP_COLORS[eventsByDate[dateStr][0]?.groupLabel] || T.teal
+                  : null;
+                const isSelected = dateStr === selectedDate;
+
+                return (
+                  <Pressable
+                    key={idx}
+                    style={[
+                      s.calendarDay,
+                      hasEvent && {
+                        borderColor: eventColor,
+                        borderWidth: 2.5,
+                      },
+                      isSelected && s.calendarDaySelected,
+                    ]}
+                    onPress={() => {
+                      if (day) {
+                        setSelectedDate(isSelected ? null : dateStr);
+                      }
+                    }}
+                  >
+                    {day && (
+                      <>
+                        <Text
+                          style={[
+                            s.calendarDayNum,
+                            isSelected && { color: T.white },
+                          ]}
+                        >
+                          {day}
+                        </Text>
+                        {hasEvent && (
+                          <Text
+                            style={[s.calendarEventName, { color: eventColor }]}
+                            numberOfLines={1}
+                          >
+                            {eventsByDate[dateStr][0]?.title}
+                          </Text>
+                        )}
+                      </>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
 
           {/* Legend */}
           <View style={s.legend}>
@@ -283,9 +406,9 @@ export default function EventStudentScreen({
               keyExtractor={(i) => String(i.id ?? i.event_id)}
               renderItem={renderCalendarEvent}
               contentContainerStyle={{
-                paddingHorizontal: 16,
+                paddingHorizontal: sp(2),
                 paddingBottom: 100,
-                gap: 10,
+                gap: sp(1.5),
               }}
               scrollEnabled={false}
             />
@@ -300,9 +423,9 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: T.bg },
   header: {
     backgroundColor: T.teal,
-    paddingHorizontal: 16,
-    paddingTop: STATUSBAR_H + 16,
-    paddingBottom: 16,
+    paddingHorizontal: sp(2),
+    paddingTop: STATUSBAR_H + sp(2),
+    paddingBottom: sp(2),
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
@@ -340,10 +463,10 @@ const s = StyleSheet.create({
   tabToggleTextActive: { color: T.teal, fontWeight: "700" },
 
   welcomeBox: {
-    margin: 16,
+    margin: sp(2),
     backgroundColor: T.tealBg,
     borderRadius: 12,
-    padding: 14,
+    padding: sp(1.75),
     borderLeftWidth: 3,
     borderLeftColor: T.teal,
   },
@@ -353,16 +476,17 @@ const s = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 32,
+    padding: sp(4),
   },
   emptyText: {
     color: T.text,
     fontSize: 16,
     fontWeight: "600",
-    marginTop: 12,
+    marginTop: sp(1.5),
     textAlign: "center",
   },
 
+  // Event cards (list view)
   card: {
     backgroundColor: T.card,
     borderRadius: 16,
@@ -376,12 +500,12 @@ const s = StyleSheet.create({
     elevation: 3,
   },
   cardBar: { height: 4 },
-  cardInner: { padding: 16 },
+  cardInner: { padding: sp(2) },
   cardTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: sp(1),
   },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   badgeText: { fontSize: 11, fontWeight: "700" },
@@ -392,23 +516,98 @@ const s = StyleSheet.create({
     color: T.text,
     marginBottom: 4,
   },
-  cardDesc: { fontSize: 13, color: T.textSub, lineHeight: 19, marginBottom: 8 },
+  cardDesc: {
+    fontSize: 13,
+    color: T.textSub,
+    lineHeight: 19,
+    marginBottom: sp(1),
+  },
   cardLoc: { fontSize: 13, color: T.teal, fontWeight: "500" },
 
-  calendar: {
-    marginHorizontal: 12,
-    borderRadius: 16,
-    overflow: "hidden",
+  // Calendar view
+  calendarScroll: { backgroundColor: T.white },
+  calendarContainer: {
+    padding: sp(2),
+    backgroundColor: T.white,
+  },
+  monthNavigation: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: sp(2),
+  },
+  monthNavBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: T.tealBg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  monthNavBtnText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: T.teal,
+  },
+  monthTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: T.text,
+    textAlign: "center",
+  },
+  weekHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: sp(1),
+    paddingHorizontal: 2,
+  },
+  weekDayHeader: {
+    flex: 1,
+    textAlign: "center",
+    color: T.textSub,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  calendarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginBottom: sp(2),
+  },
+  calendarDay: {
+    width: "13.8%",
+    aspectRatio: 0.9,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: T.border,
-    marginTop: 8,
+    padding: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: T.white,
   },
+  calendarDaySelected: {
+    backgroundColor: T.teal,
+    borderColor: T.teal,
+  },
+  calendarDayNum: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: T.text,
+  },
+  calendarEventName: {
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 2,
+    textAlign: "center",
+    color: T.teal,
+  },
+
   legend: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: 16,
-    paddingVertical: 10,
+    gap: sp(2),
+    paddingVertical: sp(1.5),
     flexWrap: "wrap",
+    backgroundColor: T.white,
   },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
@@ -419,26 +618,28 @@ const s = StyleSheet.create({
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 1,
-    paddingHorizontal: 16,
-    marginBottom: 8,
-    marginTop: 4,
+    paddingHorizontal: sp(2),
+    marginBottom: sp(1),
+    marginTop: sp(0.5),
   },
   noEvents: {
     color: T.muted,
     textAlign: "center",
-    marginTop: 20,
+    marginTop: sp(2.5),
     fontSize: 14,
   },
+
+  // Calendar event cards
   calCard: {
     backgroundColor: T.card,
     borderRadius: 12,
     overflow: "hidden",
-    flexDirection: "row",
     borderWidth: 1,
     borderColor: T.border,
+    marginBottom: sp(1),
   },
-  calCardBar: { width: 4 },
-  calCardContent: { flex: 1, padding: 12 },
+  calCardBar: { height: 4, width: "100%" },
+  calCardContent: { padding: sp(1.5) },
   calCardTitle: {
     color: T.text,
     fontSize: 15,
