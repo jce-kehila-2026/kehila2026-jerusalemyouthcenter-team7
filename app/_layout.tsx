@@ -1,10 +1,12 @@
 
 import { AuthProvider } from '@/src/context/AuthContext';
+import { LanguageProvider } from '@/src/context/LanguageContext';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import React from 'react';
 
 export const unstable_settings = {
   initialRouteName: 'index',
@@ -32,7 +34,9 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootLayoutNav />
+      <LanguageProvider>
+        <RootLayoutNav />
+      </LanguageProvider>
     </AuthProvider>
   );
 }

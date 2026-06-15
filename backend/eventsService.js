@@ -4,12 +4,13 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  query,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import { db } from "./firebase";
 
 const EVENTS_COLLECTION = "events";
-const STUDENTS_COLLECTION = "students";
 
 export const getEvents = async () => {
   try {
@@ -23,7 +24,8 @@ export const getEvents = async () => {
 
 export const getStudents = async () => {
   try {
-    const snapshot = await getDocs(collection(db, STUDENTS_COLLECTION));
+    const q = query(collection(db, "users"), where("role", "==", "singer"));
+    const snapshot = await getDocs(q);
     return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
   } catch (error) {
     console.error("Error getting students:", error);

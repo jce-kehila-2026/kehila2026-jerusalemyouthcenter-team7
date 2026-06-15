@@ -1,16 +1,27 @@
 import { useAuth } from "@/src/context/AuthContext";
-import { db } from "@/src/firebase/firebase";
+import { useLanguage } from "@/src/context/LanguageContext";
+import { auth, db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { Stack, useRouter } from "expo-router";
+import {
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword,
+} from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -103,9 +114,19 @@ const InfoCard = ({
 // ── Screen ────────────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const { user, logout } = useAuth() as any;
+  const { t } = useLanguage();
   const router = useRouter();
   const [fullData, setFullData] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
+
+  // Change-password modal state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [curPassword, setCurPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -138,6 +159,41 @@ export default function ProfileScreen() {
     }
   };
 
+  // ── Change password handler ───────────────────────────────────────────────
+  const handleChangePassword = async () => {
+    setPasswordError("");
+    setPasswordSuccess("");
+    if (newPassword.length < 6) {
+      return setPasswordError(t("passwordTooShort"));
+    }
+    if (newPassword !== confirmPassword) {
+      return setPasswordError(t("passwordsDoNotMatch"));
+    }
+    setChangingPassword(true);
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser || !currentUser.email) throw new Error("Not authenticated.");
+      const credential = EmailAuthProvider.credential(currentUser.email, curPassword);
+      await reauthenticateWithCredential(currentUser, credential);
+      await updatePassword(currentUser, newPassword);
+      setPasswordSuccess(t("passwordUpdated"));
+      setCurPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (e: any) {
+      if (
+        e.code === "auth/wrong-password" ||
+        e.code === "auth/invalid-credential"
+      ) {
+        setPasswordError(t("wrongCurrentPassword"));
+      } else {
+        setPasswordError(e.message || "Failed to update password.");
+      }
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   // ── Derived data ──────────────────────────────────────────────────────────
   const isSinger = user?.role === "singer";
   const isAdmin = user?.role === "admin";
@@ -156,10 +212,10 @@ export default function ProfileScreen() {
   const neighborhood = fullData?.neighborhood || fullData?.address || "N/A";
   const parentName = fullData?.parent_name || "N/A";
   const parentPhone = fullData?.parent_phone || "N/A";
-  const jobTitle = fullData?.job_title || "N/A";
   const staffType = fullData?.staff_type || "N/A";
   const responsibleCategory =
     fullData?.responsible_category || user?.responsible_category;
+  const jobPosition = fullData?.job || "N/A";
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
@@ -255,8 +311,8 @@ export default function ProfileScreen() {
           <InfoCard title="Staff Information">
             <InfoRow icon="mail-outline" label="Email" value={profileEmail} />
             <InfoRow icon="call-outline" label="Phone" value={profilePhone} />
+            <InfoRow icon="ribbon-outline" label="Job Position" value={jobPosition} />
             <InfoRow icon="calendar-outline" label="Date of Birth" value={dob} />
-            <InfoRow icon="briefcase-outline" label="Job Title" value={jobTitle} />
             <InfoRow
               icon="business-outline"
               label="Staff Type"
@@ -274,6 +330,34 @@ export default function ProfileScreen() {
           </InfoCard>
         )}
 
+        {/* Settings */}
+        <View style={s.card}>
+          <View style={s.cardBar} />
+          <View style={s.cardInner}>
+            <Text style={s.cardTitle}>{t("settings")}</Text>
+
+            {/* Change Password */}
+            <TouchableOpacity
+              style={s.settingRow}
+              onPress={() => {
+                setPasswordError("");
+                setPasswordSuccess("");
+                setShowPasswordModal(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={s.rowIcon}>
+                <Ionicons name="lock-closed-outline" size={20} color={ds.teal} />
+              </View>
+              <View style={s.rowText}>
+                <Text style={s.rowLabel}>{t("security")}</Text>
+                <Text style={s.rowValue}>{t("changePassword")}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={ds.subtext} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Sign Out */}
         <TouchableOpacity
           style={s.signOutBtn}
@@ -287,6 +371,83 @@ export default function ProfileScreen() {
           <Text style={s.signOutText}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Change Password Modal */}
+      <Modal
+        visible={showPasswordModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowPasswordModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={s.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={s.modalSheet}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>{t("changePassword")}</Text>
+              <TouchableOpacity onPress={() => setShowPasswordModal(false)}>
+                <Ionicons name="close" size={24} color={ds.text} />
+              </TouchableOpacity>
+            </View>
+
+            {passwordError ? (
+              <View style={s.msgBox}>
+                <Ionicons name="warning-outline" size={16} color={ds.red} />
+                <Text style={[s.msgText, { color: ds.red }]}>{passwordError}</Text>
+              </View>
+            ) : null}
+            {passwordSuccess ? (
+              <View style={[s.msgBox, { backgroundColor: "#e6f7f0", borderLeftColor: "#34a853" }]}>
+                <Ionicons name="checkmark-circle-outline" size={16} color="#34a853" />
+                <Text style={[s.msgText, { color: "#34a853" }]}>{passwordSuccess}</Text>
+              </View>
+            ) : null}
+
+            <Text style={s.modalLabel}>{t("currentPassword")}</Text>
+            <TextInput
+              style={s.modalInput}
+              value={curPassword}
+              onChangeText={setCurPassword}
+              secureTextEntry
+              placeholder="••••••••"
+              placeholderTextColor={ds.subtext}
+            />
+
+            <Text style={s.modalLabel}>{t("newPassword")}</Text>
+            <TextInput
+              style={s.modalInput}
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
+              placeholder="••••••••"
+              placeholderTextColor={ds.subtext}
+            />
+
+            <Text style={s.modalLabel}>{t("confirmNewPassword")}</Text>
+            <TextInput
+              style={s.modalInput}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+              placeholder="••••••••"
+              placeholderTextColor={ds.subtext}
+            />
+
+            <Pressable
+              style={[s.modalBtn, changingPassword && { opacity: 0.6 }]}
+              onPress={handleChangePassword}
+              disabled={changingPassword}
+            >
+              {changingPassword ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={s.modalBtnText}>{t("update")}</Text>
+              )}
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -442,4 +603,73 @@ const s = StyleSheet.create({
     backgroundColor: ds.red + "0D",
   },
   signOutText: { fontSize: 15, fontWeight: "700", color: ds.red },
+
+  // Settings card
+  settingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: ds.border,
+    gap: 16,
+  },
+
+  // Change-password modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: ds.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: ds.text },
+  modalLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#334",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  modalInput: {
+    borderWidth: 1.5,
+    borderColor: ds.border,
+    borderRadius: 12,
+    padding: 13,
+    fontSize: 15,
+    color: ds.text,
+    marginBottom: 14,
+    backgroundColor: ds.bg,
+  },
+  modalBtn: {
+    backgroundColor: ds.teal,
+    borderRadius: 12,
+    paddingVertical: 15,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  modalBtnText: { color: ds.white, fontSize: 16, fontWeight: "700" },
+  msgBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#fdecea",
+    borderLeftWidth: 3,
+    borderLeftColor: ds.red,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+  },
+  msgText: { fontSize: 13, flex: 1 },
 });

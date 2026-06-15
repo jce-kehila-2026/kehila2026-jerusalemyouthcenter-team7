@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import {
   FlatList,
+  Pressable,
   SafeAreaView,
   StatusBar,
   StyleSheet,
@@ -9,13 +10,33 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Calendar } from "react-native-calendars";
 import { getEvents } from "../../backend/eventsService";
-import { COLORS } from "../data/mockData.js";
+
+const COLORS = {
+  teal: "#039899",
+  yellow: "#cfad5d",
+  red: "#c56451",
+  purple: "#8b5cf6",
+  white: "#ffffff",
+  bg: "#f5fafe",
+  text: "#1a1a2e",
+  textSub: "#5a6a7a",
+  muted: "#9aa8b4",
+  border: "#e8eef2",
+};
+
+const GROUP_COLORS = {
+  "All Groups": COLORS.teal,
+  "Year 1": COLORS.yellow,
+  "Year 2": COLORS.red,
+  "Year 3": "#8b5cf6",
+};
 
 export default function CalendarScreen({ onEventPress }) {
   const [selectedDate, setSelectedDate] = useState(null);
   const [events, setEvents] = useState([]);
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
     const load = async () => {
@@ -33,28 +54,59 @@ export default function CalendarScreen({ onEventPress }) {
     return "#888";
   };
 
-  const markedDates = {};
+  const eventsByDate = {};
   events.forEach((event) => {
     const date = event.date.split("T")[0];
-    const color = getGroupColor(event.groupLabel ?? event.group_name);
-    if (markedDates[date]) {
-      markedDates[date].dots.push({ color });
-    } else {
-      markedDates[date] = {
-        dots: [{ color }],
-        selected: selectedDate === date,
-        selectedColor: COLORS.teal,
-      };
+    if (!eventsByDate[date]) {
+      eventsByDate[date] = [];
     }
+    eventsByDate[date].push(event);
   });
 
-  if (selectedDate) {
-    markedDates[selectedDate] = {
-      ...(markedDates[selectedDate] || {}),
-      selected: true,
-      selectedColor: COLORS.teal,
-    };
+  // Generate calendar grid
+  const calendarDays = [];
+  const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+  for (let i = 0; i < firstDay; i++) {
+    calendarDays.push(null);
   }
+  for (let i = 1; i <= daysInMonth; i++) {
+    calendarDays.push(i);
+  }
+
+  const monthNames = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+
+  const goToPrevMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear(currentYear - 1);
+    } else {
+      setCurrentMonth(currentMonth - 1);
+    }
+  };
+
+  const goToNextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(currentYear + 1);
+    } else {
+      setCurrentMonth(currentMonth + 1);
+    }
+  };
 
   const selectedEvents = selectedDate
     ? events.filter((e) => e.date.split("T")[0] === selectedDate)
@@ -69,7 +121,9 @@ export default function CalendarScreen({ onEventPress }) {
       <View
         style={[
           styles.cardAccent,
-          { backgroundColor: getGroupColor(item.group_name) },
+          {
+            backgroundColor: getGroupColor(item.groupLabel || item.group_name),
+          },
         ]}
       />
       <View style={styles.cardContent}>
@@ -77,16 +131,19 @@ export default function CalendarScreen({ onEventPress }) {
           <View
             style={[
               styles.groupBadge,
-              { backgroundColor: getGroupColor(item.group_name) + "20" },
+              {
+                backgroundColor:
+                  getGroupColor(item.groupLabel || item.group_name) + "20",
+              },
             ]}
           >
             <Text
               style={[
                 styles.groupBadgeText,
-                { color: getGroupColor(item.group_name) },
+                { color: getGroupColor(item.groupLabel || item.group_name) },
               ]}
             >
-              {item.group_name}
+              {item.groupLabel || item.group_name}
             </Text>
           </View>
           <Text style={styles.cardTime}>{item.time}</Text>
@@ -99,125 +156,275 @@ export default function CalendarScreen({ onEventPress }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.teal} />
 
+      {/* Header - Dashboard Style */}
       <View style={styles.header}>
-        <Text style={styles.headerSub}>Jerusalem Youth Chorus</Text>
-        <Text style={styles.headerTitle}>Calendar</Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerSub}>🎵 Jerusalem Youth Chorus</Text>
+          <Text style={styles.headerTitle}>Events</Text>
+        </View>
       </View>
 
-      <Calendar
-        markingType="multi-dot"
-        markedDates={markedDates}
-        onDayPress={(day) =>
-          setSelectedDate(
-            selectedDate === day.dateString ? null : day.dateString,
-          )
-        }
-        theme={{
-          backgroundColor: "#fff",
-          calendarBackground: "#fff",
-          textSectionTitleColor: COLORS.teal,
-          selectedDayBackgroundColor: COLORS.teal,
-          selectedDayTextColor: "#fff",
-          todayTextColor: COLORS.teal,
-          dayTextColor: "#111",
-          textDisabledColor: "#ccc",
-          dotColor: COLORS.teal,
-          monthTextColor: "#111",
-          arrowColor: COLORS.teal,
-          textMonthFontWeight: "700",
-          textDayFontSize: 14,
-          textMonthFontSize: 16,
-        }}
-        style={styles.calendar}
-      />
-
-      <View style={styles.legend}>
-        {[
-          { label: "All Groups", color: COLORS.teal },
-          { label: "Year 1", color: COLORS.yellow },
-          { label: "Year 2", color: COLORS.red },
-          { label: "Year 3", color: "#8b5cf6" },
-        ].map((item) => (
-          <View key={item.label} style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: item.color }]} />
-            <Text style={styles.legendText}>{item.label}</Text>
+      <View style={styles.content}>
+        {/* Custom Calendar Grid */}
+        <View style={styles.calendarContainer}>
+          <View style={styles.monthNavigation}>
+            <Pressable onPress={goToPrevMonth} style={styles.monthNavBtn}>
+              <Text style={styles.monthNavBtnText}>←</Text>
+            </Pressable>
+            <Text style={styles.monthTitle}>
+              {monthNames[currentMonth]} {currentYear}
+            </Text>
+            <Pressable onPress={goToNextMonth} style={styles.monthNavBtn}>
+              <Text style={styles.monthNavBtnText}>→</Text>
+            </Pressable>
           </View>
-        ))}
+
+          {/* Week days header */}
+          <View style={styles.weekHeader}>
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+              <Text key={day} style={styles.weekDay}>
+                {day}
+              </Text>
+            ))}
+          </View>
+
+          {/* Calendar grid */}
+          <View style={styles.calendarGrid}>
+            {calendarDays.map((day, idx) => {
+              const dateStr = day
+                ? `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+                : null;
+              const hasEvent = dateStr && eventsByDate[dateStr];
+              const eventColor = hasEvent
+                ? GROUP_COLORS[eventsByDate[dateStr][0]?.groupLabel] ||
+                  COLORS.teal
+                : null;
+              const isSelected = dateStr === selectedDate;
+
+              return (
+                <Pressable
+                  key={idx}
+                  style={[
+                    styles.calendarDay,
+                    hasEvent && { borderColor: eventColor, borderWidth: 2 },
+                    isSelected && styles.calendarDaySelected,
+                  ]}
+                  onPress={() => {
+                    if (day) {
+                      setSelectedDate(isSelected ? null : dateStr);
+                    }
+                  }}
+                >
+                  {day && (
+                    <>
+                      <Text
+                        style={[
+                          styles.calendarDayNum,
+                          isSelected && { color: COLORS.white },
+                        ]}
+                      >
+                        {day}
+                      </Text>
+                      {hasEvent && (
+                        <Text
+                          style={[
+                            styles.calendarEventName,
+                            { color: eventColor },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {eventsByDate[dateStr][0]?.title}
+                        </Text>
+                      )}
+                    </>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Legend */}
+        <View style={styles.legend}>
+          {[
+            { label: "All Groups", color: COLORS.teal },
+            { label: "Year 1", color: COLORS.yellow },
+            { label: "Year 2", color: COLORS.red },
+            { label: "Year 3", color: "#8b5cf6" },
+          ].map((item) => (
+            <View key={item.label} style={styles.legendItem}>
+              <View
+                style={[styles.legendDot, { backgroundColor: item.color }]}
+              />
+              <Text style={styles.legendText}>{item.label}</Text>
+            </View>
+          ))}
+        </View>
+
+        <Text style={styles.sectionTitle}>
+          {selectedDate ? `Events on ${selectedDate}` : "All Upcoming Events"}
+        </Text>
+
+        {selectedEvents.length === 0 ? (
+          <Text style={styles.noEvents}>No events on this day</Text>
+        ) : (
+          <FlatList
+            data={selectedEvents}
+            keyExtractor={(item) => String(item.id ?? item.event_id)}
+            renderItem={renderEvent}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={false}
+          />
+        )}
       </View>
-
-      <Text style={styles.sectionTitle}>
-        {selectedDate ? `Events on ${selectedDate}` : "All Upcoming Events"}
-      </Text>
-
-      {selectedEvents.length === 0 ? (
-        <Text style={styles.noEvents}>No events on this day</Text>
-      ) : (
-        <FlatList
-          data={selectedEvents}
-          keyExtractor={(item) => String(item.id ?? item.event_id)}
-          renderItem={renderEvent}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  header: {
+    backgroundColor: COLORS.teal,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 20,
+  },
+  headerContent: {},
   headerSub: {
-    color: COLORS.teal,
+    color: "rgba(255,255,255,0.85)",
     fontSize: 12,
-    letterSpacing: 2,
+    letterSpacing: 1,
     textTransform: "uppercase",
     fontWeight: "600",
+    marginBottom: 4,
   },
-  headerTitle: { color: "#111", fontSize: 32, fontWeight: "800", marginTop: 2 },
-  calendar: {
-    marginHorizontal: 12,
-    borderRadius: 16,
-    overflow: "hidden",
+  headerTitle: {
+    color: COLORS.white,
+    fontSize: 32,
+    fontWeight: "800",
+  },
+  content: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+  },
+  calendarContainer: {
+    padding: 16,
+    backgroundColor: COLORS.white,
+  },
+  monthNavigation: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  monthNavBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: "#f0fafa",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  monthNavBtnText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.teal,
+  },
+  monthTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.text,
+    textAlign: "center",
+  },
+  weekHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  weekDay: {
+    flex: 1,
+    textAlign: "center",
+    color: COLORS.textSub,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  calendarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    marginBottom: 16,
+  },
+  calendarDay: {
+    width: "14.28%",
+    aspectRatio: 1,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#f0f0f0",
+    borderColor: COLORS.border,
+    padding: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.white,
+  },
+  calendarDaySelected: {
+    backgroundColor: COLORS.teal,
+    borderColor: COLORS.teal,
+  },
+  calendarDayNum: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.text,
+  },
+  calendarEventName: {
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 2,
+    textAlign: "center",
   },
   legend: {
     flexDirection: "row",
     justifyContent: "center",
     gap: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     flexWrap: "wrap",
+    backgroundColor: COLORS.white,
   },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendText: { color: "#666", fontSize: 12 },
+  legendText: { color: COLORS.textSub, fontSize: 12 },
   sectionTitle: {
     color: COLORS.teal,
     fontSize: 13,
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     marginBottom: 10,
+    marginTop: 8,
   },
-  noEvents: { color: "#aaa", textAlign: "center", marginTop: 20, fontSize: 14 },
-  listContent: { paddingHorizontal: 20, paddingBottom: 30 },
+  noEvents: {
+    color: COLORS.muted,
+    textAlign: "center",
+    marginTop: 20,
+    fontSize: 14,
+  },
+  listContent: { paddingHorizontal: 16, paddingBottom: 30 },
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
     marginBottom: 12,
     flexDirection: "row",
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#eee",
-    shadowColor: "#000",
+    borderColor: COLORS.border,
+    shadowColor: COLORS.teal,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
-    elevation: 2,
+    elevation: 3,
   },
   cardAccent: { width: 4 },
   cardContent: { flex: 1, padding: 12 },
@@ -229,12 +436,12 @@ const styles = StyleSheet.create({
   },
   groupBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
   groupBadgeText: { fontSize: 11, fontWeight: "700" },
-  cardTime: { color: "#888", fontSize: 13 },
+  cardTime: { color: COLORS.textSub, fontSize: 13 },
   cardTitle: {
-    color: "#111",
+    color: COLORS.text,
     fontSize: 15,
     fontWeight: "700",
     marginBottom: 4,
   },
-  cardLocation: { color: "#666", fontSize: 12 },
+  cardLocation: { color: COLORS.textSub, fontSize: 12 },
 });

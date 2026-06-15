@@ -28,6 +28,7 @@ export type UserType = {
   voice_type?: string | null;
   current_year_id?: number | null;
   group_id?: string | null;
+  mustChangePassword?: boolean;
 };
 
 export type StudentSignupPayload = {
@@ -124,6 +125,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
                     : d.year !== undefined && d.year !== null
                       ? Number(d.year)
                       : null,
+                mustChangePassword: d.mustChangePassword ?? false,
               });
             }
           } else {
@@ -215,6 +217,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
               : d.year !== undefined && d.year !== null
                 ? Number(d.year)
                 : null,
+          mustChangePassword: d.mustChangePassword ?? false,
         });
         return true;
       } else {
@@ -274,6 +277,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
                     : d.year !== undefined && d.year !== null
                       ? Number(d.year)
                       : null,
+                mustChangePassword: d.mustChangePassword ?? false,
               });
               return true;
             } else {
