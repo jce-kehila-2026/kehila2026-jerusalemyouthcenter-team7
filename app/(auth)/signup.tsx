@@ -324,20 +324,28 @@ export default function SignupScreen() {
       password: form.password,
     };
 
-    const result = await signupStudent(payload);
-
-    setLoading(false);
-
-    if (result === "submitted") {
-      setSubmitted(true);
-    } else if (result === "rejected") {
-      setError(
-        "Your join request was previously rejected. Please contact the administrator.",
-      );
-    } else {
-      setError(
-        "Could not sign up. This phone number may already be registered.",
-      );
+    try {
+      const result = await signupStudent(payload);
+      setLoading(false);
+      if (result === "submitted") {
+        setSubmitted(true);
+      } else if (result === "rejected") {
+        setError(
+          "Your join request was previously rejected. Please contact the administrator.",
+        );
+      } else {
+        setError(
+          "Could not sign up. This phone number may already be registered.",
+        );
+      }
+    } catch (err: any) {
+      setLoading(false);
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "An error occurred during signup. Please try again.";
+      setError(message);
     }
   };
 
