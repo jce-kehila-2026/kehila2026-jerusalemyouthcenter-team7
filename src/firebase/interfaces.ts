@@ -8,8 +8,9 @@ export interface Question {
 
 export interface QuestionnaireTemplate {
   title: string;
-  date: string; 
-  modified: string; 
+  date: string;
+  modified: string;
+  target_audience: "singer" | "admin" | "both";
   questions: Question[];
 }
 
@@ -20,6 +21,6 @@ export interface Response {
 
 export interface SubmittedForm {
   formId: string;
-  submitDate: string; 
+  submitDate: string;
   responses: Response[];
 }
