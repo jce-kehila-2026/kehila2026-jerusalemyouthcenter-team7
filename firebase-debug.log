@@ -1,0 +1,44 @@
+[debug] [2026-06-14T11:15:42.952Z] ----------------------------------------------------------------------
+[debug] [2026-06-14T11:15:42.959Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\georg\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js init
+[debug] [2026-06-14T11:15:42.960Z] CLI Version:   15.20.0
+[debug] [2026-06-14T11:15:42.961Z] Platform:      win32
+[debug] [2026-06-14T11:15:42.961Z] Node Version:  v24.12.0
+[debug] [2026-06-14T11:15:42.961Z] Time:          Sun Jun 14 2026 14:15:42 GMT+0300 (Israel Daylight Time)
+[debug] [2026-06-14T11:15:42.962Z] ----------------------------------------------------------------------
+[debug] 
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  C:\Users\georg\OneDrive\Documents\GitHub\kehila2026-jerusalemyouthcenter-team7
+
+[info] 
+=== Project Setup
+[info] 
+[info] First, let's associate this project directory with a Firebase project.
+[info] You can create multiple project aliases by running firebase use --add, 
+[info] 
+[debug] [2026-06-14T11:16:10.610Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-06-14T11:16:10.611Z] > authorizing via signed-in user (georgeabusaid2468@gmail.com)
+[debug] [2026-06-14T11:16:10.614Z] Checked if tokens are valid: true, expires at: 1781439278880
+[debug] [2026-06-14T11:16:10.615Z] Checked if tokens are valid: true, expires at: 1781439278880
+[debug] [2026-06-14T11:16:10.618Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=100
+[debug] [2026-06-14T11:16:11.451Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2026-06-14T11:16:11.451Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[info] 
+=== Hosting Setup
+[debug] [2026-06-14T11:16:58.404Z] Checked if tokens are valid: true, expires at: 1781439278880
+[debug] [2026-06-14T11:16:58.404Z] Checked if tokens are valid: true, expires at: 1781439278880
+[debug] [2026-06-14T11:16:58.405Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/fullstack-team-7 [none]
+[debug] [2026-06-14T11:16:58.798Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/fullstack-team-7 200
+[debug] [2026-06-14T11:16:58.799Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/fullstack-team-7 {"projectId":"fullstack-team-7","projectNumber":"410116734350","displayName":"fullstack-team-7","name":"projects/fullstack-team-7","resources":{"hostingSite":"fullstack-team-7"},"state":"ACTIVE","etag":"1_00e7e709-d98f-4d73-9efd-a811b9f17cb1"}
+[info] 
+[info] Your public directory is the folder (relative to your project directory) that
+[info] will contain Hosting assets to be uploaded with firebase deploy. If you
+[info] have a build process for your assets, use your build's output directory.
+[info] 

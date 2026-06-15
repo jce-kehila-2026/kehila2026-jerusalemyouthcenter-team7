@@ -1,10 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useLocalSearchParams, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -12,6 +16,17 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { db } from "@/src/firebase/firebase";
+import {
+  collection,
+  doc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { useAuth, UserType } from "../../src/context/AuthContext";
 import {
   Group,
@@ -31,6 +46,7 @@ const ds = {
   bg: "#f5fafe",
   text: "#1a1a2e",
   subtext: "#5a6a7a",
+  muted: "#9aa8b4",
   border: "#e8eef2",
 } as const;
 
@@ -43,6 +59,16 @@ type StudentWithGroup = Omit<StudentWithVoice, "year_id"> & {
   group_name: string;
   voice_type?: UserType["voice_type"];
   year_id: number | null;
+};
+
+type JoinRequest = {
+  uid: string;
+  full_name: string;
+  phone: string;
+  email: string | null;
+  voice_type: string | null;
+  school_name: string | null;
+  status: string;
 };
 
 // ── Filter data ───────────────────────────────────────────────────────────────
@@ -63,19 +89,21 @@ const VOICE_FILTERS = [
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 export default function StudentsListScreen() {
-  const router = useRouter();
+  const router   = useRouter();
   const { user } = useAuth();
+  const { action } = useLocalSearchParams<{ action?: string }>();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedYearFilter, setSelectedYearFilter] = useState<string | null>(
-    null,
-  );
-  const [selectedVoiceFilter, setSelectedVoiceFilter] = useState<string | null>(
-    null,
-  );
+  const [selectedYearFilter, setSelectedYearFilter] = useState<string | null>(null);
+  const [selectedVoiceFilter, setSelectedVoiceFilter] = useState<string | null>(null);
   const [studentsList, setStudentsList] = useState<StudentWithVoice[]>([]);
-  const [groupsList, setGroupsList] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [groupsList, setGroupsList]     = useState<Group[]>([]);
+  const [loading, setLoading]           = useState(true);
+
+  // ── Join Requests state ───────────────────────────────────────────────────
+  const [joinRequestsVisible, setJoinRequestsVisible] = useState(false);
+  const [joinRequests, setJoinRequests]               = useState<JoinRequest[]>([]);
+  const [joinRequestsLoading, setJoinRequestsLoading] = useState(false);
 
   // ── Data fetching ────────────────────────────────────────────────────────
   useFocusEffect(
@@ -99,6 +127,114 @@ export default function StudentsListScreen() {
       fetchData();
     }, []),
   );
+
+  // ── Fetch pending join requests ───────────────────────────────────────────
+  const fetchJoinRequests = async () => {
+    if (user?.role !== "admin") return;
+    setJoinRequestsLoading(true);
+    try {
+      console.log("JOIN_REQUESTS: fetching pending requests...");
+      const q = query(
+        collection(db, "users"),
+        where("role", "==", "join-request"),
+      );
+      const snap = await getDocs(q);
+      const requests: JoinRequest[] = snap.docs.map((d) => ({
+        uid: d.id,
+        full_name: d.data().full_name || "",
+        phone: d.data().phone || "",
+        email: d.data().email || null,
+        voice_type: d.data().voice_type || null,
+        school_name: d.data().school_name || null,
+        status: d.data().status || "pending",
+      }));
+      console.log("JOIN_REQUESTS: found", requests.length, "pending requests");
+      setJoinRequests(requests);
+    } catch (e: any) {
+      console.error("JOIN_REQUESTS fetch error:", e.message);
+    } finally {
+      setJoinRequestsLoading(false);
+    }
+  };
+
+  // ── Open Join Requests modal when arriving with ?action=join-requests ────
+  useEffect(() => {
+    if (action === "join-requests" && user?.role === "admin") {
+      fetchJoinRequests();
+      setJoinRequestsVisible(true);
+      router.setParams({ action: "" });
+    }
+  }, [action]);
+
+  // ── Approve handler ───────────────────────────────────────────────────────
+  const handleApprove = async (request: JoinRequest) => {
+    try {
+      console.log("APPROVE: approving", request.full_name, request.uid);
+      await updateDoc(doc(db, "users", request.uid), {
+        role: "singer",
+        status: "approved",
+        year_id: 1,
+      });
+      setJoinRequests((prev) => prev.filter((r) => r.uid !== request.uid));
+      Alert.alert(
+        "Approved",
+        `${request.full_name} has been approved and can now log in.`,
+      );
+      // Refresh student list
+      const fresh = await studentService.getAllStudents();
+      if (fresh.length > 0) setStudentsList(fresh);
+    } catch (e: any) {
+      console.error("APPROVE ERROR:", e.message);
+      Alert.alert("Error", "Could not approve the request. Please try again.");
+    }
+  };
+
+  // ── Reject handler ────────────────────────────────────────────────────────
+  const handleReject = (request: JoinRequest) => {
+    Alert.alert(
+      "Reject Request",
+      `Are you sure you want to reject ${request.full_name}'s join request?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reject",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              console.log("REJECT: rejecting", request.full_name, request.uid);
+              const phoneDigits = request.phone.replace(/\D/g, "");
+
+              // Save rejection record so they cannot re-register
+              await setDoc(doc(db, "join_requests", phoneDigits), {
+                uid: request.uid,
+                full_name: request.full_name,
+                phone: request.phone,
+                email: request.email,
+                status: "rejected",
+                rejectedAt: serverTimestamp(),
+              });
+
+              // Mark user as rejected
+              await updateDoc(doc(db, "users", request.uid), {
+                role: "rejected",
+                status: "rejected",
+              });
+
+              setJoinRequests((prev) =>
+                prev.filter((r) => r.uid !== request.uid),
+              );
+            } catch (e: any) {
+              console.error("REJECT ERROR:", e.message);
+              Alert.alert(
+                "Error",
+                "Could not reject the request. Please try again.",
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
 
   // ── Filtering ─────────────────────────────────────────────────────────────
   const filteredStudents = useMemo(() => {
@@ -179,14 +315,10 @@ export default function StudentsListScreen() {
   // ── Helpers ───────────────────────────────────────────────────────────────
   const getGroupColor = (groupName: string): string => {
     switch (groupName) {
-      case "Year 1":
-        return ds.yellow;
-      case "Year 2":
-        return ds.red;
-      case "Year 3":
-        return ds.purple;
-      default:
-        return ds.teal;
+      case "Year 1": return ds.yellow;
+      case "Year 2": return ds.red;
+      case "Year 3": return ds.purple;
+      default:       return ds.teal;
     }
   };
 
@@ -212,11 +344,8 @@ export default function StudentsListScreen() {
         ]}
         android_ripple={{ color: ds.teal + "20" }}
       >
-        {/* Colored top accent bar */}
         <View style={[s.cardTopBar, { backgroundColor: groupColor }]} />
-
         <View style={s.cardBody}>
-          {/* Top — badges */}
           <View style={s.badgesRow}>
             <View style={[s.badge, { backgroundColor: groupColor + "22" }]}>
               <Text style={[s.badgeText, { color: groupColor }]}>
@@ -229,25 +358,19 @@ export default function StudentsListScreen() {
               </Text>
             </View>
           </View>
-
-          {/* Middle — avatar + name */}
           <View style={s.nameRow}>
             <View
               style={[
                 s.avatar,
-                { backgroundColor: groupColor + "22", borderColor: groupColor },
+                { backgroundColor: ds.bg, borderColor: ds.border, borderWidth: 1 },
               ]}
             >
-              <Text style={[s.avatarText, { color: groupColor }]}>
-                {initials}
-              </Text>
+              <Text style={[s.avatarText, { color: ds.text }]}>{initials}</Text>
             </View>
             <Text style={s.cardTitle} numberOfLines={1}>
               {item.full_name}
             </Text>
           </View>
-
-          {/* Bottom — actions */}
           <View style={s.actionsRow}>
             <Pressable
               hitSlop={8}
@@ -273,7 +396,9 @@ export default function StudentsListScreen() {
 
       {/* ── Teal Header ───────────────────────────────────────────────── */}
       <View style={s.headerBg}>
-        <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
+        <Text style={s.orgLabel}>
+          <Text style={{ opacity: 0.85 }}>🎵 Jerusalem Youth Chorus</Text>
+        </Text>
         <Text style={s.pageTitle}>Students</Text>
       </View>
 
@@ -284,8 +409,8 @@ export default function StudentsListScreen() {
             <Ionicons name="search-outline" size={18} color={ds.subtext} />
             <TextInput
               style={s.searchInput}
-              placeholder="Search students..."
-              placeholderTextColor={ds.subtext}
+              placeholder="Search by name or email..."
+              placeholderTextColor={ds.muted}
               value={searchQuery}
               onChangeText={setSearchQuery}
               clearButtonMode="while-editing"
@@ -363,9 +488,7 @@ export default function StudentsListScreen() {
           <View style={s.empty}>
             <Ionicons name="people-outline" size={48} color={ds.border} />
             <Text style={s.emptyText}>
-              {searchQuery
-                ? "No students match your search"
-                : "No students found"}
+              {searchQuery ? "No students match your search" : "No students found"}
             </Text>
           </View>
         ) : (
@@ -379,149 +502,287 @@ export default function StudentsListScreen() {
         )}
       </View>
 
-      {/* ── FAB ───────────────────────────────────────────────────────── */}
+      {/* ── FAB — Join Requests (admin only) ─────────────────────────── */}
       {user?.role === "admin" && (
-        <Pressable style={s.fab} onPress={() => router.push("/add-student")}>
-          <Text style={s.fabText}>+</Text>
+        <Pressable
+          style={s.fab}
+          onPress={() => {
+            fetchJoinRequests();
+            setJoinRequestsVisible(true);
+          }}
+        >
+          <Ionicons name="people" size={22} color="#fff" />
         </Pressable>
       )}
+
+      {/* ── Join Requests Modal ────────────────────────────────────────── */}
+      <Modal
+        visible={joinRequestsVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setJoinRequestsVisible(false)}
+      >
+        <View style={s.modalOverlay}>
+          <View style={s.modalSheet}>
+            <View style={s.modalHandle} />
+
+            <View style={s.modalTitleRow}>
+              <Text style={s.modalTitle}>Join Requests</Text>
+              <Pressable
+                onPress={fetchJoinRequests}
+                hitSlop={12}
+                disabled={joinRequestsLoading}
+              >
+                <Ionicons
+                  name="refresh-outline"
+                  size={22}
+                  color={joinRequestsLoading ? ds.muted : ds.teal}
+                />
+              </Pressable>
+            </View>
+
+            {joinRequestsLoading ? (
+              <ActivityIndicator
+                color={ds.teal}
+                size="large"
+                style={{ marginVertical: 32 }}
+              />
+            ) : joinRequests.length === 0 ? (
+              <View style={s.emptyRequests}>
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={48}
+                  color={ds.muted}
+                />
+                <Text style={s.emptyRequestsText}>No pending join requests</Text>
+              </View>
+            ) : (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                style={{ maxHeight: 420 }}
+              >
+                {joinRequests.map((req) => (
+                  <View key={req.uid} style={s.requestCard}>
+                    <Text style={s.requestName}>{req.full_name}</Text>
+                    <Text style={s.requestDetail}>📞 {req.phone}</Text>
+                    {req.email ? (
+                      <Text style={s.requestDetail}>✉️ {req.email}</Text>
+                    ) : null}
+                    {req.voice_type ? (
+                      <Text style={s.requestDetail}>
+                        🎵{" "}
+                        {req.voice_type.charAt(0).toUpperCase() +
+                          req.voice_type.slice(1)}
+                      </Text>
+                    ) : null}
+                    {req.school_name ? (
+                      <Text style={s.requestDetail}>🏫 {req.school_name}</Text>
+                    ) : null}
+                    <View style={s.requestActions}>
+                      <Pressable
+                        style={[s.actionBtn, { backgroundColor: ds.teal }]}
+                        onPress={() => handleApprove(req)}
+                      >
+                        <Ionicons name="checkmark" size={15} color="#fff" />
+                        <Text style={s.actionBtnText}>Approve</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[s.actionBtn, { backgroundColor: ds.red }]}
+                        onPress={() => handleReject(req)}
+                      >
+                        <Ionicons name="close" size={15} color="#fff" />
+                        <Text style={s.actionBtnText}>Reject</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
+            <Pressable
+              style={s.closeBtn}
+              onPress={() => setJoinRequestsVisible(false)}
+            >
+              <Text style={s.closeBtnText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// ── Styles ─────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: ds.teal },
-  content: { flex: 1, backgroundColor: ds.bg },
-
-  // Header
-  headerBg: {
-    backgroundColor: ds.teal,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
-  },
-  orgLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "rgba(255,255,255,0.85)",
-    marginBottom: 4,
-  },
-  pageTitle: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: ds.white,
-  },
-
-  // Search
-  searchSection: {
-    backgroundColor: ds.white,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: ds.border,
-  },
+  safe: { flex: 1, backgroundColor: ds.bg },
+  headerBg: { backgroundColor: ds.teal, padding: 16, paddingTop: 40 },
+  orgLabel: { color: ds.white, opacity: 0.9 },
+  pageTitle: { color: ds.white, fontSize: 20, fontWeight: "700", marginTop: 6 },
+  content: { flex: 1, padding: 12 },
+  searchSection: { marginBottom: 12 },
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: ds.bg,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: ds.border,
-    paddingHorizontal: 16,
-    height: 48,
-    gap: 8,
-  },
-  searchInput: { flex: 1, fontSize: 15, color: ds.text },
-
-  // Filters
-  filterSection: {
     backgroundColor: ds.white,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: ds.border,
+    padding: 8,
+    borderRadius: 8,
   },
-  filterLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: ds.subtext,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginTop: 8,
-    marginBottom: 8,
-  },
+  searchInput: { marginLeft: 8, flex: 1, color: ds.text },
+  filterSection: { marginBottom: 12 },
+  filterLabel: { color: ds.subtext, fontSize: 12, marginBottom: 6 },
   filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   filterChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: ds.border,
-    backgroundColor: ds.bg,
-  },
-  filterChipActive: { backgroundColor: ds.teal, borderColor: ds.teal },
-  filterChipText: { fontSize: 12, fontWeight: "600", color: ds.subtext },
-  filterChipTextActive: { color: ds.white },
-  filterDot: { width: 8, height: 8, borderRadius: 4 },
-
-  // List
-  list: { padding: 16, gap: 16, paddingBottom: 96 },
-
-  // Card
-  card: {
-    backgroundColor: ds.white,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: ds.border,
-    overflow: "hidden",
-    shadowColor: ds.teal,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    backgroundColor: ds.white,
+    marginRight: 8,
+    marginBottom: 8,
   },
-  cardTopBar: { height: 4 },
-  cardBody: { padding: 16, gap: 16 },
-  badgesRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
-  badgeText: { fontSize: 12, fontWeight: "600" },
-  nameRow: { flexDirection: "row", alignItems: "center", gap: 16 },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarText: { fontSize: 18, fontWeight: "700" },
-  cardTitle: { fontSize: 18, fontWeight: "800", color: ds.text, flex: 1 },
-  actionsRow: { flexDirection: "row", alignItems: "center" },
+  filterChipActive: { backgroundColor: ds.teal },
+  filterDot: { width: 8, height: 8, borderRadius: 8, marginRight: 8 },
+  filterChipText: { color: ds.text },
+  filterChipTextActive: { color: ds.white },
+  empty: { flex: 1, justifyContent: "center", alignItems: "center" },
+  emptyText: { color: ds.muted, marginTop: 8 },
+  list: { paddingBottom: 120 },
 
-  // FAB
+  // ── FAB
   fab: {
     position: "absolute",
     bottom: 24,
-    right: 16,
+    right: 20,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: ds.teal,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: ds.teal,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.4,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 6,
   },
-  fabText: { fontSize: 28, color: ds.white, fontWeight: "300", lineHeight: 32 },
 
-  // Empty / Loading
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
-  emptyText: { fontSize: 15, color: ds.subtext },
+  // ── Modal shell
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: ds.border,
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  modalTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  modalTitle: { fontSize: 20, fontWeight: "800", color: ds.text },
+
+  // ── Empty state inside modal
+  emptyRequests: {
+    alignItems: "center",
+    paddingVertical: 32,
+    gap: 8,
+  },
+  emptyRequestsText: { color: ds.muted, fontSize: 14 },
+
+  // ── Request cards
+  requestCard: {
+    backgroundColor: ds.bg,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: ds.border,
+  },
+  requestName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: ds.text,
+    marginBottom: 6,
+  },
+  requestDetail: { fontSize: 13, color: ds.subtext, marginTop: 2 },
+  requestActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 9,
+    borderRadius: 8,
+    gap: 4,
+  },
+  actionBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+
+  // ── Close button
+  closeBtn: {
+    marginTop: 16,
+    borderWidth: 1.5,
+    borderColor: ds.border,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: "center",
+  },
+  closeBtnText: { fontSize: 14, fontWeight: "700", color: ds.subtext },
+
+  // ── Student cards (unchanged)
+  card: {
+    backgroundColor: ds.white,
+    borderRadius: 8,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  cardTopBar: { height: 6, width: "100%" },
+  cardBody: {
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  badgesRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  badge: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  badgeText: { fontSize: 12 },
+  nameRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: { fontWeight: "700" },
+  cardTitle: { marginLeft: 12, fontWeight: "600", color: ds.text, flex: 1 },
+  actionsRow: { marginLeft: 8 },
 });
