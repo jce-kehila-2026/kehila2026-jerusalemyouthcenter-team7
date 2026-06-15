@@ -18,6 +18,7 @@ export type Student = {
   parent_signature?: boolean;
   allergies?: string;
   voice_type?: string;
+  year_joined?: number | null;
 };
 
 export type Group = {
@@ -58,7 +59,7 @@ export type Form = {
   title: string;
   description: string;
   created_at: string;
-  target_audience: "student" | "admin" | "both";
+  target_audience: "singer" | "admin" | "both";
   questions: Question[];
 };
 
@@ -258,7 +259,7 @@ export const forms: Form[] = [
     title: "Event Registration: Shabbat Dinner",
     description: "Register for the upcoming Shabbat dinner.",
     created_at: "2026-04-20",
-    target_audience: "student",
+    target_audience: "singer",
     questions: [
       {
         id: 4,
@@ -274,7 +275,7 @@ export const forms: Form[] = [
     title: "Program Feedback - Spring 2026",
     description: "Help us improve our programs.",
     created_at: "2026-04-25",
-    target_audience: "student",
+    target_audience: "singer",
     questions: [
       {
         id: 6,
