@@ -91,7 +91,7 @@ const formatDate = (ts) => {
   });
 };
 
-export default function LibraryScreen() {
+export default function LibraryScreen({ autoUpload = false }) {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
@@ -159,6 +159,13 @@ export default function LibraryScreen() {
       console.error("Pick error:", e);
     }
   };
+
+  // Auto-trigger file picker when navigated here with ?action=upload
+  useEffect(() => {
+    if (autoUpload && isAdmin) {
+      handlePickFile();
+    }
+  }, [autoUpload]);
 
   const handleUploadFile = async () => {
     if (!pendingFile) return;

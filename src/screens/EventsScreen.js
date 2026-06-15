@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -261,6 +261,7 @@ function FormFields({ values, setValues, errors }) {
 
 export default function EventsScreen() {
   const router = useRouter();
+  const { action } = useLocalSearchParams();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("list");
@@ -276,6 +277,14 @@ export default function EventsScreen() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+
+  // Open the Add Event modal when navigated here with ?action=add
+  useEffect(() => {
+    if (action === "add") {
+      setAddVisible(true);
+      router.setParams({ action: "" });
+    }
+  }, [action]);
 
   useEffect(() => {
     const loadEvents = async () => {
