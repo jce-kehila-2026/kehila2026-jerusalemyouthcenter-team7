@@ -1,7 +1,13 @@
 import { useAuth } from "@/src/context/AuthContext";
-import { db, secondaryAuth } from "@/src/firebase/firebase";
+import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
-import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { deleteApp, getApps, initializeApp } from "firebase/app";
+import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  inMemoryPersistence,
+  setPersistence,
+} from "firebase/auth";
 import {
   collection,
   deleteDoc,
@@ -50,6 +56,8 @@ type AdminUser = {
   email: string;
   phone?: string | null;
   birthday?: string | null;
+  job?: string | null;
+  staff_type?: string | null;
 };
 
 type AdminForm = {
@@ -58,7 +66,12 @@ type AdminForm = {
   password: string;
   phone: string;
   birthday: string;
+  job: string;
+  staff_type: string;
 };
+
+const JOB_OPTIONS = ["Music Teacher", "Educational Supervisor"] as const;
+const STAFF_TYPE_OPTIONS = ["Administrative", "Educational"] as const;
 
 const EMPTY_FORM: AdminForm = {
   full_name: "",
@@ -66,6 +79,8 @@ const EMPTY_FORM: AdminForm = {
   password: "",
   phone: "",
   birthday: "",
+  job: "",
+  staff_type: "",
 };
 
 type Props = { visible: boolean; onClose: () => void };
@@ -95,6 +110,8 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
             email: d.data().email || "",
             phone: d.data().phone ?? null,
             birthday: d.data().birthday ?? null,
+            job: d.data().job ?? null,
+            staff_type: d.data().staff_type ?? null,
           })),
         );
         setListLoading(false);
@@ -121,30 +138,45 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
   const setField = (k: keyof AdminForm) => (v: string) =>
     setForm((p) => ({ ...p, [k]: v }));
 
-  // ── Create admin ───────────────────────────────────────────────────────────
+  // ── Create admin (fresh secondary app each time so the current admin
+  //    session is never affected, matches old working implementation) ─────────
   const handleSave = async () => {
-    const { full_name, email, password } = form;
+    const { full_name, email, password, job, staff_type } = form;
     if (!full_name.trim()) return setError("Full name is required.");
     if (!email.trim()) return setError("Email is required.");
     if (password.length < 6)
       return setError("Password must be at least 6 characters.");
+    if (!job) return setError("Job position is required.");
+    if (!staff_type) return setError("Staff type is required.");
 
     setSaving(true);
     setError("");
+    let secondaryApp: ReturnType<typeof initializeApp> | null = null;
     try {
-      console.log("ADMIN CREATE: creating auth account for", email.trim());
-      // Use secondary auth so the current admin session stays intact
-      const cred = await createUserWithEmailAndPassword(
-        secondaryAuth,
+      const SECONDARY_NAME = "admin-creator-secondary";
+      const existing = getApps().find((a) => a.name === SECONDARY_NAME);
+      if (existing) await deleteApp(existing);
+
+      const mainOptions =
+        (getApps().find((a) => a.name === "[DEFAULT]") as any)?.options ?? {};
+      secondaryApp = initializeApp(mainOptions, SECONDARY_NAME);
+      const secAuth = getAuth(secondaryApp);
+      await setPersistence(secAuth, inMemoryPersistence);
+
+      const credential = await createUserWithEmailAndPassword(
+        secAuth,
         email.trim(),
         password,
       );
-      const newUid = cred.user.uid;
-      await signOut(secondaryAuth); // clean up secondary session
+      const newUid = credential.user.uid;
+      await secAuth.signOut();
 
       await setDoc(doc(db, "users", newUid), {
         uid: newUid,
         role: "admin",
+        job: form.job,
+        staff_type: form.staff_type,
+        mustChangePassword: true,
         full_name: form.full_name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim() || null,
@@ -152,7 +184,6 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
         createdAt: serverTimestamp(),
       });
 
-      console.log("ADMIN CREATE: success for", email.trim());
       resetForm();
       setView("list");
     } catch (e: any) {
@@ -163,11 +194,18 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
           : e.message || "Failed to create admin account.",
       );
     } finally {
+      if (secondaryApp) {
+        try {
+          await deleteApp(secondaryApp);
+        } catch {
+          /* cleanup */
+        }
+      }
       setSaving(false);
     }
   };
 
-  // ── Delete admin (double confirmation) ────────────────────────────────────
+  // ── Delete admin (double confirmation matches old working implementation) ──
   const handleDelete = (admin: AdminUser) => {
     const currentUserId = currentUser?.uid || (currentUser as any)?.id; // Robust check for current user's UID
     if (currentUserId === admin.uid) {
@@ -267,6 +305,9 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
               <View style={{ flex: 1 }}>
                 <Text style={s.adminName}>{admin.full_name}</Text>
                 <Text style={s.adminEmail}>{admin.email}</Text>
+                {admin.job ? (
+                  <Text style={s.adminMeta}>💼 {admin.job}</Text>
+                ) : null}
                 {admin.phone ? (
                   <Text style={s.adminMeta}>📞 {admin.phone}</Text>
                 ) : null}
@@ -367,6 +408,36 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
             placeholder="DD/MM/YYYY"
             placeholderTextColor={C.muted}
           />
+
+          <FieldLabel text="Job Position" req />
+          <View style={s.pillRow}>
+            {JOB_OPTIONS.map((j) => (
+              <Pressable
+                key={j}
+                style={[s.pill, form.job === j && s.pillActive]}
+                onPress={() => setField("job")(j)}
+              >
+                <Text style={[s.pillText, form.job === j && s.pillTextActive]}>
+                  {j}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <FieldLabel text="Staff Type" req />
+          <View style={s.pillRow}>
+            {STAFF_TYPE_OPTIONS.map((st) => (
+              <Pressable
+                key={st}
+                style={[s.pill, form.staff_type === st && s.pillActive]}
+                onPress={() => setField("staff_type")(st)}
+              >
+                <Text style={[s.pillText, form.staff_type === st && s.pillTextActive]}>
+                  {st}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
 
           <Pressable
             style={[s.saveBtn, saving && { opacity: 0.6 }]}

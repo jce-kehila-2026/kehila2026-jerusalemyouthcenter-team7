@@ -28,6 +28,7 @@ export type UserType = {
   voice_type?: string | null;
   current_year_id?: number | null;
   group_id?: string | null;
+  mustChangePassword?: boolean;
 };
 
 export type StudentSignupPayload = {
@@ -61,7 +62,7 @@ type AuthContextType = {
     password: string,
     role: UserRole,
   ) => Promise<boolean | "pending" | "rejected">;
-  // Returns "submitted" on success, "rejected" if previously rejected, false on error
+  // Returns "submitted" on success, "rejected" if previously rejected, false if phone already registered, throws on other errors
   signupStudent: (
     payload: StudentSignupPayload,
   ) => Promise<"submitted" | "rejected" | false>;
@@ -98,10 +99,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
 
             // Only allow singer and admin roles to have an active session
             if (userRole !== "singer" && userRole !== "admin") {
-              console.log(
-                "AUTH: blocking session restore for role:",
-                userRole,
-              );
+              console.log("AUTH: blocking session restore for role:", userRole);
               if (!isSigningUpRef.current) {
                 await signOut(auth);
               }
@@ -124,6 +122,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
                     : d.year !== undefined && d.year !== null
                       ? Number(d.year)
                       : null,
+                mustChangePassword: d.mustChangePassword ?? false,
               });
             }
           } else {
@@ -220,6 +219,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
               : d.year !== undefined && d.year !== null
                 ? Number(d.year)
                 : null,
+          mustChangePassword: d.mustChangePassword ?? false,
         });
         return true;
       } else {
@@ -279,6 +279,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
                     : d.year !== undefined && d.year !== null
                       ? Number(d.year)
                       : null,
+                mustChangePassword: d.mustChangePassword ?? false,
               });
               return true;
             } else {
@@ -380,7 +381,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
     } catch (e: any) {
       isSigningUpRef.current = false;
       console.log("SIGNUP ERROR:", e.message);
-      return false;
+      throw e;
     }
   };
 

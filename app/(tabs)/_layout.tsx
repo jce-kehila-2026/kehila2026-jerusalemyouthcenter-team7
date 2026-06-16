@@ -1,8 +1,10 @@
 import { AppColors, Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useAuth } from "@/src/context/AuthContext";
+import { ForcePasswordChangeModal } from "@/src/components/ForcePasswordChangeModal";
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { EventsProvider } from "../../src/context/EventsContext";
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
@@ -21,6 +23,26 @@ function TabIcon({
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
+  const { user } = useAuth();
+  const [showForceChange, setShowForceChange] = useState(false);
+  const prevUserIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const prevId = prevUserIdRef.current;
+    const currentId = user?.uid ?? null;
+
+    // Only trigger on a genuine login transition (null → user).
+    // This prevents false positives from secondary-app auth state broadcasts.
+    if (!prevId && currentId && user?.mustChangePassword) {
+      setShowForceChange(true);
+    }
+    if (!currentId) {
+      setShowForceChange(false);
+    }
+
+    prevUserIdRef.current = currentId;
+  }, [user]);
+
   return (
     <EventsProvider>
       <Tabs
@@ -89,6 +111,12 @@ export default function TabLayout() {
         <Tabs.Screen name="student-calender" options={{ href: null }} />
         <Tabs.Screen name="calendar" options={{ href: null }} />
       </Tabs>
+
+      <ForcePasswordChangeModal
+        visible={showForceChange && !!user}
+        uid={user?.uid ?? ""}
+        onDone={() => setShowForceChange(false)}
+      />
     </EventsProvider>
   );
 }
