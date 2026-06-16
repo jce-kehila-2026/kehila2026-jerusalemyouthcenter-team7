@@ -11,7 +11,7 @@ import { notificationService } from "@/src/data/notificationService";
 import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, limit, orderBy, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -72,25 +72,6 @@ function daysUntil(dateStr: string) {
   );
 }
 
-function relativeTime(ts: string) {
-  const diff = Date.now() - new Date(ts).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
-  return new Date(ts).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function notifDotColor(n: DashNotif) {
-  const t = (n.title + " " + n.body).toLowerCase();
-  if (t.includes("request") || t.includes("join")) return TEAL;
-  if (t.includes("overdue") || t.includes("form")) return RED;
-  return AMBER;
-}
 
 function todayString() {
   return new Date().toLocaleDateString("en-US", {
@@ -215,21 +196,6 @@ function EventRow({
         </View>
       )}
     </Pressable>
-  );
-}
-
-function ActivityItem({ notif }: { notif: DashNotif }) {
-  return (
-    <View style={st.actRow}>
-      <View style={[st.actDot, { backgroundColor: notifDotColor(notif) }]} />
-      <View style={{ flex: 1 }}>
-        <Text style={st.actTitle} numberOfLines={1}>
-          {notif.title}
-        </Text>
-        <Text style={st.actTime}>{relativeTime(notif.timestamp)}</Text>
-      </View>
-      <View style={st.actCheck} />
-    </View>
   );
 }
 
@@ -634,115 +600,219 @@ function SingerBadgesRow({
   );
 }
 
-function SingerQuickGrid({
-  onEvents,
-  onForms,
-  onLibrary,
-  onMembers,
-  onMessages,
-  onProfile,
+// ── Singer smart shortcuts component ─────────────────────────────────────────
+
+function SingerShortcuts({
+  firstPendingForm,
+  nextUnregisteredEvent,
+  latestLibraryFile,
   unreadMessages,
-  pendingForms,
-  myRegisteredCount,
+  voiceType,
+  latestNotif,
+  onPendingForm,
+  onNextEvent,
+  onLatestFile,
+  onMessages,
+  onVoiceGroup,
+  onLatestNotif,
 }: {
-  onEvents: () => void;
-  onForms: () => void;
-  onLibrary: () => void;
-  onMembers: () => void;
-  onMessages: () => void;
-  onProfile: () => void;
+  firstPendingForm: { id: string; title: string } | null;
+  nextUnregisteredEvent: { id: string | number; title: string } | null;
+  latestLibraryFile: { id: string; name: string; ext: string } | null;
   unreadMessages: number;
-  pendingForms: number;
-  myRegisteredCount: number;
+  voiceType: string | null;
+  latestNotif: { id: string | number; title: string; body: string } | null;
+  onPendingForm: () => void;
+  onNextEvent: () => void;
+  onLatestFile: () => void;
+  onMessages: () => void;
+  onVoiceGroup: () => void;
+  onLatestNotif: () => void;
 }) {
-  const buttons = [
+  const shortcuts = [
     {
-      icon: "calendar-outline" as const,
-      label: "My Events",
-      sublabel: `${myRegisteredCount} registered`,
-      onPress: onEvents,
-      bgColor: TEAL + "15",
-      borderColor: TEAL,
-      iconColor: TEAL,
-      badge: null as number | null,
+      emoji: "📝",
+      label: firstPendingForm ? firstPendingForm.title : "No Pending Forms",
+      sublabel: firstPendingForm ? "Tap to fill now" : "All caught up ✓",
+      onPress: onPendingForm,
+      accent: RED,
+      badge: firstPendingForm ? "!" : null,
+      disabled: !firstPendingForm,
     },
     {
-      icon: "document-text-outline" as const,
-      label: "My Forms",
-      sublabel: pendingForms > 0 ? `${pendingForms} pending` : "All done ✓",
-      onPress: onForms,
-      bgColor: AMBER + "20",
-      borderColor: AMBER,
-      iconColor: AMBER,
-      badge: pendingForms > 0 ? pendingForms : (null as number | null),
+      emoji: "📅",
+      label: nextUnregisteredEvent ? nextUnregisteredEvent.title : "No New Events",
+      sublabel: nextUnregisteredEvent ? "Tap to register" : "Check back soon",
+      onPress: onNextEvent,
+      accent: TEAL,
+      badge: null as string | null,
+      disabled: !nextUnregisteredEvent,
     },
     {
-      icon: "musical-notes-outline" as const,
-      label: "Library",
-      sublabel: "Songs & scores",
-      onPress: onLibrary,
-      bgColor: RED + "15",
-      borderColor: RED,
-      iconColor: RED,
-      badge: null as number | null,
+      emoji: "🎵",
+      label: latestLibraryFile ? latestLibraryFile.name : "No Uploads Yet",
+      sublabel: latestLibraryFile ? `Latest · ${latestLibraryFile.ext}` : "Teacher hasn't uploaded",
+      onPress: onLatestFile,
+      accent: AMBER,
+      badge: latestLibraryFile ? "NEW" : null,
+      disabled: !latestLibraryFile,
     },
     {
-      icon: "people-outline" as const,
-      label: "Choir Members",
-      sublabel: "See who's in the choir",
-      onPress: onMembers,
-      bgColor: TEAL + "15",
-      borderColor: TEAL,
-      iconColor: TEAL,
-      badge: null as number | null,
-    },
-    {
-      icon: "chatbubbles-outline" as const,
-      label: "Messages",
-      sublabel:
-        unreadMessages > 0 ? `${unreadMessages} unread` : "No new messages",
+      emoji: "💬",
+      label: unreadMessages > 0 ? `${unreadMessages} Unread Message${unreadMessages > 1 ? "s" : ""}` : "Messages",
+      sublabel: unreadMessages > 0 ? "Tap to read now" : "No new messages",
       onPress: onMessages,
-      bgColor: AMBER + "20",
-      borderColor: AMBER,
-      iconColor: AMBER,
-      badge: unreadMessages > 0 ? unreadMessages : (null as number | null),
+      accent: TEAL,
+      badge: unreadMessages > 0 ? String(unreadMessages) : null,
+      disabled: false,
     },
     {
-      icon: "person-circle-outline" as const,
-      label: "My Profile",
-      sublabel: "View & edit info",
-      onPress: onProfile,
-      bgColor: RED + "15",
-      borderColor: RED,
-      iconColor: RED,
-      badge: null as number | null,
+      emoji: "👥",
+      label: voiceType ? `${voiceType.charAt(0).toUpperCase() + voiceType.slice(1)} Group` : "My Voice Group",
+      sublabel: "See your section members",
+      onPress: onVoiceGroup,
+      accent: AMBER,
+      badge: null as string | null,
+      disabled: false,
+    },
+    {
+      emoji: "📣",
+      label: latestNotif ? latestNotif.title : "No Announcements",
+      sublabel: latestNotif
+        ? latestNotif.body.slice(0, 40) + (latestNotif.body.length > 40 ? "…" : "")
+        : "Nothing new",
+      onPress: onLatestNotif,
+      accent: RED,
+      badge: null as string | null,
+      disabled: !latestNotif,
     },
   ];
 
   return (
-    <SectionCard style={{ paddingBottom: 6 }}>
-      <Text style={[st.sectionLabel, { marginBottom: 12 }]}>Quick Access</Text>
-      <View style={st.singerQuickGrid}>
-        {buttons.map((btn) => (
-          <Pressable key={btn.label} onPress={btn.onPress} style={[st.singerQuickCard, { backgroundColor: btn.bgColor, borderWidth: 1.5, borderColor: btn.borderColor }]}>
-            <View>
-              <View style={[st.singerQuickIconCircle, { backgroundColor: btn.iconColor + "20" }]}>
-                <Ionicons name={btn.icon} size={22} color={btn.iconColor} />
+    <>
+      <Text style={st.sectionLabel}>Quick Actions</Text>
+      <View style={st.shortcutsGrid}>
+        {shortcuts.map((s, i) => (
+          <Pressable
+            key={i}
+            style={[
+              st.shortcutCard,
+              { borderLeftColor: s.accent, opacity: s.disabled ? 0.5 : 1 },
+            ]}
+            onPress={s.disabled ? undefined : s.onPress}
+          >
+            <View style={st.shortcutTop}>
+              <View style={[st.shortcutIconCircle, { backgroundColor: s.accent + "18" }]}>
+                <Text style={st.shortcutEmoji}>{s.emoji}</Text>
               </View>
-              {btn.badge !== null && (
-                <View style={st.singerQuickBadge}>
-                  <Text style={st.singerQuickBadgeText}>{btn.badge}</Text>
+              {s.badge && (
+                <View style={[st.shortcutBadge, { backgroundColor: s.accent }]}>
+                  <Text style={st.shortcutBadgeText}>{s.badge}</Text>
                 </View>
               )}
             </View>
-            <View>
-              <Text style={st.singerQuickLabel}>{btn.label}</Text>
-              <Text style={st.singerQuickSub}>{btn.sublabel}</Text>
-            </View>
+            <Text style={st.shortcutLabel} numberOfLines={1}>{s.label}</Text>
+            <Text style={st.shortcutSub} numberOfLines={1}>{s.sublabel}</Text>
           </Pressable>
         ))}
       </View>
-    </SectionCard>
+    </>
+  );
+}
+
+// ── Singer leaderboard component ──────────────────────────────────────────────
+
+function SingerLeaderboard({
+  leaderboard,
+  myUid,
+  myPoints,
+  myRank,
+}: {
+  leaderboard: { uid: string; name: string; voice_type: string; points: number }[];
+  myUid: string;
+  myPoints: number;
+  myRank: number | null;
+}) {
+  const podiumEmojis = ["🥇", "🥈", "🥉"];
+  const voiceEmoji: Record<string, string> = { soprano: "🎤", alto: "🎶", tenor: "🎺", bass: "🥁" };
+  const top3 = leaderboard.slice(0, 3);
+  const isInTop3 = myRank !== null && myRank <= 3;
+
+  return (
+    <>
+      <Text style={st.sectionLabel}>🏅 Weekly Leaderboard</Text>
+      <View style={st.lbCard}>
+        <View style={st.lbHeader}>
+          <Ionicons name="trophy" size={16} color={AMBER} />
+          <Text style={st.lbHeaderText}>Top Singers This Week</Text>
+          <Text style={st.lbHeaderSub}>Resets every Monday</Text>
+        </View>
+
+        {top3.length === 0 ? (
+          <View style={st.lbEmpty}>
+            <Text style={st.lbEmptyText}>🎵 No rankings yet — be the first!</Text>
+          </View>
+        ) : (
+          top3.map((entry, i) => (
+            <View
+              key={entry.uid}
+              style={[
+                st.lbRow,
+                entry.uid === myUid && st.lbRowHighlight,
+                i === 0 && st.lbRowFirst,
+              ]}
+            >
+              <Text style={st.lbPodium}>{podiumEmojis[i]}</Text>
+              <View style={st.lbAvatar}>
+                <Text style={st.lbAvatarText}>
+                  {entry.name?.charAt(0)?.toUpperCase() ?? "?"}
+                </Text>
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={st.lbName} numberOfLines={1}>
+                  {entry.uid === myUid ? "You 🌟" : entry.name}
+                </Text>
+                <Text style={st.lbVoice}>
+                  {voiceEmoji[entry.voice_type?.toLowerCase()] ?? "🎵"} {entry.voice_type ?? ""}
+                </Text>
+              </View>
+              <View style={st.lbPointsBadge}>
+                <Text style={st.lbPointsText}>{entry.points ?? 0}</Text>
+                <Text style={st.lbPointsLabel}>pts</Text>
+              </View>
+            </View>
+          ))
+        )}
+
+        {!isInTop3 && (
+          <>
+            <View style={st.lbDivider} />
+            <View style={[st.lbRow, st.lbRowHighlight]}>
+              <Text style={st.lbPodium}>#{myRank ?? "?"}</Text>
+              <View style={[st.lbAvatar, { backgroundColor: TEAL + "30", borderColor: TEAL }]}>
+                <Text style={[st.lbAvatarText, { color: TEAL }]}>You</Text>
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={st.lbName}>Your Ranking</Text>
+                <Text style={st.lbVoice}>Keep going! 💪</Text>
+              </View>
+              <View style={[st.lbPointsBadge, { backgroundColor: TEAL + "18", borderColor: TEAL }]}>
+                <Text style={[st.lbPointsText, { color: TEAL }]}>{myPoints}</Text>
+                <Text style={[st.lbPointsLabel, { color: TEAL }]}>pts</Text>
+              </View>
+            </View>
+          </>
+        )}
+
+        <View style={st.lbHowTo}>
+          <Text style={st.lbHowToTitle}>How to earn points:</Text>
+          <Text style={st.lbHowToRow}>✅ Register for event  +10 pts</Text>
+          <Text style={st.lbHowToRow}>📝 Submit a form  +5 pts</Text>
+          <Text style={st.lbHowToRow}>🎵 Open library file  +5 pts</Text>
+          <Text style={st.lbHowToRow}>🔥 Attendance streak  +15 pts</Text>
+        </View>
+      </View>
+    </>
   );
 }
 
@@ -769,6 +839,11 @@ export default function DashboardScreen() {
   const [hasOpenedLibrary, setHasOpenedLibrary] = useState(false);
   const [singerStreak, setSingerStreak] = useState(0);
   const [customAchievements, setCustomAchievements] = useState<CustomAchievement[]>([]);
+  const [singerForms, setSingerForms] = useState<{id:string; title:string; status:string}[]>([]);
+  const [latestLibraryFile, setLatestLibraryFile] = useState<{id:string; name:string; ext:string} | null>(null);
+  const [leaderboard, setLeaderboard] = useState<{uid:string; name:string; voice_type:string; points:number}[]>([]);
+  const [myPoints, setMyPoints] = useState(0);
+  const [myRank, setMyRank] = useState<number | null>(null);
 
   const now = new Date();
   const upcomingEvents = eventList
@@ -837,7 +912,7 @@ export default function DashboardScreen() {
 
         // ── Singer-specific achievement data ────────────────────────
         if (!isAdmin) {
-          const [formSubs, userDoc, attDocs] = await Promise.allSettled([
+          const [formSubs, userDoc, attDocs, formsSnap, libSnap, lbSnap] = await Promise.allSettled([
             getDocs(
               query(
                 collection(db, "form_submissions"),
@@ -846,6 +921,9 @@ export default function DashboardScreen() {
             ),
             getDoc(doc(db, "users", user.uid)),
             getDocs(collection(db, "attendance")),
+            getDocs(collection(db, "forms")),
+            getDocs(query(collection(db, "library"), orderBy("uploadedAt", "desc"), limit(1))),
+            getDocs(query(collection(db, "leaderboard"), orderBy("points", "desc"), limit(10))),
           ]);
 
           if (formSubs.status === "fulfilled") {
@@ -891,6 +969,41 @@ export default function DashboardScreen() {
               else break;
             }
             setSingerStreak(streak);
+          }
+
+          // ── Singer forms (pending vs submitted) ──────────────────
+          if (formSubs.status === "fulfilled" && formsSnap.status === "fulfilled") {
+            const submittedIds = new Set(formSubs.value.docs.map((d) => d.data().form_id as string));
+            const forms = formsSnap.value.docs.map((d) => ({
+              id: d.id,
+              title: (d.data() as any).title ?? "Form",
+              status: submittedIds.has(d.id) ? "submitted" : "pending",
+            }));
+            setSingerForms(forms);
+          }
+
+          // ── Latest library file ──────────────────────────────────
+          if (libSnap.status === "fulfilled" && libSnap.value.size > 0) {
+            const d = libSnap.value.docs[0];
+            const data = d.data() as any;
+            setLatestLibraryFile({
+              id: d.id,
+              name: data.name ?? data.title ?? "Latest Upload",
+              ext: (data.ext ?? data.type ?? "FILE").toUpperCase(),
+            });
+          }
+
+          // ── Leaderboard ──────────────────────────────────────────
+          if (lbSnap.status === "fulfilled" && lbSnap.value.size > 0) {
+            const entries = lbSnap.value.docs.map((d) => ({
+              uid: d.id,
+              ...(d.data() as any),
+            })) as {uid:string; name:string; voice_type:string; points:number}[];
+            setLeaderboard(entries);
+            const myEntry = entries.find((e) => e.uid === user?.uid);
+            if (myEntry) setMyPoints(myEntry.points ?? 0);
+            const rank = entries.findIndex((e) => e.uid === user?.uid);
+            setMyRank(rank >= 0 ? rank + 1 : null);
           }
         }
       } catch (e) {
@@ -1135,7 +1248,7 @@ export default function DashboardScreen() {
   // ══════════════════════════════════════════════════════════════════════════
   //  SINGER VIEW
   // ══════════════════════════════════════════════════════════════════════════
-  // Singer hero card data
+  // Singer computed values
   const nextSingerEvent = upcomingEvents[0] ?? null;
   const nextEventDaysAway = nextSingerEvent
     ? Math.max(
@@ -1146,6 +1259,10 @@ export default function DashboardScreen() {
         ),
       )
     : null;
+  const firstPendingForm = singerForms.find((f) => f.status === "pending") ?? null;
+  const nextUnregisteredEvent = upcomingEvents.find((e) => !myEventIds.includes(e.id)) ?? null;
+  const latestNotifItem = notifList[0] ?? null;
+  const myUpcomingEvents = upcomingEvents.filter((e) => myEventIds.includes(e.id));
 
   return (
     <View style={st.screen}>
@@ -1177,7 +1294,7 @@ export default function DashboardScreen() {
         contentContainerStyle={st.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Hero Welcome Card ──────────────────────────────────────── */}
+        {/* ── A: Hero Welcome Card ───────────────────────────────────── */}
         <SingerHeroCard
           firstName={firstName}
           voiceType={user?.voice_type ?? null}
@@ -1186,7 +1303,7 @@ export default function DashboardScreen() {
           nextEventDaysAway={nextEventDaysAway}
         />
 
-        {/* ── Achievements / Badges Row ──────────────────────────────── */}
+        {/* ── B: Achievements / Badges Row ───────────────────────────── */}
         <SingerBadgesRow
           registeredEventCount={myEventIds.length}
           formCount={formCount}
@@ -1194,35 +1311,59 @@ export default function DashboardScreen() {
           customAchievements={customAchievements}
         />
 
-        {/* ── Quick Access Grid ──────────────────────────────────────── */}
-        <SingerQuickGrid
-          onEvents={() => router.push("/(tabs)/events" as any)}
-          onForms={() => router.push("/(tabs)/forms" as any)}
-          onLibrary={() => router.push("/(tabs)/library" as any)}
-          onMembers={() => router.push("/(tabs)/students" as any)}
-          onMessages={() => router.push("/(tabs)/messages" as any)}
-          onProfile={() => router.push("/profile" as any)}
+        {/* ── C: 6 Smart Shortcuts ───────────────────────────────────── */}
+        <SingerShortcuts
+          firstPendingForm={firstPendingForm}
+          nextUnregisteredEvent={nextUnregisteredEvent}
+          latestLibraryFile={latestLibraryFile}
           unreadMessages={unreadMessages}
-          pendingForms={0}
-          myRegisteredCount={myEventIds.length}
+          voiceType={user?.voice_type ?? null}
+          latestNotif={latestNotifItem}
+          onPendingForm={() =>
+            firstPendingForm && router.push(`/form/${firstPendingForm.id}` as any)
+          }
+          onNextEvent={() =>
+            nextUnregisteredEvent &&
+            router.push(`/event/${nextUnregisteredEvent.id}` as any)
+          }
+          onLatestFile={() => router.push("/(tabs)/library" as any)}
+          onMessages={() => router.push("/(tabs)/messages" as any)}
+          onVoiceGroup={() => router.push("/(tabs)/students" as any)}
+          onLatestNotif={() => router.push("/(tabs)/notifications" as any)}
         />
 
-        {/* ── Recent Activity ────────────────────────────────────────── */}
-        {notifList.length > 0 && (
-          <SectionCard>
-            <SectionHeader
-              title="Recent Activity"
-              action="See all →"
-              onAction={() => router.push("/(tabs)/notifications" as any)}
-            />
-            {notifList.slice(0, 3).map((n, i) => (
-              <View key={String(n.id)}>
+        {/* ── E: My Upcoming Events ──────────────────────────────────── */}
+        <SectionCard>
+          <SectionHeader
+            title="My Upcoming Events"
+            action="View all →"
+            onAction={() => router.push("/(tabs)/events" as any)}
+          />
+          {myUpcomingEvents.length === 0 ? (
+            <View style={st.emptyInCard}>
+              <Ionicons name="calendar-outline" size={36} color={MUTED} />
+              <Text style={st.emptyText}>No registered events yet</Text>
+            </View>
+          ) : (
+            myUpcomingEvents.slice(0, 3).map((e, i) => (
+              <View key={e.id}>
                 {i > 0 && <View style={st.rowDivider} />}
-                <ActivityItem notif={n} />
+                <EventRow
+                  event={e}
+                  onPress={() => router.push(`/event/${e.id}` as any)}
+                />
               </View>
-            ))}
-          </SectionCard>
-        )}
+            ))
+          )}
+        </SectionCard>
+
+        {/* ── D: Weekly Leaderboard ──────────────────────────────────── */}
+        <SingerLeaderboard
+          leaderboard={leaderboard}
+          myUid={user?.uid ?? ""}
+          myPoints={myPoints}
+          myRank={myRank}
+        />
 
         <View style={{ height: 32 }} />
       </ScrollView>
@@ -1721,4 +1862,125 @@ const st = StyleSheet.create({
     backgroundColor: TEAL + "08",
   },
   quickLinkText: { fontSize: 13, fontWeight: "700", color: TEAL },
+
+  // ── Singer Shortcuts Grid
+  shortcutsGrid: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    gap: 8,
+    marginBottom: 12,
+  },
+  shortcutCard: {
+    width: "47%" as any,
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderLeftWidth: 4,
+    padding: 12,
+    minHeight: 88,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  shortcutTop: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "flex-start" as const,
+    marginBottom: 8,
+  },
+  shortcutIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  shortcutEmoji: { fontSize: 18 },
+  shortcutBadge: {
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: "center" as const,
+  },
+  shortcutBadgeText: { fontSize: 9, fontWeight: "900" as const, color: "#fff" },
+  shortcutLabel: { fontSize: 12, fontWeight: "800" as const, color: DARK, marginBottom: 2 },
+  shortcutSub: { fontSize: 10, color: SUB },
+
+  // ── Leaderboard Card
+  lbCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: BORDER,
+    overflow: "hidden" as const,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+    marginBottom: 4,
+  },
+  lbHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    padding: 14,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: BORDER,
+  },
+  lbHeaderText: { fontSize: 13, fontWeight: "800" as const, color: DARK, flex: 1 },
+  lbHeaderSub: { fontSize: 10, color: MUTED },
+  lbRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: BORDER,
+  },
+  lbRowFirst: { backgroundColor: AMBER + "08" },
+  lbRowHighlight: { backgroundColor: TEAL + "08" },
+  lbPodium: { fontSize: 18, width: 28, textAlign: "center" as const },
+  lbAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: AMBER + "30",
+    borderWidth: 1.5,
+    borderColor: AMBER,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  lbAvatarText: { fontSize: 14, fontWeight: "800" as const, color: AMBER },
+  lbName: { fontSize: 13, fontWeight: "700" as const, color: DARK },
+  lbVoice: { fontSize: 10, color: SUB, marginTop: 1 },
+  lbPointsBadge: {
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    backgroundColor: AMBER + "18",
+    borderWidth: 1.5,
+    borderColor: AMBER,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  lbPointsText: { fontSize: 16, fontWeight: "900" as const, color: AMBER },
+  lbPointsLabel: { fontSize: 8, fontWeight: "700" as const, color: AMBER },
+  lbDivider: { height: 1, backgroundColor: BORDER, marginHorizontal: 14 },
+  lbEmpty: { padding: 20, alignItems: "center" as const },
+  lbEmptyText: { fontSize: 13, color: MUTED, fontWeight: "600" as const },
+  lbHowTo: {
+    padding: 14,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: BORDER,
+    gap: 3,
+  },
+  lbHowToTitle: { fontSize: 11, fontWeight: "800" as const, color: SUB, marginBottom: 4 },
+  lbHowToRow: { fontSize: 11, color: MUTED },
 });
