@@ -5,6 +5,8 @@ import { FirestoreMsg, messageService } from "@/src/data/messageService";
 import { Student } from "@/src/data/mockData";
 import { notificationService } from "@/src/data/notificationService";
 import { studentService } from "@/src/data/studentService";
+import { db } from "@/src/firebase/firebase";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { timeAgo } from "@/src/utils/timeUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -105,14 +107,21 @@ export default function MessagesScreen() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
 
-  // ── Fetch student directory ───────────────────────────────────────────────
+  // ── Fetch contacts directory (singers + admins) ───────────────────────────
   useEffect(() => {
-    studentService
-      .getAllStudents()
-      .then((s) => {
-        if (s.length > 0) setAllStudents(s);
-      })
-      .catch(() => {});
+    (async () => {
+      try {
+        const [singers, adminSnap] = await Promise.all([
+          studentService.getAllStudents(),
+          getDocs(query(collection(db, "users"), where("role", "==", "admin"))),
+        ]);
+        const admins: Student[] = adminSnap.docs.map(
+          (d) => ({ id: d.id, ...(d.data() as any) } as Student),
+        );
+        const all = [...singers, ...admins];
+        if (all.length > 0) setAllStudents(all);
+      } catch {}
+    })();
   }, []);
 
   // ── Firestore real-time subscription ─────────────────────────────────────
@@ -125,13 +134,11 @@ export default function MessagesScreen() {
     const unsub = messageService.subscribe((msgs) => {
       setLoading(false);
 
-      const forUser = isAdmin
-        ? msgs
-        : msgs.filter(
-            (m) => m.sender_id === currentUid || m.receiver_id === currentUid,
-          );
+      const forUser = msgs.filter(
+        (m) => m.sender_id === currentUid || m.receiver_id === currentUid,
+      );
 
-      setAllMessages(msgs);
+      setAllMessages(forUser);
       setConversations(groupConversations(forUser, currentUid, isAdmin));
     });
 
