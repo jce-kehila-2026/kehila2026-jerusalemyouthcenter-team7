@@ -1,6 +1,5 @@
 
 import { AuthProvider } from '@/src/context/AuthContext';
-import { LanguageProvider } from '@/src/context/LanguageContext';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -34,9 +33,7 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <LanguageProvider>
-        <RootLayoutNav />
-      </LanguageProvider>
+      <RootLayoutNav />
     </AuthProvider>
   );
 }
