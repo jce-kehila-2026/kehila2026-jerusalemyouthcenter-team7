@@ -8,6 +8,7 @@ import {
   doc,
   getDocs,
   serverTimestamp,
+  updateDoc,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
 import { useEffect, useState } from "react";
@@ -128,6 +129,15 @@ export default function LibraryScreen({ autoUpload = false }) {
   useEffect(() => {
     loadMaterials();
   }, []);
+
+  // Mark that this singer has opened the library (powers the achievement)
+  useEffect(() => {
+    if (user && !isAdmin) {
+      updateDoc(doc(db, "users", user.uid), { has_opened_library: true }).catch(
+        () => {},
+      );
+    }
+  }, [user?.uid]);
 
   const studentGroup = user?.current_year_id
     ? `year${user.current_year_id}`
