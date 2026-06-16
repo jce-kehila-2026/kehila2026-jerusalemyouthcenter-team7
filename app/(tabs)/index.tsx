@@ -27,7 +27,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 const TEAL = "#039899";
 const RED = "#c56451";
 const AMBER = "#cfad5d";
-const ORANGE = "#e07050";
 const DARK = "#1a1a2e";
 const SUB = "#5a6a7a";
 const MUTED = "#9aa8b4";
@@ -133,42 +132,6 @@ function SectionHeader({
   );
 }
 
-function StatBox({
-  value,
-  label,
-  sub,
-  valueColor,
-  subColor,
-  icon,
-  onPress,
-  last,
-}: {
-  value: number | string;
-  label: string;
-  sub: string;
-  valueColor: string;
-  subColor: string;
-  icon: React.ComponentProps<typeof Ionicons>["name"];
-  onPress: () => void;
-  last?: boolean;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[st.statBox, !last && st.statBoxBorder]}
-    >
-      <View style={st.statIconRow}>
-        <Ionicons name={icon} size={11} color={MUTED} />
-        <Text style={[st.statValue, { color: valueColor }]}>{value}</Text>
-      </View>
-      <View style={st.statLabelRow}>
-        <Ionicons name="checkbox-outline" size={10} color={MUTED} />
-        <Text style={st.statLabel}>{label}</Text>
-      </View>
-      <Text style={[st.statSub, { color: subColor }]}>{sub}</Text>
-    </Pressable>
-  );
-}
 
 function WeeklyChart() {
   const low = Math.min(...WEEKLY.map((d) => d.pct));
@@ -266,6 +229,219 @@ function ActivityItem({ notif }: { notif: DashNotif }) {
         <Text style={st.actTime}>{relativeTime(notif.timestamp)}</Text>
       </View>
       <View style={st.actCheck} />
+    </View>
+  );
+}
+
+// ── Admin sub-components ──────────────────────────────────────────────────────
+
+function AdminActionItems({
+  pendingRequests,
+  upcomingThisWeek,
+  onGoToRequests,
+  onGoToEvents,
+}: {
+  pendingRequests: number;
+  upcomingThisWeek: number;
+  onGoToRequests: () => void;
+  onGoToEvents: () => void;
+}) {
+  return (
+    <View style={st.adminActionCard}>
+      {/* Top colour bar */}
+      <View
+        style={{
+          height: 4,
+          backgroundColor: pendingRequests > 0 ? RED : TEAL,
+        }}
+      />
+      {/* Header */}
+      <View style={st.adminActionHeader}>
+        <Ionicons name="flash" size={16} color={TEAL} />
+        <Text style={st.adminActionHeaderText}>Needs Attention</Text>
+      </View>
+
+      {/* Row 1 — Join Requests */}
+      <Pressable style={st.adminActionRow} onPress={onGoToRequests}>
+        <View
+          style={[
+            st.adminActionIconCircle,
+            {
+              backgroundColor:
+                pendingRequests > 0 ? RED + "18" : TEAL + "15",
+            },
+          ]}
+        >
+          <Ionicons
+            name={
+              pendingRequests > 0
+                ? "person-add-outline"
+                : "checkmark-circle-outline"
+            }
+            size={18}
+            color={pendingRequests > 0 ? RED : TEAL}
+          />
+        </View>
+        <View style={st.adminActionTextWrap}>
+          <Text
+            style={[
+              st.adminActionTitle,
+              pendingRequests === 0 && { color: TEAL },
+            ]}
+          >
+            {pendingRequests > 0
+              ? `${pendingRequests} join request${pendingRequests > 1 ? "s" : ""} pending`
+              : "No pending requests"}
+          </Text>
+          <Text style={st.adminActionSub}>Tap to review and approve</Text>
+        </View>
+        {pendingRequests > 0 ? (
+          <View style={st.adminActionBadge}>
+            <Text style={st.adminActionBadgeText}>{pendingRequests}</Text>
+          </View>
+        ) : (
+          <Ionicons name="chevron-forward" size={14} color={MUTED} />
+        )}
+      </Pressable>
+
+      {/* Row 2 — This Week's Events */}
+      <Pressable style={st.adminActionRow} onPress={onGoToEvents}>
+        <View
+          style={[
+            st.adminActionIconCircle,
+            { backgroundColor: AMBER + "20" },
+          ]}
+        >
+          <Ionicons name="calendar-outline" size={18} color={AMBER} />
+        </View>
+        <View style={st.adminActionTextWrap}>
+          <Text style={st.adminActionTitle}>
+            {upcomingThisWeek > 0
+              ? `${upcomingThisWeek} event${upcomingThisWeek !== 1 ? "s" : ""} this week`
+              : "No events scheduled this week"}
+          </Text>
+          <Text style={st.adminActionSub}>Tap to manage events</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={14} color={MUTED} />
+      </Pressable>
+    </View>
+  );
+}
+
+function AdminKpiGrid({
+  singerCount,
+  eventCount,
+  formCount,
+  pendingRequests,
+  adminCount,
+  achievementCount,
+  onSingers,
+  onEvents,
+  onForms,
+  onRequests,
+  onAdmins,
+  onAchievements,
+}: {
+  singerCount: number;
+  eventCount: number;
+  formCount: number;
+  pendingRequests: number;
+  adminCount: number;
+  achievementCount: number;
+  onSingers: () => void;
+  onEvents: () => void;
+  onForms: () => void;
+  onRequests: () => void;
+  onAdmins: () => void;
+  onAchievements: () => void;
+}) {
+  const cards = [
+    {
+      value: singerCount,
+      label: "Singers",
+      icon: "people" as const,
+      accent: TEAL,
+      sub: "registered",
+      onPress: onSingers,
+    },
+    {
+      value: eventCount,
+      label: "Events",
+      icon: "calendar" as const,
+      accent: AMBER,
+      sub: "scheduled",
+      onPress: onEvents,
+    },
+    {
+      value: formCount,
+      label: "Forms",
+      icon: "document-text" as const,
+      accent: TEAL,
+      sub: "submitted",
+      onPress: onForms,
+    },
+    {
+      value: pendingRequests,
+      label: "Requests",
+      icon: "person-add" as const,
+      accent: pendingRequests > 0 ? RED : TEAL,
+      sub: pendingRequests > 0 ? "pending" : "all clear",
+      onPress: onRequests,
+    },
+    {
+      value: adminCount,
+      label: "Admins",
+      icon: "shield-checkmark" as const,
+      accent: TEAL,
+      sub: "managing app",
+      onPress: onAdmins,
+    },
+    {
+      value: achievementCount,
+      label: "Achievements",
+      icon: "trophy" as const,
+      accent: AMBER,
+      sub: "badges created",
+      onPress: onAchievements,
+    },
+  ];
+
+  return (
+    <View style={st.adminKpiGrid}>
+      {cards.map((card) => (
+        <Pressable
+          key={card.label}
+          onPress={card.onPress}
+          style={[
+            st.adminKpiCard,
+            {
+              shadowColor: card.accent,
+              shadowOpacity: 0.08,
+              shadowRadius: 6,
+              elevation: 2,
+            },
+          ]}
+        >
+          <View
+            style={[st.adminKpiAccentBar, { backgroundColor: card.accent }]}
+          />
+          <View style={st.adminKpiTopRow}>
+            <Text style={[st.adminKpiValue, { color: card.accent }]}>
+              {card.value}
+            </Text>
+            <View
+              style={[
+                st.adminKpiIconCircle,
+                { backgroundColor: card.accent + "15" },
+              ]}
+            >
+              <Ionicons name={card.icon} size={14} color={card.accent} />
+            </View>
+          </View>
+          <Text style={st.adminKpiLabel}>{card.label}</Text>
+          <Text style={st.adminKpiSub}>{card.sub}</Text>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -580,6 +756,7 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [singerCount, setSingerCount] = useState(0);
   const [adminCount, setAdminCount] = useState(0);
+  const [achievementCount, setAchievementCount] = useState(0);
   const [requestCount, setRequestCount] = useState(0);
   const [eventList, setEventList] = useState<DashEvent[]>([]);
   const [notifList, setNotifList] = useState<DashNotif[]>([]);
@@ -600,6 +777,12 @@ export default function DashboardScreen() {
 
   const unreadNotifs = notifList.filter((n) => !n.is_read).length;
   const firstName = user?.full_name?.split(" ")[0] ?? "there";
+
+  const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const upcomingThisWeek = upcomingEvents.filter(
+    (e) => new Date(e.date) <= weekFromNow,
+  ).length;
+  const pendingRequestCount = requestCount;
 
   // ── Data fetch ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -643,6 +826,13 @@ export default function DashboardScreen() {
             .filter((d) => d.data().student_id === user.uid)
             .map((d) => String(d.data().event_id));
           setMyEventIds(ids);
+        }
+
+        // ── Admin-specific: count achievement definitions ────────────
+        if (isAdmin) {
+          getDocs(collection(db, "achievements"))
+            .then((snap) => setAchievementCount(snap.size))
+            .catch(() => {});
         }
 
         // ── Singer-specific achievement data ────────────────────────
@@ -790,67 +980,99 @@ export default function DashboardScreen() {
           contentContainerStyle={st.scroll}
           showsVerticalScrollIndicator={false}
         >
-          {/* ── Attendance + Stats card ─────────────────────────────── */}
-          <SectionCard>
-            {/* Attendance rate */}
-            <Text style={st.attLabel}>ATTENDANCE RATE</Text>
-            <View style={st.attRow}>
-              <Text style={st.attNumber}>{AVG_PCT}</Text>
-              <Text style={st.attPercent}>%</Text>
-            </View>
-            <Text style={st.attSub}>This week · 8 of 10 singers present</Text>
-            <View style={st.progressTrack}>
+          {/* ── Section 1: Action Items ──────────────────────────────── */}
+          <AdminActionItems
+            pendingRequests={pendingRequestCount}
+            upcomingThisWeek={upcomingThisWeek}
+            onGoToRequests={() => setJoinRequestsOpen(true)}
+            onGoToEvents={() => router.push("/(tabs)/events" as any)}
+          />
+
+          {/* ── Section 2: KPI Grid ──────────────────────────────────── */}
+          <Text style={[st.sectionLabel, { marginBottom: 8 }]}>Overview</Text>
+          <AdminKpiGrid
+            singerCount={singerCount}
+            eventCount={eventList.length}
+            formCount={formCount}
+            pendingRequests={pendingRequestCount}
+            adminCount={adminCount}
+            achievementCount={achievementCount}
+            onSingers={() => router.push("/(tabs)/students" as any)}
+            onEvents={() => router.push("/(tabs)/events" as any)}
+            onForms={() => router.push("/(tabs)/forms" as any)}
+            onRequests={() => setJoinRequestsOpen(true)}
+            onAdmins={() => setManageAdminsOpen(true)}
+            onAchievements={() => setAchievementsOpen(true)}
+          />
+
+          {/* ── Section 3: Quick Actions ─────────────────────────────── */}
+          <Text style={[st.sectionLabel, { marginBottom: 8 }]}>
+            Quick Actions
+          </Text>
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+            <Pressable
+              style={st.adminQuickBtn}
+              onPress={() =>
+                router.push("/(tabs)/events?action=add" as any)
+              }
+            >
               <View
-                style={[st.progressFill, { width: `${AVG_PCT}%` as any }]}
-              />
-            </View>
+                style={[
+                  st.adminQuickIcon,
+                  { backgroundColor: TEAL + "15" },
+                ]}
+              >
+                <Ionicons
+                  name="calendar-outline"
+                  size={22}
+                  color={TEAL}
+                />
+              </View>
+              <Text style={st.adminQuickLabel}>{"New\nEvent"}</Text>
+            </Pressable>
 
-            {/* Divider */}
-            <View style={st.divider} />
+            <Pressable
+              style={st.adminQuickBtn}
+              onPress={() =>
+                router.push("/(tabs)/library?action=upload" as any)
+              }
+            >
+              <View
+                style={[
+                  st.adminQuickIcon,
+                  { backgroundColor: AMBER + "20" },
+                ]}
+              >
+                <Ionicons
+                  name="musical-notes-outline"
+                  size={22}
+                  color={AMBER}
+                />
+              </View>
+              <Text style={st.adminQuickLabel}>{"Upload\nMusic"}</Text>
+            </Pressable>
 
-            {/* 4 stat boxes */}
-            <View style={st.statsRow}>
-              <StatBox
-                value={singerCount}
-                label="Singers"
-                sub="in app"
-                valueColor={TEAL}
-                subColor={TEAL}
-                icon="people-outline"
-                onPress={() => router.push("/(tabs)/students" as any)}
-              />
-              <StatBox
-                value={upcomingEvents.length}
-                label="Events"
-                sub={`${upcomingEvents.length} upcoming`}
-                valueColor={AMBER}
-                subColor={AMBER}
-                icon="calendar-outline"
-                onPress={() => router.push("/(tabs)/events" as any)}
-              />
-              <StatBox
-                value={adminCount}
-                label="Admins"
-                sub="manage app"
-                valueColor={DARK}
-                subColor={SUB}
-                icon="shield-checkmark-outline"
-                onPress={() => setManageAdminsOpen(true)}
-              />
-              <StatBox
-                value={requestCount}
-                label="Requests"
-                sub="pending"
-                valueColor={ORANGE}
-                subColor={ORANGE}
-                icon="person-add-outline"
-                onPress={() => setJoinRequestsOpen(true)}
-                last
-              />
-            </View>
-          </SectionCard>
+            <Pressable
+              style={st.adminQuickBtn}
+              onPress={() => router.push("/statistics" as any)}
+            >
+              <View
+                style={[
+                  st.adminQuickIcon,
+                  { backgroundColor: TEAL + "15" },
+                ]}
+              >
+                <Ionicons
+                  name="bar-chart-outline"
+                  size={22}
+                  color={TEAL}
+                />
+              </View>
+              <Text style={st.adminQuickLabel}>{"Full\nStats"}</Text>
+            </Pressable>
+          </View>
 
-          {/* ── Weekly Attendance chart ─────────────────────────────── */}
+          {/* ── Section 4: Weekly Attendance (stats banner) ──────────── */}
           <SectionCard>
             <SectionHeader
               title="Weekly Attendance"
@@ -860,29 +1082,7 @@ export default function DashboardScreen() {
             <WeeklyChart />
           </SectionCard>
 
-          {/* ── Achievement Studio ───────────────────────────────────── */}
-          <SectionCard>
-            <View style={st.achWidgetRow}>
-              <View style={st.achWidgetIcon}>
-                <Text style={{ fontSize: 22 }}>🏅</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={st.secTitle}>Achievement Studio</Text>
-                <Text style={st.achWidgetSub}>
-                  Create badges &amp; award them to singers
-                </Text>
-              </View>
-              <Pressable
-                style={st.achWidgetBtn}
-                onPress={() => setAchievementsOpen(true)}
-              >
-                <Text style={st.achWidgetBtnText}>Manage</Text>
-                <Ionicons name="chevron-forward" size={14} color={TEAL} />
-              </Pressable>
-            </View>
-          </SectionCard>
-
-          {/* ── Upcoming Events ──────────────────────────────────────── */}
+          {/* ── Section 5: Upcoming Events ───────────────────────────── */}
           <SectionCard>
             <SectionHeader
               title="Upcoming Events"
@@ -895,7 +1095,7 @@ export default function DashboardScreen() {
                 <Text style={st.emptyText}>No upcoming events</Text>
               </View>
             ) : (
-              upcomingEvents.slice(0, 2).map((e, i) => (
+              upcomingEvents.slice(0, 3).map((e, i) => (
                 <View key={e.id}>
                   {i > 0 && <View style={st.rowDivider} />}
                   <EventRow
@@ -907,22 +1107,6 @@ export default function DashboardScreen() {
             )}
           </SectionCard>
 
-          {/* ── Recent Activity ──────────────────────────────────────── */}
-          {notifList.length > 0 && (
-            <SectionCard>
-              <SectionHeader
-                title="Recent Activity"
-                action="See all →"
-                onAction={() => router.push("/(tabs)/notifications" as any)}
-              />
-              {notifList.slice(0, 3).map((n, i) => (
-                <View key={String(n.id)}>
-                  {i > 0 && <View style={st.rowDivider} />}
-                  <ActivityItem notif={n} />
-                </View>
-              ))}
-            </SectionCard>
-          )}
 
           <View style={{ height: 32 }} />
         </ScrollView>
@@ -1246,6 +1430,123 @@ const st = StyleSheet.create({
     paddingVertical: 7,
   },
   emptyBtnText: { fontSize: 13, fontWeight: "700", color: TEAL },
+
+  // ── Admin Action Items card
+  adminActionCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    overflow: "hidden" as const,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  adminActionHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    padding: 14,
+    paddingBottom: 10,
+  },
+  adminActionHeaderText: { fontSize: 13, fontWeight: "800" as const, color: DARK },
+  adminActionRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: BORDER,
+  },
+  adminActionIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  adminActionTextWrap: { flex: 1, marginLeft: 12 },
+  adminActionTitle: { fontSize: 13, fontWeight: "700" as const, color: DARK },
+  adminActionSub: { fontSize: 11, color: SUB, marginTop: 1 },
+  adminActionBadge: {
+    backgroundColor: RED,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  adminActionBadgeText: { fontSize: 11, fontWeight: "800" as const, color: "#fff" },
+
+  // ── Admin KPI grid
+  adminKpiGrid: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    gap: 8,
+    marginBottom: 12,
+  },
+  adminKpiCard: {
+    width: "31%" as any,
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 10,
+    minHeight: 90,
+    overflow: "hidden" as const,
+  },
+  adminKpiTopRow: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "flex-start" as const,
+  },
+  adminKpiValue: { fontSize: 26, fontWeight: "900" as const },
+  adminKpiIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  adminKpiLabel: { fontSize: 12, fontWeight: "700" as const, color: DARK, marginTop: 6 },
+  adminKpiSub: { fontSize: 10, color: SUB, marginTop: 2 },
+  adminKpiAccentBar: {
+    position: "absolute" as const,
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
+  },
+
+  // ── Admin Quick Actions
+  adminQuickBtn: {
+    flex: 1,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    backgroundColor: "#ffffff",
+    gap: 6,
+  },
+  adminQuickIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  adminQuickLabel: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: DARK,
+    textAlign: "center" as const,
+    lineHeight: 13,
+  },
 
   // ── Admin achievement widget
   achWidgetRow: {
