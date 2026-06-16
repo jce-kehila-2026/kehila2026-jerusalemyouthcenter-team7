@@ -6,7 +6,7 @@ import { Student } from "@/src/data/mockData";
 import { notificationService } from "@/src/data/notificationService";
 import { studentService } from "@/src/data/studentService";
 import { db } from "@/src/firebase/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { timeAgo } from "@/src/utils/timeUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -104,6 +104,7 @@ export default function MessagesScreen() {
   const [search, setSearch] = useState("");
 
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
+  const [threadMessages, setThreadMessages] = useState<ThreadMsg[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -150,14 +151,33 @@ export default function MessagesScreen() {
     return unsub;
   }, [currentUid, isAdmin]);
 
-  // Keep active thread in sync when conversations update
+  // Per-conversation real-time listener — fires when a chat is opened/changed
   useEffect(() => {
-    if (!activeConv) return;
-    const updated = conversations.find(
-      (c) => c.otherPartyId === activeConv.otherPartyId,
-    );
-    if (updated) setActiveConv(updated);
-  }, [conversations]);
+    if (!activeConv) {
+      setThreadMessages([]);
+      return;
+    }
+    const otherUid = activeConv.otherPartyId;
+    const q = query(collection(db, "messages"), orderBy("timestamp", "asc"));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const msgs: ThreadMsg[] = snapshot.docs
+        .map((d) => ({ id: d.id, ...(d.data() as any) } as FirestoreMsg))
+        .filter(
+          (m) =>
+            (m.sender_id === currentUid && m.receiver_id === otherUid) ||
+            (m.sender_id === otherUid && m.receiver_id === currentUid),
+        )
+        .map((m) => ({
+          id: m.id,
+          content: m.content,
+          timestamp: m.timestamp,
+          fromMe: m.sender_id === currentUid,
+          senderName: m.sender_name,
+        }));
+      setThreadMessages(msgs);
+    });
+    return unsub;
+  }, [activeConv?.otherPartyId, currentUid]);
 
   // Auto-open chat when arriving from the students screen via URL params
   useEffect(() => {
@@ -327,7 +347,7 @@ export default function MessagesScreen() {
               scrollRef.current?.scrollToEnd({ animated: false })
             }
           >
-            {activeConv.thread.length === 0 && (
+            {threadMessages.length === 0 && (
               <View style={styles.emptyThread}>
                 <Ionicons
                   name="chatbubble-outline"
@@ -341,7 +361,7 @@ export default function MessagesScreen() {
                 </Text>
               </View>
             )}
-            {activeConv.thread.map((msg) => (
+            {threadMessages.map((msg) => (
               <View
                 key={msg.id}
                 style={[
