@@ -1,5 +1,4 @@
 import { useAuth } from "@/src/context/AuthContext";
-import { useLanguage } from "@/src/context/LanguageContext";
 import { auth, db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -114,7 +113,6 @@ const InfoCard = ({
 // ── Screen ────────────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const { user, logout } = useAuth() as any;
-  const { t } = useLanguage();
   const router = useRouter();
   const [fullData, setFullData] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
@@ -164,10 +162,10 @@ export default function ProfileScreen() {
     setPasswordError("");
     setPasswordSuccess("");
     if (newPassword.length < 6) {
-      return setPasswordError(t("passwordTooShort"));
+      return setPasswordError("Password must be at least 6 characters.");
     }
     if (newPassword !== confirmPassword) {
-      return setPasswordError(t("passwordsDoNotMatch"));
+      return setPasswordError("Passwords do not match.");
     }
     setChangingPassword(true);
     try {
@@ -176,7 +174,7 @@ export default function ProfileScreen() {
       const credential = EmailAuthProvider.credential(currentUser.email, curPassword);
       await reauthenticateWithCredential(currentUser, credential);
       await updatePassword(currentUser, newPassword);
-      setPasswordSuccess(t("passwordUpdated"));
+      setPasswordSuccess("Password updated successfully.");
       setCurPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -185,7 +183,7 @@ export default function ProfileScreen() {
         e.code === "auth/wrong-password" ||
         e.code === "auth/invalid-credential"
       ) {
-        setPasswordError(t("wrongCurrentPassword"));
+        setPasswordError("Current password is incorrect.");
       } else {
         setPasswordError(e.message || "Failed to update password.");
       }
@@ -334,7 +332,7 @@ export default function ProfileScreen() {
         <View style={s.card}>
           <View style={s.cardBar} />
           <View style={s.cardInner}>
-            <Text style={s.cardTitle}>{t("settings")}</Text>
+            <Text style={s.cardTitle}>Settings</Text>
 
             {/* Change Password */}
             <TouchableOpacity
@@ -350,11 +348,29 @@ export default function ProfileScreen() {
                 <Ionicons name="lock-closed-outline" size={20} color={ds.teal} />
               </View>
               <View style={s.rowText}>
-                <Text style={s.rowLabel}>{t("security")}</Text>
-                <Text style={s.rowValue}>{t("changePassword")}</Text>
+                <Text style={s.rowLabel}>Security</Text>
+                <Text style={s.rowValue}>Change Password</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={ds.subtext} />
             </TouchableOpacity>
+
+            {/* Manage Singers (admin only) */}
+            {isAdmin && (
+              <TouchableOpacity
+                style={s.settingRow}
+                onPress={() => router.push("/(tabs)/students" as any)}
+                activeOpacity={0.7}
+              >
+                <View style={s.rowIcon}>
+                  <Ionicons name="people-outline" size={20} color={ds.teal} />
+                </View>
+                <View style={s.rowText}>
+                  <Text style={s.rowLabel}>Singers</Text>
+                  <Text style={s.rowValue}>Edit Singer Information</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={ds.subtext} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -385,7 +401,7 @@ export default function ProfileScreen() {
         >
           <View style={s.modalSheet}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>{t("changePassword")}</Text>
+              <Text style={s.modalTitle}>Change Password</Text>
               <TouchableOpacity onPress={() => setShowPasswordModal(false)}>
                 <Ionicons name="close" size={24} color={ds.text} />
               </TouchableOpacity>
@@ -404,7 +420,7 @@ export default function ProfileScreen() {
               </View>
             ) : null}
 
-            <Text style={s.modalLabel}>{t("currentPassword")}</Text>
+            <Text style={s.modalLabel}>Current Password</Text>
             <TextInput
               style={s.modalInput}
               value={curPassword}
@@ -414,7 +430,7 @@ export default function ProfileScreen() {
               placeholderTextColor={ds.subtext}
             />
 
-            <Text style={s.modalLabel}>{t("newPassword")}</Text>
+            <Text style={s.modalLabel}>New Password</Text>
             <TextInput
               style={s.modalInput}
               value={newPassword}
@@ -424,7 +440,7 @@ export default function ProfileScreen() {
               placeholderTextColor={ds.subtext}
             />
 
-            <Text style={s.modalLabel}>{t("confirmNewPassword")}</Text>
+            <Text style={s.modalLabel}>Confirm New Password</Text>
             <TextInput
               style={s.modalInput}
               value={confirmPassword}
@@ -442,7 +458,7 @@ export default function ProfileScreen() {
               {changingPassword ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={s.modalBtnText}>{t("update")}</Text>
+                <Text style={s.modalBtnText}>Update</Text>
               )}
             </Pressable>
           </View>
