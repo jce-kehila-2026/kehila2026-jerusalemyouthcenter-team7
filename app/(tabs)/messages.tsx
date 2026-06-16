@@ -115,9 +115,14 @@ export default function MessagesScreen() {
           studentService.getAllStudents(),
           getDocs(query(collection(db, "users"), where("role", "==", "admin"))),
         ]);
-        const admins: Student[] = adminSnap.docs.map(
-          (d) => ({ id: d.id, ...(d.data() as any) } as Student),
-        );
+        const admins: Student[] = adminSnap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            ...data,
+            id: d.id,
+            full_name: data.full_name ?? data.name ?? "Admin",
+          } as Student;
+        });
         const all = [...singers, ...admins];
         if (all.length > 0) setAllStudents(all);
       } catch {}
@@ -183,7 +188,7 @@ export default function MessagesScreen() {
   const filteredStudents = searchTrimmed
     ? allStudents.filter(
         (s) =>
-          s.full_name.toLowerCase().includes(searchTrimmed) &&
+          (s.full_name ?? "").toLowerCase().includes(searchTrimmed) &&
           s.id !== currentUid,
       )
     : allStudents.filter((s) => s.id !== currentUid);
@@ -511,7 +516,7 @@ export default function MessagesScreen() {
                       { color: AppColors.primary },
                     ]}
                   >
-                    {item.full_name.charAt(0)}
+                    {(item.full_name ?? "?").charAt(0)}
                   </Text>
                 </View>
                 <View style={styles.convBody}>
