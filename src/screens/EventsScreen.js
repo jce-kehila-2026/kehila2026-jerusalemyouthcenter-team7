@@ -61,6 +61,45 @@ const FILTERS = [
   { key: "all", label: "All Groups" },
 ];
 
+const MONTH_ABBR = [
+  "JAN",
+  "FEB",
+  "MAR",
+  "APR",
+  "MAY",
+  "JUN",
+  "JUL",
+  "AUG",
+  "SEP",
+  "OCT",
+  "NOV",
+  "DEC",
+];
+
+const getDateParts = (dateStr) => {
+  if (!dateStr) return { day: "--", month: "" };
+  const isoPart = dateStr.split("T")[0];
+  const segments = isoPart.includes("-") ? isoPart.split("-") : null;
+  if (!segments || segments.length < 3) return { day: "--", month: "" };
+  const [, month, day] = segments;
+  const monthIndex = parseInt(month, 10) - 1;
+  return {
+    day: String(parseInt(day, 10)),
+    month: MONTH_ABBR[monthIndex] || "",
+  };
+};
+
+// Decorative music notes used as a subtle accent on the right edge of cards.
+function MusicTrace() {
+  return (
+    <View style={s.traceCol} pointerEvents="none">
+      <Text style={[s.traceNote, s.traceNoteTop]}>🎵</Text>
+      <Text style={[s.traceNote, s.traceNoteMid]}>🎶</Text>
+      <Text style={[s.traceNote, s.traceNoteBottom]}>🎵</Text>
+    </View>
+  );
+}
+
 const emptyForm = {
   title: "",
   description: "",
@@ -278,7 +317,6 @@ export default function EventsScreen() {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
-  // Open the Add Event modal when navigated here with ?action=add
   useEffect(() => {
     if (action === "add") {
       setAddVisible(true);
@@ -310,7 +348,6 @@ export default function EventsScreen() {
   const formatDisplayDate = (date) =>
     date && date.includes("-") ? date.split("-").reverse().join("/") : date;
 
-  // ── Calendar helpers ────────────────────────────────────────────────
   const eventsByDate = {};
   events.forEach((event) => {
     const date = (event.date || "").split("T")[0];
@@ -325,7 +362,6 @@ export default function EventsScreen() {
     ? events.filter((e) => (e.date || "").split("T")[0] === selectedDate)
     : events;
 
-  // Calendar grid generation
   const calendarDays = [];
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -370,7 +406,6 @@ export default function EventsScreen() {
     }
   };
 
-  // ── CRUD ────────────────────────────────────────────────────────────
   const doDelete = async () => {
     try {
       await deleteEvent(deleteTarget.id);
@@ -453,6 +488,7 @@ export default function EventsScreen() {
         group: item.groupLabel,
       },
     });
+
   const goToAttendance = (item) =>
     router.push({
       pathname: "/attendance",
@@ -461,9 +497,13 @@ export default function EventsScreen() {
 
   const renderEventCard = ({ item }) => {
     const badge = BADGE_STYLES[item.group] || BADGE_STYLES.all;
+    const { day, month } = getDateParts(item.date);
     return (
       <View style={s.card}>
-        <View style={[s.cardBar, { backgroundColor: badge.text }]} />
+        <View style={[s.dateBlock, { backgroundColor: badge.text }]}>
+          <Text style={s.dateBlockDay}>{day}</Text>
+          <Text style={s.dateBlockMonth}>{month}</Text>
+        </View>
         <View style={s.cardInner}>
           <View style={s.cardTop}>
             <View style={[s.badge, { backgroundColor: badge.bg }]}>
@@ -471,39 +511,43 @@ export default function EventsScreen() {
                 {item.groupLabel}
               </Text>
             </View>
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: sp(1) }}
+            <Pressable
+              style={s.deleteSmall}
+              onPress={() => setDeleteTarget(item)}
             >
-              <Text style={s.dateText}>
-                📅 {formatDisplayDate(item.date)} 🕐 {item.time}
-              </Text>
-              <Pressable
-                style={s.deleteSmall}
-                onPress={() => setDeleteTarget(item)}
-              >
-                <Text style={s.deleteSmallText}>🗑</Text>
-              </Pressable>
-            </View>
+              <Text style={s.deleteSmallText}>🗑</Text>
+            </Pressable>
           </View>
           <Pressable onPress={() => goToDetail(item)}>
-            <Text style={s.cardTitle}>{item.title}</Text>
+            <Text style={s.cardTitle} numberOfLines={1}>
+              {item.title}
+            </Text>
+            <Text style={s.cardMeta}>
+              {item.time} · {item.location}
+            </Text>
             <Text style={s.cardDesc} numberOfLines={2}>
               {item.description}
             </Text>
-            <Text style={s.cardLoc}>📍 {item.location}</Text>
           </Pressable>
           <View style={s.btnRow}>
-            <Pressable style={s.btnEdit} onPress={() => openEdit(item)}>
-              <Text style={s.btnEditText}>Edit</Text>
+            <Pressable
+              style={[
+                s.btnEdit,
+                { borderColor: badge.text, backgroundColor: badge.bg },
+              ]}
+              onPress={() => openEdit(item)}
+            >
+              <Text style={[s.btnEditText, { color: badge.text }]}>Edit</Text>
             </Pressable>
             <Pressable
-              style={s.btnAttendance}
+              style={[s.btnAttendance, { backgroundColor: badge.text }]}
               onPress={() => goToAttendance(item)}
             >
               <Text style={s.btnAttendanceText}>Attendance</Text>
             </Pressable>
           </View>
         </View>
+        <MusicTrace />
       </View>
     );
   };
@@ -556,45 +600,39 @@ export default function EventsScreen() {
     <View style={s.safe}>
       <StatusBar barStyle="light-content" backgroundColor={T.teal} />
 
-      {/* Header */}
+      {/* ── Header ── */}
       <View style={s.header}>
-        <View>
-          <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
-          <Text style={s.pageTitle}>Events</Text>
+        <View
+          style={{ flexDirection: "row", alignItems: "flex-end", gap: sp(1) }}
+        >
+          {/* Back button - only visible in Calendar tab */}
+          {activeTab === "calendar" && (
+            <Pressable onPress={() => setActiveTab("list")} style={s.backBtn}>
+              <Text style={s.backBtnText}>←</Text>
+            </Pressable>
+          )}
+          <View>
+            <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
+            <Text style={s.pageTitle}>
+              {activeTab === "calendar" ? "Calendar" : "Events"}
+            </Text>
+          </View>
         </View>
+
+        {/* Tab toggle - only visible in List tab */}
         {activeTab === "list" && (
           <View style={s.tabToggle}>
             <Pressable
-              style={[
-                s.tabToggleBtn,
-                activeTab === "list" && s.tabToggleBtnActive,
-              ]}
+              style={[s.tabToggleBtn, s.tabToggleBtnActive]}
               onPress={() => setActiveTab("list")}
             >
-              <Text
-                style={[
-                  s.tabToggleText,
-                  activeTab === "list" && s.tabToggleTextActive,
-                ]}
-              >
-                List
-              </Text>
+              <Text style={[s.tabToggleText, s.tabToggleTextActive]}>List</Text>
             </Pressable>
             <Pressable
-              style={[
-                s.tabToggleBtn,
-                activeTab === "calendar" && s.tabToggleBtnActive,
-              ]}
+              style={s.tabToggleBtn}
               onPress={() => setActiveTab("calendar")}
             >
-              <Text
-                style={[
-                  s.tabToggleText,
-                  activeTab === "calendar" && s.tabToggleTextActive,
-                ]}
-              >
-                Calendar
-              </Text>
+              <Text style={s.tabToggleText}>Calendar</Text>
             </Pressable>
           </View>
         )}
@@ -602,33 +640,34 @@ export default function EventsScreen() {
 
       {/* ── LIST VIEW ── */}
       {activeTab === "list" && (
-        <>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={s.filtersWrap}
-            contentContainerStyle={s.filtersContent}
-          >
-            {FILTERS.map((f) => (
-              <Pressable
-                key={f.key}
-                style={[
-                  s.filterBtn,
-                  activeFilter === f.key && s.filterBtnActive,
-                ]}
-                onPress={() => setFilter(f.key)}
-              >
-                <Text
+        <View style={{ flex: 1 }}>
+          <View style={s.filtersWrap}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.filtersContent}
+            >
+              {FILTERS.map((f) => (
+                <Pressable
+                  key={f.key}
                   style={[
-                    s.filterText,
-                    activeFilter === f.key && s.filterTextActive,
+                    s.filterBtn,
+                    activeFilter === f.key && s.filterBtnActive,
                   ]}
+                  onPress={() => setFilter(f.key)}
                 >
-                  {f.label}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+                  <Text
+                    style={[
+                      s.filterText,
+                      activeFilter === f.key && s.filterTextActive,
+                    ]}
+                  >
+                    {f.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
 
           {loading ? (
             <View style={s.empty}>
@@ -640,19 +679,16 @@ export default function EventsScreen() {
               <Text style={s.emptyText}>No events found</Text>
             </View>
           ) : (
-            <FlatList
-              data={filtered}
-              keyExtractor={(i) => i.id}
-              renderItem={renderEventCard}
-              contentContainerStyle={{
-                padding: sp(2),
-                paddingBottom: 100,
-                gap: sp(2),
-              }}
+            <ScrollView
               showsVerticalScrollIndicator={false}
-            />
+              contentContainerStyle={s.eventsListContent}
+            >
+              {filtered.map((item) => (
+                <View key={item.id}>{renderEventCard({ item })}</View>
+              ))}
+            </ScrollView>
           )}
-        </>
+        </View>
       )}
 
       {/* ── CALENDAR VIEW ── */}
@@ -674,7 +710,6 @@ export default function EventsScreen() {
               </Pressable>
             </View>
 
-            {/* Week day headers */}
             <View style={s.weekHeaderRow}>
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
                 <Text key={`header-${day}`} style={s.weekDayHeader}>
@@ -683,9 +718,7 @@ export default function EventsScreen() {
               ))}
             </View>
 
-            {/* Calendar grid */}
             <View style={s.calendarGrid}>
-              {/* Calendar days */}
               {calendarDays.map((day, idx) => {
                 const dateStr = day
                   ? `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
@@ -701,16 +734,11 @@ export default function EventsScreen() {
                     key={idx}
                     style={[
                       s.calendarDay,
-                      hasEvent && {
-                        borderColor: eventColor,
-                        borderWidth: 2.5,
-                      },
+                      hasEvent && { borderColor: eventColor, borderWidth: 2.5 },
                       isSelected && s.calendarDaySelected,
                     ]}
                     onPress={() => {
-                      if (day) {
-                        setSelectedDate(isSelected ? null : dateStr);
-                      }
+                      if (day) setSelectedDate(isSelected ? null : dateStr);
                     }}
                   >
                     {day && (
@@ -739,7 +767,6 @@ export default function EventsScreen() {
             </View>
           </View>
 
-          {/* Legend */}
           <View style={s.legend}>
             {Object.entries(GROUP_COLORS).map(([label, color]) => (
               <View key={label} style={s.legendItem}>
@@ -926,6 +953,22 @@ const s = StyleSheet.create({
     letterSpacing: -0.5,
   },
 
+  // Back button
+  backBtn: {
+    backgroundColor: "rgba(255,255,255,0.25)",
+    borderRadius: 8,
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  backBtnText: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "700",
+  },
+
   // Tab toggle
   tabToggle: {
     backgroundColor: "rgba(255,255,255,0.2)",
@@ -945,26 +988,38 @@ const s = StyleSheet.create({
   // Filters
   filtersWrap: {
     height: 56,
+    marginTop: sp(1),
+    marginBottom: sp(2.5),
     backgroundColor: T.white,
     borderBottomWidth: 1,
     borderBottomColor: T.border,
+    justifyContent: "center",
   },
   filtersContent: {
     paddingHorizontal: sp(2),
     alignItems: "center",
-    gap: sp(1),
+    gap: sp(1.5),
     flexDirection: "row",
   },
   filterBtn: {
     borderWidth: 1.5,
     borderColor: T.border,
     borderRadius: 999,
-    paddingHorizontal: sp(2),
+    paddingHorizontal: sp(1.75),
     paddingVertical: 6,
+    minWidth: 64,
+    alignItems: "center",
   },
   filterBtnActive: { backgroundColor: T.teal, borderColor: T.teal },
   filterText: { color: T.textSub, fontSize: 13, fontWeight: "500" },
   filterTextActive: { color: "#fff", fontWeight: "700" },
+
+  // Events list (ScrollView content)
+  eventsListContent: {
+    paddingHorizontal: sp(2),
+    paddingBottom: 100,
+    gap: sp(1.25),
+  },
 
   // Event card
   card: {
@@ -973,39 +1028,60 @@ const s = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: T.border,
+    flexDirection: "row",
     shadowColor: T.teal,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 3,
   },
-  cardBar: { height: 4 },
-  cardInner: { padding: sp(2) },
+
+  // Side date block
+  dateBlock: {
+    width: 76,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: sp(2),
+  },
+  dateBlockDay: {
+    color: "#fff",
+    fontSize: 26,
+    fontWeight: "700",
+    lineHeight: 28,
+  },
+  dateBlockMonth: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 1,
+    marginTop: 2,
+  },
+
+  cardInner: { flex: 1, minWidth: 0, padding: sp(1.75) },
   cardTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: sp(1),
+    marginBottom: sp(0.75),
   },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   badgeText: { fontSize: 11, fontWeight: "700" },
-  dateText: { fontSize: 11, color: T.textSub },
   cardTitle: {
     fontSize: 18,
     fontWeight: "800",
     color: T.text,
     marginBottom: 4,
   },
+  cardMeta: {
+    fontSize: 13,
+    color: T.textSub,
+    marginBottom: sp(0.75),
+  },
   cardDesc: {
     fontSize: 13,
     color: T.textSub,
     lineHeight: 20,
-    marginBottom: sp(1),
-  },
-  cardLoc: {
-    fontSize: 13,
-    color: T.teal,
-    fontWeight: "500",
     marginBottom: sp(1.5),
   },
   deleteSmall: {
@@ -1037,12 +1113,35 @@ const s = StyleSheet.create({
   },
   btnAttendanceText: { color: "#fff", fontWeight: "700", fontSize: 13 },
 
+  // Decorative music-trace column (right edge of card)
+  traceCol: {
+    width: 60,
+    flexShrink: 0,
+    position: "relative",
+  },
+  traceNote: { position: "absolute", opacity: 0.32 },
+  traceNoteTop: {
+    top: "14%",
+    left: 6,
+    fontSize: 15,
+    transform: [{ rotate: "-8deg" }],
+  },
+  traceNoteMid: {
+    top: "40%",
+    left: 30,
+    fontSize: 23,
+    transform: [{ rotate: "10deg" }],
+  },
+  traceNoteBottom: {
+    top: "68%",
+    left: 6,
+    fontSize: 15,
+    transform: [{ rotate: "-4deg" }],
+  },
+
   // Calendar view
   calendarScroll: { backgroundColor: T.white },
-  calendarContainer: {
-    padding: sp(2),
-    backgroundColor: T.white,
-  },
+  calendarContainer: { padding: sp(2), backgroundColor: T.white },
   monthNavigation: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1057,11 +1156,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  monthNavBtnText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: T.teal,
-  },
+  monthNavBtnText: { fontSize: 18, fontWeight: "700", color: T.teal },
   monthTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -1081,12 +1176,7 @@ const s = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  calendarGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-
-    marginBottom: sp(2),
-  },
+  calendarGrid: { flexDirection: "row", flexWrap: "wrap", marginBottom: sp(2) },
   weekDay: {
     width: "14.28%",
     textAlign: "center",
@@ -1106,15 +1196,8 @@ const s = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: T.white,
   },
-  calendarDaySelected: {
-    backgroundColor: T.teal,
-    borderColor: T.teal,
-  },
-  calendarDayNum: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: T.text,
-  },
+  calendarDaySelected: { backgroundColor: T.teal, borderColor: T.teal },
+  calendarDayNum: { fontSize: 13, fontWeight: "600", color: T.text },
   calendarEventName: {
     fontSize: 10,
     fontWeight: "700",
@@ -1122,7 +1205,6 @@ const s = StyleSheet.create({
     textAlign: "center",
     color: T.teal,
   },
-
   legend: {
     flexDirection: "row",
     justifyContent: "center",

@@ -13,7 +13,6 @@ import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Linking,
   Modal,
   Platform,
@@ -49,8 +48,7 @@ const FILTERS = [
   { key: "all_groups", label: "All Groups" },
 ];
 
-// File type → icon character + accent color
-// Uses text characters so no external dependency needed
+// File type → label + accent color shown on the side block of each card
 const FILE_TYPE_MAP = {
   pdf: { label: "PDF", color: COLORS.red },
   mp3: { label: "MP3", color: COLORS.teal },
@@ -65,7 +63,7 @@ const FILE_TYPE_MAP = {
   pptx: { label: "PPT", color: COLORS.teal },
   zip: { label: "ZIP", color: COLORS.yellow },
   rar: { label: "RAR", color: COLORS.yellow },
-  link: { label: "YT", color: "#ff0000" },
+  link: { label: "YouTube", color: "#d8453a" },
 };
 
 const getFileType = (item) => {
@@ -90,6 +88,15 @@ const formatDate = (ts) => {
     year: "numeric",
   });
 };
+
+// Decorative music note used as a subtle accent on the right edge of cards.
+function MusicTrace() {
+  return (
+    <View style={s.traceCol} pointerEvents="none">
+      <Text style={s.traceNote}>🎵</Text>
+    </View>
+  );
+}
 
 export default function LibraryScreen({ autoUpload = false }) {
   const { user } = useAuth();
@@ -263,78 +270,59 @@ export default function LibraryScreen({ autoUpload = false }) {
       FILTERS.find((f) => f.key === item.group)?.label ?? "All Groups";
     const isLink = item.type === "link";
 
-    // Badge color per group
-    const groupBadgeStyle =
-      item.group === "year1"
-        ? { bg: COLORS.yellowLight, text: "#9a7010" }
-        : item.group === "year2"
-          ? { bg: COLORS.redLight, text: COLORS.red }
-          : { bg: COLORS.tealLight, text: COLORS.teal };
+    const metaParts = isLink
+      ? [groupLabel, formatDate(item.createdAt)]
+      : [groupLabel, formatSize(item.size), formatDate(item.createdAt)];
+    const metaText = metaParts.filter(Boolean).join("  ·  ");
 
     return (
-      <Pressable
-        style={({ pressed }) => [s.card, pressed && { opacity: 0.92 }]}
-        onPress={() => handleOpen(item)}
-      >
-        {/* File type badge box */}
-        <View style={[s.iconBox, { backgroundColor: color + "18" }]}>
-          <Text style={[s.iconLabel, { color }]}>{label}</Text>
+      <View style={s.card}>
+        {/* Side type block — full height, colored by file type */}
+        <View style={[s.typeBlock, { backgroundColor: color }]}>
+          <Text style={s.typeBlockText}>{label}</Text>
         </View>
 
         <View style={s.cardBody}>
-          <Text style={s.fileName} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 8,
-              marginTop: 4,
-            }}
-          >
-            <View
-              style={[s.groupBadge, { backgroundColor: groupBadgeStyle.bg }]}
-            >
-              <Text style={[s.groupBadgeText, { color: groupBadgeStyle.text }]}>
-                {groupLabel}
-              </Text>
-            </View>
-            <Text style={s.fileMeta}>
-              {isLink
-                ? "YouTube"
-                : [formatSize(item.size), formatDate(item.createdAt)]
-                    .filter(Boolean)
-                    .join("  ·  ")}
-            </Text>
-          </View>
-          {item.uploadedBy ? (
-            <Text style={s.uploadedBy}>Uploaded by {item.uploadedBy}</Text>
-          ) : null}
-        </View>
-
-        <View style={{ alignItems: "center", gap: 6 }}>
-          {/* Open/download — teal ghost button */}
-          <Pressable
-            style={[s.iconAction, { backgroundColor: COLORS.tealLight }]}
-            onPress={() => handleOpen(item)}
-          >
-            <Text style={[s.iconActionText, { color: COLORS.teal }]}>
-              {isLink ? "▶" : "↓"}
-            </Text>
-          </Pressable>
-
-          {/* Delete — red ghost button, admin only */}
           {isAdmin && (
             <Pressable
-              style={[s.iconAction, { backgroundColor: COLORS.redLight }]}
+              style={s.deleteSmall}
               onPress={() => handleDelete(item.id)}
             >
-              <Text style={[s.iconActionText, { color: COLORS.red }]}>✕</Text>
+              <Text style={s.deleteSmallText}>✕</Text>
             </Pressable>
           )}
+
+          <Text
+            style={[s.fileName, isAdmin && { paddingRight: 32 }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {item.name}
+          </Text>
+          <Text style={s.fileMeta} numberOfLines={1}>
+            {metaText}
+          </Text>
+          {item.uploadedBy ? (
+            <Text style={s.uploadedBy} numberOfLines={1}>
+              Uploaded by {item.uploadedBy}
+            </Text>
+          ) : null}
+
+          <Pressable
+            style={[
+              s.actionPill,
+              { backgroundColor: color + "18", borderColor: color },
+            ]}
+            onPress={() => handleOpen(item)}
+          >
+            <Text style={[s.actionPillText, { color }]}>
+              {isLink ? "Play" : "Download"}
+            </Text>
+          </Pressable>
         </View>
-      </Pressable>
+
+        <MusicTrace />
+      </View>
     );
   };
 
@@ -371,29 +359,33 @@ export default function LibraryScreen({ autoUpload = false }) {
       </View>
 
       {isAdmin && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={s.filtersWrap}
-          contentContainerStyle={s.filtersContent}
-        >
-          {FILTERS.map((f) => (
-            <Pressable
-              key={f.key}
-              style={[s.filterBtn, activeFilter === f.key && s.filterBtnActive]}
-              onPress={() => setFilter(f.key)}
-            >
-              <Text
+        <View style={s.filtersWrap}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.filtersContent}
+          >
+            {FILTERS.map((f) => (
+              <Pressable
+                key={f.key}
                 style={[
-                  s.filterText,
-                  activeFilter === f.key && s.filterTextActive,
+                  s.filterBtn,
+                  activeFilter === f.key && s.filterBtnActive,
                 ]}
+                onPress={() => setFilter(f.key)}
               >
-                {f.label}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+                <Text
+                  style={[
+                    s.filterText,
+                    activeFilter === f.key && s.filterTextActive,
+                  ]}
+                >
+                  {f.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
       )}
 
       {isAdmin && (
@@ -441,13 +433,14 @@ export default function LibraryScreen({ autoUpload = false }) {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(i) => i.id}
-          renderItem={renderItem}
-          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
+        <ScrollView
           showsVerticalScrollIndicator={false}
-        />
+          contentContainerStyle={s.listContent}
+        >
+          {filtered.map((item) => (
+            <View key={item.id}>{renderItem({ item })}</View>
+          ))}
+        </ScrollView>
       )}
 
       {/* File Group Modal */}
@@ -465,12 +458,8 @@ export default function LibraryScreen({ autoUpload = false }) {
             </Pressable>
             {pendingFile && (
               <View style={[s.card, { marginBottom: 16 }]}>
-                <View
-                  style={[s.iconBox, { backgroundColor: COLORS.tealLight }]}
-                >
-                  <Text style={[s.iconLabel, { color: COLORS.teal }]}>
-                    FILE
-                  </Text>
+                <View style={[s.typeBlock, { backgroundColor: COLORS.teal }]}>
+                  <Text style={s.typeBlockText}>FILE</Text>
                 </View>
                 <View style={s.cardBody}>
                   <Text style={s.fileName} numberOfLines={1}>
@@ -559,7 +548,6 @@ export default function LibraryScreen({ autoUpload = false }) {
 }
 
 const s = StyleSheet.create({
-  // אחרי
   safe: { flex: 1, backgroundColor: COLORS.bg },
   header: {
     backgroundColor: "#039899",
@@ -577,7 +565,9 @@ const s = StyleSheet.create({
   },
   pageTitle: { fontSize: 28, fontWeight: "800", color: "#ffffff" },
 
-  filtersWrap: { height: 52 },
+  // Filters — explicit fixed-height wrapper + fixed margin so the gap to
+  // the upload row / list below never depends on which filter is active.
+  filtersWrap: { height: 52, marginBottom: 12 },
   filtersContent: {
     paddingHorizontal: 16,
     alignItems: "center",
@@ -640,41 +630,85 @@ const s = StyleSheet.create({
     lineHeight: 20,
   },
 
+  // List (ScrollView content, replaces the old FlatList — avoids the same
+  // web layout/height inconsistency bug fixed in EventsScreen)
+  listContent: { padding: 16, gap: 10, paddingBottom: 100 },
+
+  // Card — side type block + body + decorative trace
   card: {
     backgroundColor: COLORS.card,
-    borderRadius: 14,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
+    borderRadius: 16,
+    overflow: "hidden",
     borderWidth: 1,
     borderColor: COLORS.border,
-    // shadow removed — flat design
+    flexDirection: "row",
+    alignItems: "stretch",
   },
-  iconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
+
+  typeBlock: {
+    width: 80,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 6,
+  },
+  typeBlockText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "800",
+    textAlign: "center",
+    letterSpacing: 0.3,
+  },
+
+  // minWidth: 0 is the key fix — without it, a long unbroken filename
+  // (e.g. Hebrew with no spaces) forces this flex child wider than the
+  // card, pushing the delete button and the trace column off-screen.
+  cardBody: { flex: 1, minWidth: 0, padding: 14, position: "relative" },
+  fileName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  fileMeta: { fontSize: 12, color: COLORS.muted, marginBottom: 10 },
+  uploadedBy: { fontSize: 11, color: COLORS.teal, marginBottom: 10 },
+
+  actionPill: {
+    alignSelf: "flex-start",
+    borderWidth: 1.5,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+  },
+  actionPillText: { fontSize: 13, fontWeight: "700" },
+
+  deleteSmall: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: COLORS.redLight,
     alignItems: "center",
     justifyContent: "center",
   },
-  iconLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
+  deleteSmallText: { color: COLORS.red, fontWeight: "700", fontSize: 13 },
 
-  cardBody: { flex: 1 },
-  fileName: { fontSize: 14, fontWeight: "600", color: COLORS.text },
-  fileMeta: { fontSize: 12, color: COLORS.muted },
-  groupBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  groupBadgeText: { fontSize: 10, fontWeight: "700" },
-  uploadedBy: { fontSize: 11, color: COLORS.teal, marginTop: 3 },
-
-  iconAction: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  // Decorative music-trace column (right edge of card)
+  traceCol: {
+    width: 40,
+    flexShrink: 0,
     alignItems: "center",
     justifyContent: "center",
+    paddingVertical: 12,
   },
-  iconActionText: { fontWeight: "700", fontSize: 14 },
+  traceNote: {
+    fontSize: 30,
+    opacity: 0.22,
+    transform: [{ rotate: "12deg" }],
+  },
 
   overlayBottom: {
     flex: 1,
