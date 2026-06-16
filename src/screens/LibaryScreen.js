@@ -8,7 +8,6 @@ import {
   doc,
   getDocs,
   serverTimestamp,
-  updateDoc,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
 import { useEffect, useState } from "react";
@@ -90,11 +89,13 @@ const formatDate = (ts) => {
   });
 };
 
-// Decorative music note used as a subtle accent on the right edge of cards.
+// Decorative music notes used as a subtle accent on the right edge of cards.
 function MusicTrace() {
   return (
-    <View style={s.traceCol} pointerEvents="none">
-      <Text style={s.traceNote}>🎵</Text>
+    <View style={[s.traceCol, { pointerEvents: "none" }]}>
+      <Text style={[s.traceNote, s.traceNoteTop]}>🎵</Text>
+      <Text style={[s.traceNote, s.traceNoteMid]}>🎶</Text>
+      <Text style={[s.traceNote, s.traceNoteBottom]}>🎵</Text>
     </View>
   );
 }
@@ -121,7 +122,7 @@ export default function LibraryScreen({ autoUpload = false }) {
   const loadMaterials = async () => {
     try {
       const snap = await getDocs(collection(db, "library"));
-      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const data = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
       data.sort(
         (a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0),
       );
@@ -136,15 +137,6 @@ export default function LibraryScreen({ autoUpload = false }) {
   useEffect(() => {
     loadMaterials();
   }, []);
-
-  // Mark that this singer has opened the library (powers the achievement)
-  useEffect(() => {
-    if (user && !isAdmin) {
-      updateDoc(doc(db, "users", user.uid), { has_opened_library: true }).catch(
-        () => {},
-      );
-    }
-  }, [user?.uid]);
 
   const studentGroup = user?.current_year_id
     ? `year${user.current_year_id}`
@@ -674,7 +666,13 @@ const s = StyleSheet.create({
   // minWidth: 0 is the key fix — without it, a long unbroken filename
   // (e.g. Hebrew with no spaces) forces this flex child wider than the
   // card, pushing the delete button and the trace column off-screen.
-  cardBody: { flex: 1, minWidth: 0, padding: 14, position: "relative" },
+  cardBody: {
+    flex: 1,
+    minWidth: 0,
+    padding: 14,
+    position: "relative",
+    zIndex: 1,
+  },
   fileName: {
     fontSize: 16,
     fontWeight: "700",
@@ -708,16 +706,28 @@ const s = StyleSheet.create({
 
   // Decorative music-trace column (right edge of card)
   traceCol: {
-    width: 40,
+    width: 60,
     flexShrink: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
+    position: "relative",
   },
-  traceNote: {
-    fontSize: 30,
-    opacity: 0.22,
-    transform: [{ rotate: "12deg" }],
+  traceNote: { position: "absolute", opacity: 0.32 },
+  traceNoteTop: {
+    top: "14%",
+    left: 6,
+    fontSize: 15,
+    transform: [{ rotate: "-8deg" }],
+  },
+  traceNoteMid: {
+    top: "40%",
+    left: 30,
+    fontSize: 23,
+    transform: [{ rotate: "10deg" }],
+  },
+  traceNoteBottom: {
+    top: "68%",
+    left: 6,
+    fontSize: 15,
+    transform: [{ rotate: "-4deg" }],
   },
 
   overlayBottom: {

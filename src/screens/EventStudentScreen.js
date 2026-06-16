@@ -81,7 +81,7 @@ const STATUSBAR_H =
 // Decorative music notes used as a subtle accent on the right edge of cards.
 function MusicTrace() {
   return (
-    <View style={s.traceCol} pointerEvents="none">
+    <View style={[s.traceCol, { pointerEvents: "none" }]}>
       <Text style={[s.traceNote, s.traceNoteTop]}>🎵</Text>
       <Text style={[s.traceNote, s.traceNoteMid]}>🎶</Text>
       <Text style={[s.traceNote, s.traceNoteBottom]}>🎵</Text>
@@ -590,7 +590,7 @@ const s = StyleSheet.create({
     marginTop: 2,
   },
 
-  cardInner: { flex: 1, minWidth: 0, padding: sp(1.75) },
+  cardInner: { flex: 1, minWidth: 0, padding: sp(1.75), zIndex: 1 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   badgeTop: { alignSelf: "flex-start", marginBottom: sp(0.75) },
   badgeText: { fontSize: 11, fontWeight: "700" },
