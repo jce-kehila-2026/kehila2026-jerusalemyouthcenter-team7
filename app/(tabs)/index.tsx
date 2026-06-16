@@ -1,4 +1,3 @@
-import { ChorusFeed } from "@/src/components/ChorusFeed";
 import { JoinRequestsModal } from "@/src/components/JoinRequestsModal";
 import { ManageAdminsModal } from "@/src/components/ManageAdminsModal";
 import {
@@ -7,6 +6,7 @@ import {
 } from "@/src/components/ManageAchievementsModal";
 import { NotificationBell } from "@/src/components/NotificationBell";
 import { useAuth } from "@/src/context/AuthContext";
+import { FirestoreMsg, messageService } from "@/src/data/messageService";
 import { notificationService } from "@/src/data/notificationService";
 import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
@@ -634,6 +634,117 @@ function SingerBadgesRow({
   );
 }
 
+function SingerQuickGrid({
+  onEvents,
+  onForms,
+  onLibrary,
+  onMembers,
+  onMessages,
+  onProfile,
+  unreadMessages,
+  pendingForms,
+  myRegisteredCount,
+}: {
+  onEvents: () => void;
+  onForms: () => void;
+  onLibrary: () => void;
+  onMembers: () => void;
+  onMessages: () => void;
+  onProfile: () => void;
+  unreadMessages: number;
+  pendingForms: number;
+  myRegisteredCount: number;
+}) {
+  const buttons = [
+    {
+      icon: "calendar-outline" as const,
+      label: "My Events",
+      sublabel: `${myRegisteredCount} registered`,
+      onPress: onEvents,
+      bgColor: TEAL + "15",
+      borderColor: TEAL,
+      iconColor: TEAL,
+      badge: null as number | null,
+    },
+    {
+      icon: "document-text-outline" as const,
+      label: "My Forms",
+      sublabel: pendingForms > 0 ? `${pendingForms} pending` : "All done ✓",
+      onPress: onForms,
+      bgColor: AMBER + "20",
+      borderColor: AMBER,
+      iconColor: AMBER,
+      badge: pendingForms > 0 ? pendingForms : (null as number | null),
+    },
+    {
+      icon: "musical-notes-outline" as const,
+      label: "Library",
+      sublabel: "Songs & scores",
+      onPress: onLibrary,
+      bgColor: RED + "15",
+      borderColor: RED,
+      iconColor: RED,
+      badge: null as number | null,
+    },
+    {
+      icon: "people-outline" as const,
+      label: "Choir Members",
+      sublabel: "See who's in the choir",
+      onPress: onMembers,
+      bgColor: TEAL + "15",
+      borderColor: TEAL,
+      iconColor: TEAL,
+      badge: null as number | null,
+    },
+    {
+      icon: "chatbubbles-outline" as const,
+      label: "Messages",
+      sublabel:
+        unreadMessages > 0 ? `${unreadMessages} unread` : "No new messages",
+      onPress: onMessages,
+      bgColor: AMBER + "20",
+      borderColor: AMBER,
+      iconColor: AMBER,
+      badge: unreadMessages > 0 ? unreadMessages : (null as number | null),
+    },
+    {
+      icon: "person-circle-outline" as const,
+      label: "My Profile",
+      sublabel: "View & edit info",
+      onPress: onProfile,
+      bgColor: RED + "15",
+      borderColor: RED,
+      iconColor: RED,
+      badge: null as number | null,
+    },
+  ];
+
+  return (
+    <SectionCard style={{ paddingBottom: 6 }}>
+      <Text style={[st.sectionLabel, { marginBottom: 12 }]}>Quick Access</Text>
+      <View style={st.singerQuickGrid}>
+        {buttons.map((btn) => (
+          <Pressable key={btn.label} onPress={btn.onPress} style={[st.singerQuickCard, { backgroundColor: btn.bgColor, borderWidth: 1.5, borderColor: btn.borderColor }]}>
+            <View>
+              <View style={[st.singerQuickIconCircle, { backgroundColor: btn.iconColor + "20" }]}>
+                <Ionicons name={btn.icon} size={22} color={btn.iconColor} />
+              </View>
+              {btn.badge !== null && (
+                <View style={st.singerQuickBadge}>
+                  <Text style={st.singerQuickBadgeText}>{btn.badge}</Text>
+                </View>
+              )}
+            </View>
+            <View>
+              <Text style={st.singerQuickLabel}>{btn.label}</Text>
+              <Text style={st.singerQuickSub}>{btn.sublabel}</Text>
+            </View>
+          </Pressable>
+        ))}
+      </View>
+    </SectionCard>
+  );
+}
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function DashboardScreen() {
@@ -653,6 +764,7 @@ export default function DashboardScreen() {
   const [manageAdminsOpen, setManageAdminsOpen] = useState(false);
   const [joinRequestsOpen, setJoinRequestsOpen] = useState(false);
   const [achievementsOpen, setAchievementsOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [formCount, setFormCount] = useState(0);
   const [hasOpenedLibrary, setHasOpenedLibrary] = useState(false);
   const [singerStreak, setSingerStreak] = useState(0);
@@ -796,8 +908,15 @@ export default function DashboardScreen() {
       isAdmin ? "admin" : "singer",
     );
 
+    const unsubMsg = messageService.subscribe((msgs: FirestoreMsg[]) => {
+      setUnreadMessages(
+        msgs.filter((m) => m.receiver_id === user.uid && !m.is_read).length,
+      );
+    });
+
     return () => {
       unsubNotif();
+      unsubMsg();
     };
   }, [user?.uid]);
 
@@ -1075,8 +1194,18 @@ export default function DashboardScreen() {
           customAchievements={customAchievements}
         />
 
-        {/* ── Chorus Feed ────────────────────────────────────────────── */}
-        <ChorusFeed currentUserId={user?.uid ?? ""} currentUserName={user?.full_name ?? ""} />
+        {/* ── Quick Access Grid ──────────────────────────────────────── */}
+        <SingerQuickGrid
+          onEvents={() => router.push("/(tabs)/events" as any)}
+          onForms={() => router.push("/(tabs)/forms" as any)}
+          onLibrary={() => router.push("/(tabs)/library" as any)}
+          onMembers={() => router.push("/(tabs)/students" as any)}
+          onMessages={() => router.push("/(tabs)/messages" as any)}
+          onProfile={() => router.push("/profile" as any)}
+          unreadMessages={unreadMessages}
+          pendingForms={0}
+          myRegisteredCount={myEventIds.length}
+        />
 
         {/* ── Recent Activity ────────────────────────────────────────── */}
         {notifList.length > 0 && (
