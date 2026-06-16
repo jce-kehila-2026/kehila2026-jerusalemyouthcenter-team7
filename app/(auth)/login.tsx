@@ -4,7 +4,8 @@ import { Link, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Image,
+  Dimensions,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,28 +15,8 @@ import {
   TextInput,
   View,
 } from "react-native";
-// remove this entire line if not using SVG
 
-function BirdLogo({ size = 80 }: { size?: number }) {
-  return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        overflow: "hidden",
-        justifyContent: "center",
-        alignItems: "center",
-        backgroundColor: "black", // important
-      }}
-    >
-      <Image
-        source={require("../../assets/images/bird-logo.jpeg")}
-        style={{ width: size * 0.8, height: size * 0.8, resizeMode: "contain" }}
-      />
-    </View>
-  );
-}
+const SCREEN_H = Dimensions.get("window").height;
 
 function RoleToggle({
   role,
@@ -176,25 +157,21 @@ export default function LoginScreen() {
       style={s.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      {/* Top half – hero image */}
+      <ImageBackground
+        source={require("../../assets/images/login-bg.jpg")}
+        style={s.heroBg}
+        resizeMode="cover"
+      >
+        <View style={s.heroOverlay} />
+      </ImageBackground>
+
+      {/* Bottom half – form */}
       <ScrollView
         contentContainerStyle={s.scroll}
         keyboardShouldPersistTaps="handled"
+        style={s.formArea}
       >
-        {/* Hero */}
-        <View style={s.hero}>
-          <View style={[s.ring, { shadowColor: accent }]}>
-            <BirdLogo size={88} />
-          </View>
-          <Text style={[s.appName, { color: accent }]}>
-            Jerusalem Youth Chorus
-          </Text>
-          <View style={s.accentBar}>
-            {[COLORS.teal, COLORS.red, COLORS.yellow].map((c) => (
-              <View key={c} style={[s.accentSeg, { backgroundColor: c }]} />
-            ))}
-          </View>
-        </View>
-
         {/* Card */}
         <View style={s.card}>
           <Text style={s.title}>Welcome back</Text>
@@ -299,10 +276,22 @@ export default function LoginScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f0fafa" },
-  scroll: { flexGrow: 1, padding: 24, paddingTop: 48 },
+  container: { flex: 1, backgroundColor: "#1a1a2e" },
+  heroBg: { height: SCREEN_H * 0.48, width: "100%" },
+  heroOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.25)",
+  },
+  formArea: {
+    flex: 1,
+    marginTop: -28,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    backgroundColor: "#fff",
+    overflow: "hidden",
+  },
+  scroll: { flexGrow: 1, padding: 24, paddingTop: 28 },
 
-  hero: { alignItems: "center", marginBottom: 28 },
   ring: {
     width: 108,
     height: 108,
@@ -316,7 +305,7 @@ const s = StyleSheet.create({
     shadowRadius: 16,
     elevation: 10,
   },
-  appName: { fontSize: 32, fontWeight: "800", letterSpacing: 1.5 },
+  appName: { fontSize: 28, fontWeight: "800", letterSpacing: 1.5, color: "#fff", textAlign: "center", marginTop: 10 },
   tagline: {
     fontSize: 13,
     color: COLORS.gray,

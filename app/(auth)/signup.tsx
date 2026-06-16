@@ -4,7 +4,8 @@ import { Link, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Image,
+  Dimensions,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,27 +16,7 @@ import {
   View,
 } from "react-native";
 
-// ── Bird logo ─────────────────────────────────────────────────────────────────
-function BirdLogo({ size = 80 }: { size?: number }) {
-  return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        overflow: "hidden",
-        justifyContent: "center",
-        alignItems: "center",
-        backgroundColor: "black", // important
-      }}
-    >
-      <Image
-        source={require("../../assets/images/bird-logo.jpeg")}
-        style={{ width: size * 0.9, height: size * 0.9, resizeMode: "contain" }}
-      />
-    </View>
-  );
-}
+const SCREEN_H = Dimensions.get("window").height;
 
 // ── Reusable label ────────────────────────────────────────────────────────────
 function FL({
@@ -691,21 +672,21 @@ export default function SignupScreen() {
       style={s.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      {/* Top half – hero image */}
+      <ImageBackground
+        source={require("../../assets/images/login-bg.jpg")}
+        style={s.heroBg}
+        resizeMode="cover"
+      >
+        <View style={s.heroOverlay} />
+      </ImageBackground>
+
+      {/* Bottom half – form */}
       <ScrollView
+        style={s.formArea}
         contentContainerStyle={s.scroll}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header */}
-        <View style={s.hero}>
-          <View style={s.ring}>
-            <BirdLogo size={56} />
-          </View>
-          <View>
-            <Text style={s.appName}>Jerusalem Youth Chorus</Text>
-            <Text style={s.tagline}> 🎤 Singer Registration</Text>
-          </View>
-        </View>
-
         <View style={s.badge}>
           <Text style={s.badgeText}> 🎤 Singer Sign Up</Text>
         </View>
@@ -769,8 +750,18 @@ export default function SignupScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f0fafa" },
-  scroll: { flexGrow: 1, padding: 24, paddingTop: 48, paddingBottom: 40 },
+  container: { flex: 1, backgroundColor: "#1a1a2e" },
+  heroBg: { height: SCREEN_H * 0.35, width: "100%" },
+  heroOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.25)" },
+  formArea: {
+    flex: 1,
+    marginTop: -28,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    backgroundColor: "#fff",
+    overflow: "hidden",
+  },
+  scroll: { flexGrow: 1, padding: 24, paddingTop: 28, paddingBottom: 40 },
 
   hero: {
     flexDirection: "row",
