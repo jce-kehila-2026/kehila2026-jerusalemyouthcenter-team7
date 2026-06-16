@@ -631,58 +631,70 @@ function SingerShortcuts({
 }) {
   const shortcuts = [
     {
-      emoji: "📝",
+      icon: "document-text-outline" as const,
       label: firstPendingForm ? firstPendingForm.title : "No Pending Forms",
       sublabel: firstPendingForm ? "Tap to fill now" : "All caught up ✓",
       onPress: onPendingForm,
-      accent: RED,
-      badge: firstPendingForm ? "!" : null,
+      bgColor: TEAL + "15",
+      borderColor: TEAL,
+      iconColor: TEAL,
+      badge: firstPendingForm ? "!" : null as string | null,
       disabled: !firstPendingForm,
     },
     {
-      emoji: "📅",
+      icon: "calendar-outline" as const,
       label: nextUnregisteredEvent ? nextUnregisteredEvent.title : "No New Events",
       sublabel: nextUnregisteredEvent ? "Tap to register" : "Check back soon",
       onPress: onNextEvent,
-      accent: TEAL,
+      bgColor: AMBER + "20",
+      borderColor: AMBER,
+      iconColor: AMBER,
       badge: null as string | null,
       disabled: !nextUnregisteredEvent,
     },
     {
-      emoji: "🎵",
+      icon: "musical-notes-outline" as const,
       label: latestLibraryFile ? latestLibraryFile.name : "No Uploads Yet",
-      sublabel: latestLibraryFile ? `Latest · ${latestLibraryFile.ext}` : "Teacher hasn't uploaded",
+      sublabel: latestLibraryFile ? `Latest · ${latestLibraryFile.ext}` : "Nothing yet",
       onPress: onLatestFile,
-      accent: AMBER,
-      badge: latestLibraryFile ? "NEW" : null,
+      bgColor: RED + "15",
+      borderColor: RED,
+      iconColor: RED,
+      badge: latestLibraryFile ? "NEW" : null as string | null,
       disabled: !latestLibraryFile,
     },
     {
-      emoji: "💬",
-      label: unreadMessages > 0 ? `${unreadMessages} Unread Message${unreadMessages > 1 ? "s" : ""}` : "Messages",
+      icon: "chatbubbles-outline" as const,
+      label: unreadMessages > 0 ? `${unreadMessages} Unread` : "Messages",
       sublabel: unreadMessages > 0 ? "Tap to read now" : "No new messages",
       onPress: onMessages,
-      accent: TEAL,
-      badge: unreadMessages > 0 ? String(unreadMessages) : null,
+      bgColor: TEAL + "15",
+      borderColor: TEAL,
+      iconColor: TEAL,
+      badge: unreadMessages > 0 ? String(unreadMessages) : null as string | null,
       disabled: false,
     },
     {
-      emoji: "👥",
+      icon: "people-outline" as const,
       label: voiceType ? `${voiceType.charAt(0).toUpperCase() + voiceType.slice(1)} Group` : "My Voice Group",
-      sublabel: "See your section members",
+      sublabel: "See your section",
       onPress: onVoiceGroup,
-      accent: AMBER,
+      bgColor: AMBER + "20",
+      borderColor: AMBER,
+      iconColor: AMBER,
       badge: null as string | null,
       disabled: false,
     },
     {
-      emoji: "📣",
-      label: latestNotif ? latestNotif.title : "No Announcements",
+      icon: "notifications-outline" as const,
+      label: latestNotif ? latestNotif.title : "Announcements",
       sublabel: latestNotif
-        ? latestNotif.body.slice(0, 40) + (latestNotif.body.length > 40 ? "…" : "")
+        ? latestNotif.body.slice(0, 35) + (latestNotif.body.length > 35 ? "…" : "")
         : "Nothing new",
       onPress: onLatestNotif,
-      accent: RED,
+      bgColor: RED + "15",
+      borderColor: RED,
+      iconColor: RED,
       badge: null as string | null,
       disabled: !latestNotif,
     },
@@ -690,29 +702,35 @@ function SingerShortcuts({
 
   return (
     <>
-      <Text style={st.sectionLabel}>Quick Actions</Text>
+      <Text style={st.sectionLabel}>Quick Access</Text>
       <View style={st.shortcutsGrid}>
         {shortcuts.map((s, i) => (
           <Pressable
             key={i}
             style={[
               st.shortcutCard,
-              { borderLeftColor: s.accent, opacity: s.disabled ? 0.5 : 1 },
+              {
+                backgroundColor: s.bgColor,
+                borderColor: s.borderColor,
+                opacity: s.disabled ? 0.5 : 1,
+              },
             ]}
             onPress={s.disabled ? undefined : s.onPress}
           >
             <View style={st.shortcutTop}>
-              <View style={[st.shortcutIconCircle, { backgroundColor: s.accent + "18" }]}>
-                <Text style={st.shortcutEmoji}>{s.emoji}</Text>
+              <View style={[st.shortcutIconCircle, { backgroundColor: s.iconColor + "20" }]}>
+                <Ionicons name={s.icon} size={22} color={s.iconColor} />
               </View>
               {s.badge && (
-                <View style={[st.shortcutBadge, { backgroundColor: s.accent }]}>
+                <View style={[st.shortcutBadge, { backgroundColor: s.borderColor }]}>
                   <Text style={st.shortcutBadgeText}>{s.badge}</Text>
                 </View>
               )}
             </View>
-            <Text style={st.shortcutLabel} numberOfLines={1}>{s.label}</Text>
-            <Text style={st.shortcutSub} numberOfLines={1}>{s.sublabel}</Text>
+            <View>
+              <Text style={st.shortcutLabel} numberOfLines={1}>{s.label}</Text>
+              <Text style={st.shortcutSub} numberOfLines={1}>{s.sublabel}</Text>
+            </View>
           </Pressable>
         ))}
       </View>
@@ -1303,7 +1321,15 @@ export default function DashboardScreen() {
           nextEventDaysAway={nextEventDaysAway}
         />
 
-        {/* ── B: Achievements / Badges Row ───────────────────────────── */}
+        {/* ── B: Weekly Leaderboard ──────────────────────────────────── */}
+        <SingerLeaderboard
+          leaderboard={leaderboard}
+          myUid={user?.uid ?? ""}
+          myPoints={myPoints}
+          myRank={myRank}
+        />
+
+        {/* ── C: Achievements / Badges Row ───────────────────────────── */}
         <SingerBadgesRow
           registeredEventCount={myEventIds.length}
           formCount={formCount}
@@ -1311,7 +1337,7 @@ export default function DashboardScreen() {
           customAchievements={customAchievements}
         />
 
-        {/* ── C: 6 Smart Shortcuts ───────────────────────────────────── */}
+        {/* ── D: 6 Smart Shortcuts ───────────────────────────────────── */}
         <SingerShortcuts
           firstPendingForm={firstPendingForm}
           nextUnregisteredEvent={nextUnregisteredEvent}
@@ -1356,14 +1382,6 @@ export default function DashboardScreen() {
             ))
           )}
         </SectionCard>
-
-        {/* ── D: Weekly Leaderboard ──────────────────────────────────── */}
-        <SingerLeaderboard
-          leaderboard={leaderboard}
-          myUid={user?.uid ?? ""}
-          myPoints={myPoints}
-          myRank={myRank}
-        />
 
         <View style={{ height: 32 }} />
       </ScrollView>
@@ -1872,43 +1890,37 @@ const st = StyleSheet.create({
   },
   shortcutCard: {
     width: "47%" as any,
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: BORDER,
-    borderLeftWidth: 4,
-    padding: 12,
-    minHeight: 88,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    padding: 14,
+    minHeight: 90,
+    justifyContent: "space-between" as const,
   },
   shortcutTop: {
-    flexDirection: "row" as const,
-    justifyContent: "space-between" as const,
-    alignItems: "flex-start" as const,
-    marginBottom: 8,
+    position: "relative" as const,
+    alignSelf: "flex-start" as const,
   },
   shortcutIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center" as const,
     justifyContent: "center" as const,
   },
-  shortcutEmoji: { fontSize: 18 },
   shortcutBadge: {
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    minWidth: 20,
+    position: "absolute" as const,
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
     alignItems: "center" as const,
+    justifyContent: "center" as const,
+    paddingHorizontal: 4,
   },
   shortcutBadgeText: { fontSize: 9, fontWeight: "900" as const, color: "#fff" },
-  shortcutLabel: { fontSize: 12, fontWeight: "800" as const, color: DARK, marginBottom: 2 },
-  shortcutSub: { fontSize: 10, color: SUB },
+  shortcutLabel: { fontSize: 13, fontWeight: "800" as const, color: DARK, marginTop: 8 },
+  shortcutSub: { fontSize: 10, color: SUB, marginTop: 2 },
 
   // ── Leaderboard Card
   lbCard: {
