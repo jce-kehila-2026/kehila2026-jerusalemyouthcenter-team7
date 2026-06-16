@@ -43,12 +43,51 @@ const BADGE_STYLES = {
   year3: { bg: "#f3f0ff", text: "#6b5ce7" },
 };
 
+const MONTH_ABBR = [
+  "JAN",
+  "FEB",
+  "MAR",
+  "APR",
+  "MAY",
+  "JUN",
+  "JUL",
+  "AUG",
+  "SEP",
+  "OCT",
+  "NOV",
+  "DEC",
+];
+
+const getDateParts = (dateStr) => {
+  if (!dateStr) return { day: "--", month: "" };
+  const isoPart = dateStr.split("T")[0];
+  const segments = isoPart.includes("-") ? isoPart.split("-") : null;
+  if (!segments || segments.length < 3) return { day: "--", month: "" };
+  const [, month, day] = segments;
+  const monthIndex = parseInt(month, 10) - 1;
+  return {
+    day: String(parseInt(day, 10)),
+    month: MONTH_ABBR[monthIndex] || "",
+  };
+};
+
 const STATUSBAR_H =
   Platform.OS === "android"
     ? (StatusBar.currentHeight ?? 24)
     : Platform.OS === "ios"
       ? 44
       : 0;
+
+// Decorative music notes used as a subtle accent on the right edge of cards.
+function MusicTrace() {
+  return (
+    <View style={s.traceCol} pointerEvents="none">
+      <Text style={[s.traceNote, s.traceNoteTop]}>🎵</Text>
+      <Text style={[s.traceNote, s.traceNoteMid]}>🎶</Text>
+      <Text style={[s.traceNote, s.traceNoteBottom]}>🎵</Text>
+    </View>
+  );
+}
 
 export default function EventStudentScreen({
   studentYear = 1,
@@ -142,30 +181,34 @@ export default function EventStudentScreen({
     ? myEvents.filter((e) => (e.date || "").split("T")[0] === selectedDate)
     : myEvents;
 
-  // ── Render list card ────────────────────────────────────────────────
+  // ── Render list card (matches the admin Events card design) ─────────
   const renderEvent = ({ item }) => {
     const badge = BADGE_STYLES[item.group] || BADGE_STYLES.all;
     const color = getGroupColor(item);
+    const { day, month } = getDateParts(item.date);
     return (
       <View style={s.card}>
-        <View style={[s.cardBar, { backgroundColor: color }]} />
+        <View style={[s.dateBlock, { backgroundColor: color }]}>
+          <Text style={s.dateBlockDay}>{day}</Text>
+          <Text style={s.dateBlockMonth}>{month}</Text>
+        </View>
         <View style={s.cardInner}>
-          <View style={s.cardTop}>
-            <View style={[s.badge, { backgroundColor: badge.bg }]}>
-              <Text style={[s.badgeText, { color: badge.text }]}>
-                {item.groupLabel || item.group_name}
-              </Text>
-            </View>
-            <Text style={s.dateText}>
-              📅 {formatDate(item.date)} 🕐 {item.time}
+          <View style={[s.badge, s.badgeTop, { backgroundColor: badge.bg }]}>
+            <Text style={[s.badgeText, { color: badge.text }]}>
+              {item.groupLabel || item.group_name}
             </Text>
           </View>
-          <Text style={s.cardTitle}>{item.title}</Text>
+          <Text style={s.cardTitle} numberOfLines={1}>
+            {item.title}
+          </Text>
+          <Text style={s.cardMeta} numberOfLines={1}>
+            {item.time} · {item.location}
+          </Text>
           <Text style={s.cardDesc} numberOfLines={2}>
             {item.description}
           </Text>
-          <Text style={s.cardLoc}>📍 {item.location}</Text>
         </View>
+        <MusicTrace />
       </View>
     );
   };
@@ -223,14 +266,26 @@ export default function EventStudentScreen({
 
       {/* Header */}
       <View style={s.header}>
-        <View>
-          <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
-          <Text style={s.pageTitle}>My Events</Text>
-          <View style={s.yearBadge}>
-            <Text style={s.yearBadgeText}>Year {studentYear}</Text>
+        <View
+          style={{ flexDirection: "row", alignItems: "flex-end", gap: sp(1) }}
+        >
+          {/* Back button — only visible in Calendar tab */}
+          {activeTab === "calendar" && (
+            <Pressable onPress={() => setActiveTab("list")} style={s.backBtn}>
+              <Text style={s.backBtnText}>←</Text>
+            </Pressable>
+          )}
+          <View>
+            <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
+            <Text style={s.pageTitle}>
+              {activeTab === "calendar" ? "Calendar" : "My Events"}
+            </Text>
+            <View style={s.yearBadge}>
+              <Text style={s.yearBadgeText}>Year {studentYear}</Text>
+            </View>
           </View>
         </View>
-        {/* List / Calendar toggle */}
+        {/* List / Calendar toggle — only visible in List tab */}
         {activeTab === "list" && (
           <View style={s.tabToggle}>
             <Pressable
@@ -437,6 +492,17 @@ const s = StyleSheet.create({
     letterSpacing: 1,
   },
   pageTitle: { fontSize: 28, fontWeight: "900", color: "#fff", marginTop: 4 },
+
+  backBtn: {
+    backgroundColor: "rgba(255,255,255,0.25)",
+    borderRadius: 8,
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  backBtnText: { color: "#fff", fontSize: 20, fontWeight: "700" },
   yearBadge: {
     alignSelf: "flex-start",
     backgroundColor: "rgba(255,255,255,0.2)",
@@ -486,43 +552,78 @@ const s = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Event cards (list view)
+  // Event cards (list view) — side date block + content + trace,
+  // matching the admin EventsScreen design (read-only: no edit/attendance
+  // buttons and no delete button for students).
   card: {
     backgroundColor: T.card,
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: T.border,
+    flexDirection: "row",
     shadowColor: T.teal,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 3,
   },
-  cardBar: { height: 4 },
-  cardInner: { padding: sp(2) },
-  cardTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+
+  dateBlock: {
+    width: 76,
+    flexShrink: 0,
     alignItems: "center",
-    marginBottom: sp(1),
+    justifyContent: "center",
+    paddingVertical: sp(2),
   },
+  dateBlockDay: {
+    color: "#fff",
+    fontSize: 26,
+    fontWeight: "700",
+    lineHeight: 28,
+  },
+  dateBlockMonth: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 1,
+    marginTop: 2,
+  },
+
+  cardInner: { flex: 1, minWidth: 0, padding: sp(1.75) },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  badgeTop: { alignSelf: "flex-start", marginBottom: sp(0.75) },
   badgeText: { fontSize: 11, fontWeight: "700" },
-  dateText: { fontSize: 11, color: T.textSub },
   cardTitle: {
     fontSize: 17,
     fontWeight: "800",
     color: T.text,
     marginBottom: 4,
   },
-  cardDesc: {
-    fontSize: 13,
-    color: T.textSub,
-    lineHeight: 19,
-    marginBottom: sp(1),
+  cardMeta: { fontSize: 13, color: T.textSub, marginBottom: sp(0.75) },
+  cardDesc: { fontSize: 13, color: T.textSub, lineHeight: 19 },
+
+  // Decorative music-note triangle (right edge of card)
+  traceCol: { width: 60, flexShrink: 0, position: "relative" },
+  traceNote: { position: "absolute", opacity: 0.32 },
+  traceNoteTop: {
+    top: "14%",
+    left: 6,
+    fontSize: 15,
+    transform: [{ rotate: "-8deg" }],
   },
-  cardLoc: { fontSize: 13, color: T.teal, fontWeight: "500" },
+  traceNoteMid: {
+    top: "40%",
+    left: 30,
+    fontSize: 23,
+    transform: [{ rotate: "10deg" }],
+  },
+  traceNoteBottom: {
+    top: "68%",
+    left: 6,
+    fontSize: 15,
+    transform: [{ rotate: "-4deg" }],
+  },
 
   // Calendar view
   calendarScroll: { backgroundColor: T.white },

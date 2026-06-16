@@ -36,6 +36,7 @@ app/
     messages.tsx          → messaging (hidden from tab bar; reached via header icon)
     notifications.tsx     → notifications (hidden from tab bar; reached via header icon)
   profile.tsx             → profile screen (Stack screen, not a tab)
+  statistics.tsx          → statistics and attendance screen
   student/[id].tsx        → student detail
   event/[id].tsx          → event detail
   form/[id].tsx           → form detail / submission
