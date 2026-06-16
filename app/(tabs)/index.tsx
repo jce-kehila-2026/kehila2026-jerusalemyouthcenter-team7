@@ -333,27 +333,35 @@ function AdminKpiGrid({
   eventCount,
   formCount,
   pendingRequests,
+  adminCount,
+  achievementCount,
   onSingers,
   onEvents,
   onForms,
   onRequests,
+  onAdmins,
+  onAchievements,
 }: {
   singerCount: number;
   eventCount: number;
   formCount: number;
   pendingRequests: number;
+  adminCount: number;
+  achievementCount: number;
   onSingers: () => void;
   onEvents: () => void;
   onForms: () => void;
   onRequests: () => void;
+  onAdmins: () => void;
+  onAchievements: () => void;
 }) {
   const cards = [
     {
       value: singerCount,
-      label: "Total Singers",
+      label: "Singers",
       icon: "people" as const,
       accent: TEAL,
-      sub: "registered in app",
+      sub: "registered",
       onPress: onSingers,
     },
     {
@@ -361,24 +369,40 @@ function AdminKpiGrid({
       label: "Events",
       icon: "calendar" as const,
       accent: AMBER,
-      sub: "total scheduled",
+      sub: "scheduled",
       onPress: onEvents,
     },
     {
       value: formCount,
-      label: "Form Submissions",
+      label: "Forms",
       icon: "document-text" as const,
       accent: TEAL,
-      sub: "collected so far",
+      sub: "submitted",
       onPress: onForms,
     },
     {
       value: pendingRequests,
-      label: "Pending Requests",
+      label: "Requests",
       icon: "person-add" as const,
       accent: pendingRequests > 0 ? RED : TEAL,
-      sub: pendingRequests > 0 ? "awaiting approval" : "all approved",
+      sub: pendingRequests > 0 ? "pending" : "all clear",
       onPress: onRequests,
+    },
+    {
+      value: adminCount,
+      label: "Admins",
+      icon: "shield-checkmark" as const,
+      accent: TEAL,
+      sub: "managing app",
+      onPress: onAdmins,
+    },
+    {
+      value: achievementCount,
+      label: "Achievements",
+      icon: "trophy" as const,
+      accent: AMBER,
+      sub: "badges created",
+      onPress: onAchievements,
     },
   ];
 
@@ -411,7 +435,7 @@ function AdminKpiGrid({
                 { backgroundColor: card.accent + "15" },
               ]}
             >
-              <Ionicons name={card.icon} size={18} color={card.accent} />
+              <Ionicons name={card.icon} size={14} color={card.accent} />
             </View>
           </View>
           <Text style={st.adminKpiLabel}>{card.label}</Text>
@@ -731,6 +755,8 @@ export default function DashboardScreen() {
 
   const [loading, setLoading] = useState(true);
   const [singerCount, setSingerCount] = useState(0);
+  const [adminCount, setAdminCount] = useState(0);
+  const [achievementCount, setAchievementCount] = useState(0);
   const [requestCount, setRequestCount] = useState(0);
   const [eventList, setEventList] = useState<DashEvent[]>([]);
   const [notifList, setNotifList] = useState<DashNotif[]>([]);
@@ -779,9 +805,10 @@ export default function DashboardScreen() {
           getDocs(collection(db, "event_students")),
         ]);
 
-        const [singers, , requests, events, es] = results;
+        const [singers, admins, requests, events, es] = results;
 
         if (singers.status === "fulfilled") setSingerCount(singers.value.size);
+        if (admins.status === "fulfilled") setAdminCount(admins.value.size);
         if (requests.status === "fulfilled")
           setRequestCount(requests.value.size);
 
@@ -799,6 +826,13 @@ export default function DashboardScreen() {
             .filter((d) => d.data().student_id === user.uid)
             .map((d) => String(d.data().event_id));
           setMyEventIds(ids);
+        }
+
+        // ── Admin-specific: count achievement definitions ────────────
+        if (isAdmin) {
+          getDocs(collection(db, "achievements"))
+            .then((snap) => setAchievementCount(snap.size))
+            .catch(() => {});
         }
 
         // ── Singer-specific achievement data ────────────────────────
@@ -961,10 +995,14 @@ export default function DashboardScreen() {
             eventCount={eventList.length}
             formCount={formCount}
             pendingRequests={pendingRequestCount}
+            adminCount={adminCount}
+            achievementCount={achievementCount}
             onSingers={() => router.push("/(tabs)/students" as any)}
             onEvents={() => router.push("/(tabs)/events" as any)}
             onForms={() => router.push("/(tabs)/forms" as any)}
             onRequests={() => setJoinRequestsOpen(true)}
+            onAdmins={() => setManageAdminsOpen(true)}
+            onAchievements={() => setAchievementsOpen(true)}
           />
 
           {/* ── Section 3: Quick Actions ─────────────────────────────── */}
@@ -1069,27 +1107,6 @@ export default function DashboardScreen() {
             )}
           </SectionCard>
 
-          {/* ── Section 6: Achievement Studio ────────────────────────── */}
-          <SectionCard>
-            <View style={st.achWidgetRow}>
-              <View style={st.achWidgetIcon}>
-                <Text style={{ fontSize: 22 }}>🏅</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={st.secTitle}>Achievement Studio</Text>
-                <Text style={st.achWidgetSub}>
-                  Create badges & award them to singers
-                </Text>
-              </View>
-              <Pressable
-                style={st.achWidgetBtn}
-                onPress={() => setAchievementsOpen(true)}
-              >
-                <Text style={st.achWidgetBtnText}>Manage</Text>
-                <Ionicons name="chevron-forward" size={14} color={TEAL} />
-              </Pressable>
-            </View>
-          </SectionCard>
 
           <View style={{ height: 32 }} />
         </ScrollView>
@@ -1470,13 +1487,13 @@ const st = StyleSheet.create({
     marginBottom: 12,
   },
   adminKpiCard: {
-    width: "47%" as any,
+    width: "31%" as any,
     backgroundColor: "#ffffff",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: BORDER,
-    padding: 14,
-    minHeight: 100,
+    padding: 10,
+    minHeight: 90,
     overflow: "hidden" as const,
   },
   adminKpiTopRow: {
@@ -1484,11 +1501,11 @@ const st = StyleSheet.create({
     justifyContent: "space-between" as const,
     alignItems: "flex-start" as const,
   },
-  adminKpiValue: { fontSize: 34, fontWeight: "900" as const },
+  adminKpiValue: { fontSize: 26, fontWeight: "900" as const },
   adminKpiIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center" as const,
     justifyContent: "center" as const,
   },
