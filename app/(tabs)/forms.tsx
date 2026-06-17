@@ -40,6 +40,7 @@ const typeIcons: Record<string, React.ComponentProps<typeof Ionicons>["name"]> =
     multiple_choice: "radio-button-on-outline",
     yes_no: "checkmark-circle-outline",
     range: "options-outline",
+    scale: "options-outline",
   };
 
 // ── Screen ────────────────────────────────────────────────────────────────────

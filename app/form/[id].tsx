@@ -3,8 +3,18 @@ import {
   getFormTemplate,
   submitStudentForm,
 } from "@/src/firebase/firestoreService";
+import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  writeBatch,
+  serverTimestamp,
+  doc,
+} from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -69,7 +79,8 @@ export default function FormDetailScreen() {
     let allAnswered = true;
     for (const q of questions) {
       const qId = q.id || `q_${questions.indexOf(q)}`;
-      if (!answers[qId] || String(answers[qId]).trim() === "") {
+      const val = answers[qId];
+      if (val === undefined || val === null || String(val).trim() === "") {
         allAnswered = false;
         break;
       }
@@ -313,6 +324,39 @@ export default function FormDetailScreen() {
                       ))}
                     </View>
                   )}
+
+                  {qType === "scale" && (() => {
+                    const min = typeof q.scaleMin === "number" ? q.scaleMin : 1;
+                    const max = typeof q.scaleMax === "number" ? q.scaleMax : 10;
+                    const steps = Array.from({ length: max - min + 1 }, (_, i) => min + i);
+                    return (
+                      <View style={styles.scaleWrapper}>
+                        <View style={styles.scaleRow}>
+                          {steps.map((val) => {
+                            const selected = answers[qId] === String(val);
+                            return (
+                              <Pressable
+                                key={val}
+                                style={[
+                                  styles.scaleBtn,
+                                  selected && { backgroundColor: activeColor, borderColor: activeColor },
+                                ]}
+                                onPress={() => handleAnswerChange(qId, String(val))}
+                              >
+                                <Text style={[styles.scaleBtnText, selected && styles.scaleBtnTextActive]}>
+                                  {val}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                        <View style={styles.scaleLabels}>
+                          <Text style={styles.scaleLabelText}>{min}</Text>
+                          <Text style={styles.scaleLabelText}>{max}</Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
                 </View>
               );
             })
@@ -495,4 +539,34 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     flex: 1,
   },
+
+  // Scale question
+  scaleWrapper: { gap: 8 },
+  scaleRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  scaleBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1.5,
+    borderColor: themeColors.gray,
+    backgroundColor: "#fafafa",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scaleBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: themeColors.charcoal,
+  },
+  scaleBtnTextActive: { color: themeColors.white },
+  scaleLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+  },
+  scaleLabelText: { fontSize: 11, color: "#999", fontWeight: "600" },
 });
