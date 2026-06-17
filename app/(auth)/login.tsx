@@ -16,7 +16,10 @@ import {
   View,
 } from "react-native";
 
-const SCREEN_H = Dimensions.get("window").height;
+const SCREEN_W = Dimensions.get("window").width;
+// login-bg.jpg is a 1600x900 (16:9) photo — size the hero box to that
+// ratio so "cover" shows the whole image instead of cropping the sides.
+const HERO_H = SCREEN_W / (1600 / 900);
 
 function RoleToggle({
   role,
@@ -277,7 +280,7 @@ export default function LoginScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#1a1a2e" },
-  heroBg: { height: SCREEN_H * 0.48, width: "100%" },
+  heroBg: { height: HERO_H, width: "100%" },
   heroOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.25)",
