@@ -17,9 +17,9 @@ import {
 } from "react-native";
 
 const SCREEN_W = Dimensions.get("window").width;
-// login-bg.jpg is a 1600x900 (16:9) photo — size the hero box to that
-// ratio so "cover" shows the whole image instead of cropping the sides.
-const HERO_H = SCREEN_W / (1600 / 900);
+// login-bg.jpg is 1600x900 — derive hero height from its own aspect ratio so
+// the full photo is visible (no cropping) instead of a fixed screen fraction.
+const HERO_H = SCREEN_W * (900 / 1600);
 
 function RoleToggle({
   role,
