@@ -365,7 +365,15 @@ export default function FormDetailScreen() {
                                 key={val}
                                 style={[
                                   styles.scaleBtn,
-                                  selected && { backgroundColor: activeColor, borderColor: activeColor },
+                                  selected && {
+                                    backgroundColor: activeColor,
+                                    borderWidth: 0,
+                                    shadowColor: activeColor,
+                                    shadowOffset: { width: 0, height: 4 },
+                                    shadowOpacity: 0.35,
+                                    shadowRadius: 6,
+                                    elevation: 5,
+                                  },
                                 ]}
                                 onPress={() => handleAnswerChange(qId, String(val))}
                               >
@@ -567,32 +575,40 @@ const styles = StyleSheet.create({
   },
 
   // Scale question
-  scaleWrapper: { gap: 8 },
+  scaleWrapper: { gap: 12 },
   scaleRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    justifyContent: "center",
+    gap: 10,
   },
   scaleBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 46,
+    height: 46,
+    borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: themeColors.gray,
-    backgroundColor: "#fafafa",
+    borderColor: "#E2E8F0",
+    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
   },
   scaleBtnText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
-    color: themeColors.charcoal,
+    color: "#334155",
   },
   scaleBtnTextActive: { color: themeColors.white },
   scaleLabels: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
+    marginTop: 4,
   },
-  scaleLabelText: { fontSize: 11, color: "#999", fontWeight: "600" },
+  scaleLabelText: {
+    fontSize: 11,
+    color: "#94A3B8",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
 });
