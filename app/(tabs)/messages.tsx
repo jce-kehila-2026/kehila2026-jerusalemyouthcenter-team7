@@ -6,7 +6,7 @@ import { Student } from "@/src/data/mockData";
 import { notificationService } from "@/src/data/notificationService";
 import { studentService } from "@/src/data/studentService";
 import { db } from "@/src/firebase/firebase";
-import { collection, getDocs, onSnapshot, orderBy, query, where } from "firebase/firestore";
+import { addDoc, collection, getDocs, onSnapshot, orderBy, query, serverTimestamp, where } from "firebase/firestore";
 import { timeAgo } from "@/src/utils/timeUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -167,13 +167,22 @@ export default function MessagesScreen() {
             (m.sender_id === currentUid && m.receiver_id === otherUid) ||
             (m.sender_id === otherUid && m.receiver_id === currentUid),
         )
-        .map((m) => ({
-          id: m.id,
-          content: m.content,
-          timestamp: m.timestamp,
-          fromMe: m.sender_id === currentUid,
-          senderName: m.sender_name,
-        }));
+        .map((m) => {
+          const raw = (m as any).timestamp;
+          const ts: string =
+            raw && typeof raw === "object" && typeof raw.toDate === "function"
+              ? raw.toDate().toISOString()
+              : typeof raw === "string"
+              ? raw
+              : new Date().toISOString();
+          return {
+            id: m.id,
+            content: m.content,
+            timestamp: ts,
+            fromMe: m.sender_id === currentUid,
+            senderName: m.sender_name,
+          };
+        });
       setThreadMessages(msgs);
     });
     return unsub;
@@ -252,13 +261,13 @@ export default function MessagesScreen() {
     const receiverId = activeConv.otherPartyId;
 
     try {
-      await messageService.send({
+      await addDoc(collection(db, "messages"), {
         sender_id: currentUid,
         sender_name: senderName,
         receiver_id: receiverId,
         receiver_name: activeConv.otherName,
         content: text,
-        timestamp: new Date().toISOString(),
+        timestamp: serverTimestamp(),
         is_read: false,
       });
 
