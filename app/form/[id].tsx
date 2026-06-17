@@ -99,6 +99,32 @@ export default function FormDetailScreen() {
       }));
 
       await submitStudentForm(studentId, id as string, formattedResponses);
+
+      // Notify all admins silently — never block the success screen
+      try {
+        const adminsSnap = await getDocs(
+          query(collection(db, "users"), where("role", "==", "admin")),
+        );
+        if (!adminsSnap.empty) {
+          const studentName = user?.full_name ?? "A student";
+          const formTitle = typeof form?.title === "string" ? form.title : "a form";
+          const batch = writeBatch(db);
+          adminsSnap.forEach((adminDoc) => {
+            const notifRef = doc(collection(db, "notifications"));
+            batch.set(notifRef, {
+              target_uid: adminDoc.id,
+              title: "New Form Submission",
+              message: `${studentName} has submitted the form: ${formTitle}`,
+              createdAt: serverTimestamp(),
+              read: false,
+            });
+          });
+          await batch.commit();
+        }
+      } catch {
+        // Notification failure must never surface to the student
+      }
+
       setIsSuccess(true); // Triggers the beautiful success screen
     } catch (error) {
       console.error("Submission error:", error);
