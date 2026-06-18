@@ -144,6 +144,7 @@ export default function MessagesScreen() {
   const [sound, setSound] = useState<any>(null);
 
   const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordingRef = useRef<any>(null); // mirrors recording state; readable synchronously in stopAndSendRecording
 
   // ── Fetch contacts directory (singers + admins) ───────────────────────────
   useEffect(() => {
@@ -407,6 +408,7 @@ export default function MessagesScreen() {
 
   // ── Voice recording ───────────────────────────────────────────────────────
   async function startRecording() {
+    if (recordingRef.current) return; // native layer already has an active recording
     try {
       const perm = await Audio.requestPermissionsAsync();
       if (!perm.granted) return;
@@ -414,6 +416,7 @@ export default function MessagesScreen() {
       const { recording: rec } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY,
       );
+      recordingRef.current = rec;
       setRecording(rec);
       setIsRecording(true);
       setRecordingDuration(0);
@@ -424,15 +427,23 @@ export default function MessagesScreen() {
   }
 
   async function stopAndSendRecording() {
-    if (!recording || !activeConv) return;
+    // Use the ref — state may not have updated yet when onPressOut fires immediately after onPressIn
+    const rec = recordingRef.current;
+    if (!rec || !activeConv) return;
+
+    // Clear synchronously so a second press can't race
+    recordingRef.current = null;
     if (recordingTimer.current) clearInterval(recordingTimer.current);
     setIsRecording(false);
+    setRecording(null);
     const dur = recordingDuration;
     setRecordingDuration(0);
+
     try {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      setRecording(null);
+      await rec.stopAndUnloadAsync();
+      // Reset audio mode so subsequent playback works correctly
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: false });
+      const uri = rec.getURI();
       if (!uri) return;
       setUploading(true);
       const url = await uploadToStorage(uri, "audio", `voice_${Date.now()}.m4a`);
