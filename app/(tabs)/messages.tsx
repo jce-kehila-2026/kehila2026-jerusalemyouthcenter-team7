@@ -156,6 +156,11 @@ export default function MessagesScreen() {
   const [groupDraftMembers, setGroupDraftMembers] = useState<Set<string>>(new Set());
   const [groupSaving, setGroupSaving] = useState(false);
 
+  // Group broadcast (tap a group from inbox)
+  const [activeGroup, setActiveGroup] = useState<Group | null>(null);
+  const [groupBroadcastDraft, setGroupBroadcastDraft] = useState("");
+  const [groupBroadcastSending, setGroupBroadcastSending] = useState(false);
+
   // Playback
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [sound, setSound] = useState<any>(null);
@@ -248,6 +253,11 @@ export default function MessagesScreen() {
     });
     return unsub;
   }, [activeConv?.otherPartyId, currentUid]);
+
+  // ── Load groups on mount so admin sees them in the inbox immediately ─────
+  useEffect(() => {
+    if (isAdmin && currentUid) loadGroups();
+  }, [isAdmin, currentUid]);
 
   // ── Auto-open chat when arriving from students screen via URL params ───────
   useEffect(() => {
@@ -669,13 +679,49 @@ export default function MessagesScreen() {
             try {
               await studentService.deleteGroup(group.id);
               await loadGroups();
-            } catch (e) {
+            } catch (e: any) {
               console.error("Delete group error:", e);
+              Alert.alert(
+                "Delete Failed",
+                e?.message?.includes("permission")
+                  ? "Permission denied. Make sure your Firestore rules allow deleting from the 'groups' collection."
+                  : (e?.message ?? "Could not delete the group."),
+              );
             }
           },
         },
       ],
     );
+  }
+
+  async function sendGroupBroadcast() {
+    if (!groupBroadcastDraft.trim() || !activeGroup || groupBroadcastSending) return;
+    setGroupBroadcastSending(true);
+    const text = groupBroadcastDraft.trim();
+    setGroupBroadcastDraft("");
+    const members = allStudents.filter((s) =>
+      activeGroup.member_ids?.includes(s.id),
+    );
+    try {
+      const senderName = user?.full_name ?? "Unknown";
+      await Promise.all(
+        members.map((member) =>
+          addDoc(collection(db, "messages"), {
+            sender_id: currentUid,
+            sender_name: senderName,
+            receiver_id: member.id,
+            receiver_name: member.full_name,
+            content: text,
+            type: "text",
+            timestamp: new Date().toISOString(),
+            is_read: false,
+          }),
+        ),
+      );
+    } catch (e) {
+      console.error("Group broadcast error:", e);
+    }
+    setGroupBroadcastSending(false);
   }
 
   const totalUnread = conversations.filter((c) => c.unread).length;
@@ -689,6 +735,195 @@ export default function MessagesScreen() {
         <View style={styles.center}>
           <ActivityIndicator size="large" color={AppColors.primary} />
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Group broadcast view ─────────────────────────────────────────────────
+  if (activeGroup) {
+    const groupMembers = allStudents.filter((s) =>
+      activeGroup.member_ids?.includes(s.id),
+    );
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          {/* Header */}
+          <View
+            style={[
+              styles.threadHeader,
+              { backgroundColor: theme.card, borderBottomColor: theme.border },
+            ]}
+          >
+            <Pressable
+              onPress={() => setActiveGroup(null)}
+              style={styles.backBtn}
+            >
+              <Ionicons name="arrow-back" size={22} color={AppColors.primary} />
+            </Pressable>
+            <View
+              style={[
+                styles.gmGroupIcon,
+                { backgroundColor: AppColors.primary + "20" },
+              ]}
+            >
+              <Ionicons
+                name="people-outline"
+                size={22}
+                color={AppColors.primary}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.threadName, { color: theme.text }]}>
+                {activeGroup.name}
+              </Text>
+              <Text style={{ fontSize: 12, color: theme.subtext }}>
+                {groupMembers.length}{" "}
+                {groupMembers.length === 1 ? "member" : "members"}
+              </Text>
+            </View>
+          </View>
+
+          {/* Member list + broadcast info */}
+          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 8 }}>
+            {groupMembers.length === 0 ? (
+              <View style={styles.emptyThread}>
+                <Ionicons
+                  name="people-outline"
+                  size={36}
+                  color={theme.subtext}
+                />
+                <Text
+                  style={[styles.emptyThreadText, { color: theme.subtext }]}
+                >
+                  This group has no members yet.
+                </Text>
+                <Text
+                  style={{
+                    color: theme.subtext,
+                    fontSize: 13,
+                    textAlign: "center",
+                    marginTop: 4,
+                  }}
+                >
+                  Add members via Manage Groups.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <View
+                  style={[
+                    styles.gmBroadcastBanner,
+                    {
+                      backgroundColor: AppColors.primary + "0f",
+                      borderColor: AppColors.primary + "30",
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="megaphone-outline"
+                    size={16}
+                    color={AppColors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.gmBroadcastText,
+                      { color: AppColors.primary },
+                    ]}
+                  >
+                    Your message will be sent individually to all{" "}
+                    {groupMembers.length} members
+                  </Text>
+                </View>
+                {groupMembers.map((member) => (
+                  <View
+                    key={member.id}
+                    style={[
+                      styles.gmMemberRow,
+                      { borderBottomColor: theme.border },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.convAvatar,
+                        { backgroundColor: AppColors.primary + "20" },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.convAvatarText,
+                          { color: AppColors.primary },
+                        ]}
+                      >
+                        {member.full_name.charAt(0)}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[styles.gmMemberName, { color: theme.text }]}
+                    >
+                      {member.full_name}
+                    </Text>
+                  </View>
+                ))}
+              </>
+            )}
+          </ScrollView>
+
+          {/* Compose bar */}
+          <View
+            style={[
+              styles.composeBar,
+              { backgroundColor: theme.card, borderTopColor: theme.border },
+            ]}
+          >
+            <TextInput
+              style={[
+                styles.composeInput,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.background,
+                  borderColor: theme.border,
+                },
+              ]}
+              value={groupBroadcastDraft}
+              onChangeText={setGroupBroadcastDraft}
+              placeholder={
+                groupMembers.length > 0
+                  ? `Message all ${groupMembers.length} members…`
+                  : "No members in this group"
+              }
+              placeholderTextColor={theme.subtext}
+              multiline
+              maxLength={500}
+              editable={groupMembers.length > 0}
+            />
+            <Pressable
+              style={[
+                styles.sendBtn,
+                (!groupBroadcastDraft.trim() ||
+                  groupBroadcastSending ||
+                  groupMembers.length === 0) &&
+                  styles.sendBtnDisabled,
+              ]}
+              onPress={sendGroupBroadcast}
+              disabled={
+                !groupBroadcastDraft.trim() ||
+                groupBroadcastSending ||
+                groupMembers.length === 0
+              }
+            >
+              {groupBroadcastSending ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name="send" size={18} color="#fff" />
+              )}
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     );
   }
@@ -1641,6 +1876,59 @@ export default function MessagesScreen() {
         )}
       </View>
 
+      {/* Groups section — visible to admins, searchable by group name */}
+      {isAdmin && (() => {
+        const visibleGroups = searchTrimmed
+          ? groupsData.filter((g) =>
+              g.name.toLowerCase().includes(searchTrimmed),
+            )
+          : groupsData;
+        if (visibleGroups.length === 0) return null;
+        return (
+          <View style={styles.groupsSection}>
+            <Text style={[styles.listHeader, { color: theme.subtext }]}>
+              GROUPS
+            </Text>
+            {visibleGroups.map((group) => (
+              <Pressable
+                key={group.id}
+                style={[
+                  styles.convCard,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+                onPress={() => setActiveGroup(group)}
+              >
+                <View
+                  style={[
+                    styles.gmGroupIcon,
+                    { backgroundColor: AppColors.primary + "20" },
+                  ]}
+                >
+                  <Ionicons
+                    name="people-outline"
+                    size={22}
+                    color={AppColors.primary}
+                  />
+                </View>
+                <View style={styles.convBody}>
+                  <Text style={[styles.convName, { color: theme.text }]}>
+                    {group.name}
+                  </Text>
+                  <Text style={[styles.convPreview, { color: theme.subtext }]}>
+                    {group.member_ids?.length ?? 0} members · Tap to broadcast
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={theme.subtext}
+                />
+              </Pressable>
+            ))}
+          </View>
+        );
+      })()}
+
       {showingSearch ? (
         /* Student directory */
         <FlatList
@@ -2182,4 +2470,19 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   gmCreateFirstText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+
+  // Group broadcast view
+  gmBroadcastBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  gmBroadcastText: { flex: 1, fontSize: 13, fontWeight: "500" },
+
+  // Groups section in inbox
+  groupsSection: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4, gap: 8 },
 });
