@@ -1,25 +1,30 @@
 import { StudentSignupPayload, useAuth } from "@/src/context/AuthContext";
 import { COLORS } from "@/src/data/mockData";
 import { Link, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
-  ImageBackground,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 
-const SCREEN_W = Dimensions.get("window").width;
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 // login-bg.jpg is 1600x900 — derive hero height from its own aspect ratio so
 // the full photo is visible (no cropping) instead of a fixed screen fraction.
-const HERO_H = SCREEN_W * (900 / 1600);
+const HERO_H = Math.round(SCREEN_W * (900 / 1600));
+// How far the sheet's rounded top initially overlaps the hero image at rest.
+const CARD_OVERLAP = 28;
+// Extra scroll travel (beyond a normal screen-filling scroll) reserved so the
+// sheet can keep sliding up until it fully covers the hero image.
+const SCROLL_TRAVEL = HERO_H - CARD_OVERLAP;
 
 // ── Reusable label ────────────────────────────────────────────────────────────
 function FL({
@@ -199,6 +204,8 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
+
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   const set = (k: keyof FormState) => (v: string) =>
     setForm((p) => ({ ...p, [k]: v }));
@@ -588,190 +595,161 @@ export default function SignupScreen() {
     );
   }
 
-  //   return (
-  //     <KeyboardAvoidingView
-  //       style={s.container}
-  //       behavior={Platform.OS === "ios" ? "padding" : undefined}
-  //     >
-  //       <ScrollView
-  //         contentContainerStyle={s.scroll}
-  //         keyboardShouldPersistTaps="handled"
-  //       >
-  //         {/* Header */}
-  //         <View style={s.hero}>
-  //           <View style={s.ring}>
-  //             <BirdLogo size={56} />
-  //           </View>
-  //           <View>
-  //             <Text style={s.appName}>Jerusalem Youth Chorus</Text>
-  //             <Text style={s.tagline}>Singer Registration</Text>
-  //           </View>
-  //         </View>
-
-  //         <View style={s.badge}>
-  //           <Text style={s.badgeText}> 🎤 Singer Sign Up</Text>
-  //         </View>
-
-  //         <StepBar current={step} total={3} />
-
-  //         {/* Form card */}
-  //         <View style={s.card}>
-  //           {error ? (
-  //             <View style={s.errBox}>
-  //               <Text style={s.errText}>⚠ {error}</Text>
-  //             </View>
-  //           ) : null}
-
-  //           {renderStep()}
-
-  //           {/* Navigation */}
-  //           <View style={s.navRow}>
-  //             {step > 1 ? (
-  //               <Pressable style={s.backBtn} onPress={back}>
-  //                 <Text style={s.backTxt}>← Back</Text>
-  //               </Pressable>
-  //             ) : (
-  //               <View style={{ flex: 1 }} />
-  //             )}
-  //             <Pressable
-  //               style={({ pressed }) => [
-  //                 s.nextBtn,
-  //                 pressed && { opacity: 0.85 },
-  //                 loading && { opacity: 0.55 },
-  //               ]}
-  //               onPress={step === 3 ? handleSubmit : next}
-  //               disabled={loading}
-  //             >
-  //               {loading ? (
-  //                 <ActivityIndicator color={COLORS.white} />
-  //               ) : (
-  //                 <Text style={s.nextTxt}>
-  //                   {step === 3 ? "Create Account ✓" : "Next →"}
-  //                 </Text>
-  //               )}
-  //             </Pressable>
-  //           </View>
-
-  //           <View style={s.footer}>
-  //             <Text style={s.footerTxt}>Already have an account? </Text>
-  //             <Link href={"/(auth)/login" as any} style={s.link}>
-  //               Sign in
-  //             </Link>
-  //           </View>
-  //         </View>
-
-  //         <View style={s.dots}>
-  //           {[COLORS.teal, COLORS.red, COLORS.yellow].map((c) => (
-  //             <View key={c} style={[s.dot, { backgroundColor: c }]} />
-  //           ))}
-  //         </View>
-  //       </ScrollView>
-  //     </KeyboardAvoidingView>
-  //   );
-  // }
+  // The hero drifts upward slower than the scroll (parallax) and stretches
+  // when the user pulls down past the top. The sheet itself (rendered as
+  // scroll content) slides up at normal scroll speed and is what visually
+  // covers the hero as the user scrolls.
+  const heroTranslateY = scrollY.interpolate({
+    inputRange: [-HERO_H, 0, HERO_H],
+    outputRange: [HERO_H * 0.7, 0, -HERO_H * 0.2],
+    extrapolate: "clamp",
+  });
+  const heroScale = scrollY.interpolate({
+    inputRange: [-HERO_H, 0],
+    outputRange: [2, 1],
+    extrapolateRight: "clamp",
+  });
+  const heroOverlayOpacity = scrollY.interpolate({
+    inputRange: [0, SCROLL_TRAVEL],
+    outputRange: [0.1, 0.45],
+    extrapolate: "clamp",
+  });
 
   return (
     <KeyboardAvoidingView
       style={s.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {/* Top half – hero image */}
-      <ImageBackground
-        source={require("../../assets/images/login-bg.jpg")}
-        style={s.heroBg}
-        resizeMode="cover"
+      {/* Fixed hero image — sits behind the scrolling sheet */}
+      <Animated.View
+        style={[
+          s.hero,
+          { transform: [{ translateY: heroTranslateY }, { scale: heroScale }] },
+        ]}
       >
-        <View style={s.heroOverlay} />
-      </ImageBackground>
+        <Image
+          source={require("../../assets/images/login-bg.jpg")}
+          style={s.heroImg}
+          resizeMode="cover"
+        />
+        <Animated.View
+          style={[s.heroOverlay, { opacity: heroOverlayOpacity }]}
+        />
+      </Animated.View>
 
-      {/* Bottom half – form */}
-      <ScrollView
-        style={s.formArea}
-        contentContainerStyle={s.scroll}
+      {/* Scrolling sheet — its rounded top slides up over the hero on scroll */}
+      <Animated.ScrollView
+        style={s.scrollContainer}
+        contentContainerStyle={s.scrollContent}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true },
+        )}
       >
-        <View style={s.badge}>
-          <Text style={s.badgeText}> 🎤 Singer Sign Up</Text>
-        </View>
+        <View style={s.sheet}>
+          <View style={s.badge}>
+            <Text style={s.badgeText}> 🎤 Singer Sign Up</Text>
+          </View>
 
-        <StepBar current={step} total={3} />
+          <StepBar current={step} total={3} />
 
-        {/* Form card */}
-        <View style={s.card}>
-          {error ? (
-            <View style={s.errBox}>
-              <Text style={s.errText}>⚠ {error}</Text>
-            </View>
-          ) : null}
+          {/* Form card */}
+          <View style={s.card}>
+            {error ? (
+              <View style={s.errBox}>
+                <Text style={s.errText}>⚠ {error}</Text>
+              </View>
+            ) : null}
 
-          {renderStep()}
+            {renderStep()}
 
-          {/* Navigation */}
-          <View style={s.navRow}>
-            {step > 1 ? (
-              <Pressable style={s.backBtn} onPress={back}>
-                <Text style={s.backTxt}>← Back</Text>
-              </Pressable>
-            ) : (
-              <View style={{ flex: 1 }} />
-            )}
-            <Pressable
-              style={({ pressed }) => [
-                s.nextBtn,
-                pressed && { opacity: 0.85 },
-                loading && { opacity: 0.55 },
-              ]}
-              onPress={step === 3 ? handleSubmit : next}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={COLORS.white} />
+            {/* Navigation */}
+            <View style={s.navRow}>
+              {step > 1 ? (
+                <Pressable style={s.backBtn} onPress={back}>
+                  <Text style={s.backTxt}>← Back</Text>
+                </Pressable>
               ) : (
-                <Text style={s.nextTxt}>
-                  {step === 3 ? "Send Join Request 🎶" : "Next →"}
-                </Text>
+                <View style={{ flex: 1 }} />
               )}
-            </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  s.nextBtn,
+                  pressed && { opacity: 0.85 },
+                  loading && { opacity: 0.55 },
+                ]}
+                onPress={step === 3 ? handleSubmit : next}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color={COLORS.white} />
+                ) : (
+                  <Text style={s.nextTxt}>
+                    {step === 3 ? "Send Join Request 🎶" : "Next →"}
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+
+            <View style={s.footer}>
+              <Text style={s.footerTxt}>Already have an account? </Text>
+              <Link href={"/(auth)/login" as any} style={s.link}>
+                Sign in
+              </Link>
+            </View>
           </View>
 
-          <View style={s.footer}>
-            <Text style={s.footerTxt}>Already have an account? </Text>
-            <Link href={"/(auth)/login" as any} style={s.link}>
-              Sign in
-            </Link>
+          <View style={s.dots}>
+            {[COLORS.teal, COLORS.red, COLORS.yellow].map((c) => (
+              <View key={c} style={[s.dot, { backgroundColor: c }]} />
+            ))}
           </View>
         </View>
-
-        <View style={s.dots}>
-          {[COLORS.teal, COLORS.red, COLORS.yellow].map((c) => (
-            <View key={c} style={[s.dot, { backgroundColor: c }]} />
-          ))}
-        </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#1a1a2e" },
-  heroBg: { height: HERO_H, width: "100%" },
-  heroOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.25)" },
-  formArea: {
-    flex: 1,
-    marginTop: -28,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    backgroundColor: "#fff",
-    overflow: "hidden",
-  },
-  scroll: { flexGrow: 1, padding: 24, paddingTop: 28, paddingBottom: 40 },
 
   hero: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    marginBottom: 16,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: HERO_H,
+    overflow: "hidden",
   },
+  heroImg: { width: "100%", height: "100%" },
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#000",
+  },
+
+  scrollContainer: { flex: 1 },
+  scrollContent: {
+    paddingTop: SCROLL_TRAVEL,
+    // Reserve enough scroll room (even on tall screens / short content) for
+    // the sheet to travel all the way from "peeking gap" to "fully covers
+    // the hero", instead of relying on the form content being long enough.
+    minHeight: SCREEN_H + SCROLL_TRAVEL,
+  },
+
+  sheet: {
+    flexGrow: 1,
+    minHeight: SCREEN_H,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: "hidden",
+    padding: 24,
+    paddingBottom: 40,
+  },
+
   ring: {
     width: 80,
     height: 80,

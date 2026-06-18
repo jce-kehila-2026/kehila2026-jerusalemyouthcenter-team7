@@ -1,25 +1,30 @@
 import { useAuth, UserRole } from "@/src/context/AuthContext";
 import { COLORS } from "@/src/data/mockData";
 import { Link, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
-  ImageBackground,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 
-const SCREEN_W = Dimensions.get("window").width;
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 // login-bg.jpg is 1600x900 — derive hero height from its own aspect ratio so
 // the full photo is visible (no cropping) instead of a fixed screen fraction.
-const HERO_H = SCREEN_W * (900 / 1600);
+const HERO_H = Math.round((SCREEN_W * 650) / 1000);
+// How far the sheet's rounded top initially overlaps the hero image at rest.
+const CARD_OVERLAP = 28;
+// Extra scroll travel (beyond a normal screen-filling scroll) reserved so the
+// sheet can keep sliding up until it fully covers the hero image.
+const SCROLL_TRAVEL = HERO_H - CARD_OVERLAP;
 
 function RoleToggle({
   role,
@@ -83,6 +88,8 @@ export default function LoginScreen() {
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
 
+  const scrollY = useRef(new Animated.Value(0)).current;
+
   const accent = role === "admin" ? COLORS.red : COLORS.teal;
 
   const handleRoleChange = (r: UserRole) => {
@@ -90,31 +97,6 @@ export default function LoginScreen() {
     setIdentifier("");
     setError("");
   };
-
-  // const handleLogin = async () => {
-  //   if (!identifier.trim() || !password) {
-  //     setError("Please fill in all fields");
-  //     return;
-  //   }
-
-  //   setError("");
-  //   setLoading(true);
-  //   const ok = await login(identifier.trim(), password, role);
-  //   setLoading(false);
-
-  //   if (ok) {
-  //     // Each role goes to its own tab stack
-  //     router.replace(
-  //       role === "admin" ? ("/(tabs)" as any) : ("/(tabs)" as any),
-  //     );
-  //   } else {
-  //     setError(
-  //       role === "singer"
-  //         ? "No singer account found with this phone number.\nPlease check and try again."
-  //         : "No admin account found with these credentials.\nCheck your email or role selection.",
-  //     );
-  //   }
-  // };
 
   const handleLogin = async () => {
     if (role === "singer") {
@@ -155,168 +137,199 @@ export default function LoginScreen() {
     focused === key && { borderColor: accent, backgroundColor: COLORS.white },
   ];
 
+  // The hero drifts upward slower than the scroll (parallax) and stretches
+  // when the user pulls down past the top. The sheet itself (rendered as
+  // scroll content) slides up at normal scroll speed and is what visually
+  // covers the hero as the user scrolls.
+  const heroTranslateY = scrollY.interpolate({
+    inputRange: [-HERO_H, 0, HERO_H],
+    outputRange: [HERO_H * 0.7, 0, -HERO_H * 0.2],
+    extrapolate: "clamp",
+  });
+  const heroScale = scrollY.interpolate({
+    inputRange: [-HERO_H, 0],
+    outputRange: [2, 1],
+    extrapolateRight: "clamp",
+  });
+  const heroOverlayOpacity = scrollY.interpolate({
+    inputRange: [0, SCROLL_TRAVEL],
+    outputRange: [0.1, 0.45],
+    extrapolate: "clamp",
+  });
+
   return (
     <KeyboardAvoidingView
       style={s.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {/* Top half – hero image */}
-      <ImageBackground
-        source={require("../../assets/images/login-bg.jpg")}
-        style={s.heroBg}
-        resizeMode="cover"
+      {/* Fixed hero image — sits behind the scrolling sheet */}
+      <Animated.View
+        style={[
+          s.hero,
+          { transform: [{ translateY: heroTranslateY }, { scale: heroScale }] },
+        ]}
       >
-        <View style={s.heroOverlay} />
-      </ImageBackground>
+        <Image
+          source={require("../../assets/images/login-bg.jpg")}
+          style={s.heroImg}
+          resizeMode="cover"
+        />
+        <Animated.View
+          style={[s.heroOverlay, { opacity: heroOverlayOpacity }]}
+        />
+      </Animated.View>
 
-      {/* Bottom half – form */}
-      <ScrollView
-        contentContainerStyle={s.scroll}
+      {/* Scrolling sheet — its rounded top slides up over the hero on scroll */}
+      <Animated.ScrollView
+        style={s.scrollContainer}
+        contentContainerStyle={s.scrollContent}
         keyboardShouldPersistTaps="handled"
-        style={s.formArea}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true },
+        )}
       >
-        {/* Card */}
-        <View style={s.card}>
-          <Text style={s.title}>Welcome back</Text>
-          <Text style={s.subtitle}>Select your role to sign in</Text>
+        <View style={s.sheet}>
+          <View style={s.card}>
+            <Text style={s.title}>Welcome back</Text>
+            <Text style={s.subtitle}>Select your role to sign in</Text>
 
-          <RoleToggle role={role} onChange={handleRoleChange} />
+            <RoleToggle role={role} onChange={handleRoleChange} />
 
-          {/* Hint changes per role */}
-          <View
-            style={[
-              s.badge,
-              {
-                backgroundColor:
-                  role === "admin" ? COLORS.redLight : COLORS.tealLight,
-              },
-            ]}
-          >
-            <Text style={[s.badgeText, { color: accent }]}>
-              {role === "admin"
-                ? "🛡️  Admins sign in with their email address"
-                : " 🎤 Singer sign in with their phone number"}
-            </Text>
-          </View>
-
-          {error ? (
-            <View style={s.errBox}>
-              <Text style={s.errText}>⚠ {error}</Text>
+            {/* Hint changes per role */}
+            <View
+              style={[
+                s.badge,
+                {
+                  backgroundColor:
+                    role === "admin" ? COLORS.redLight : COLORS.tealLight,
+                },
+              ]}
+            >
+              <Text style={[s.badgeText, { color: accent }]}>
+                {role === "admin"
+                  ? "🛡️  Admins sign in with their email address"
+                  : " 🎤 Singer sign in with their phone number"}
+              </Text>
             </View>
-          ) : null}
 
-          {/* Label + keyboard type change with role */}
-          <Text style={s.label}>
-            {role === "singer" ? "Phone Number" : "Email"}
-          </Text>
-          <TextInput
-            style={inp("id")}
-            value={identifier}
-            onChangeText={setIdentifier}
-            placeholder={
-              role === "singer" ? "+972-50-000-0000" : "admin@example.org"
-            }
-            placeholderTextColor="#aab"
-            keyboardType={role === "singer" ? "phone-pad" : "email-address"}
-            autoCapitalize="none"
-            onFocus={() => setFocused("id")}
-            onBlur={() => setFocused(null)}
-          />
+            {error ? (
+              <View style={s.errBox}>
+                <Text style={s.errText}>⚠ {error}</Text>
+              </View>
+            ) : null}
 
-          <Text style={s.label}>Password</Text>
-          <TextInput
-            style={inp("pass")}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="••••••••"
-            placeholderTextColor="#aab"
-            secureTextEntry
-            onFocus={() => setFocused("pass")}
-            onBlur={() => setFocused(null)}
-          />
+            {/* Label + keyboard type change with role */}
+            <Text style={s.label}>
+              {role === "singer" ? "Phone Number" : "Email"}
+            </Text>
+            <TextInput
+              style={inp("id")}
+              value={identifier}
+              onChangeText={setIdentifier}
+              placeholder={
+                role === "singer" ? "+972-50-000-0000" : "admin@example.org"
+              }
+              placeholderTextColor="#aab"
+              keyboardType={role === "singer" ? "phone-pad" : "email-address"}
+              autoCapitalize="none"
+              onFocus={() => setFocused("id")}
+              onBlur={() => setFocused(null)}
+            />
 
-          <Pressable
-            style={({ pressed }) => [
-              s.btn,
-              { backgroundColor: accent, shadowColor: accent },
-              pressed && { opacity: 0.85 },
-              loading && { opacity: 0.55 },
-            ]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={COLORS.white} />
+            <Text style={s.label}>Password</Text>
+            <TextInput
+              style={inp("pass")}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              placeholderTextColor="#aab"
+              secureTextEntry
+              onFocus={() => setFocused("pass")}
+              onBlur={() => setFocused(null)}
+            />
+
+            <Pressable
+              style={({ pressed }) => [
+                s.btn,
+                { backgroundColor: accent, shadowColor: accent },
+                pressed && { opacity: 0.85 },
+                loading && { opacity: 0.55 },
+              ]}
+              onPress={handleLogin}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color={COLORS.white} />
+              ) : (
+                <Text style={s.btnText}>Sign In</Text>
+              )}
+            </Pressable>
+
+            <View style={s.divider}>
+              <View style={s.divLine} />
+              <Text style={s.divText}>or</Text>
+              <View style={s.divLine} />
+            </View>
+
+            {/* Sign up link only shown for singers */}
+            {role === "singer" ? (
+              <View style={s.footer}>
+                <Text style={s.footerText}>Don&apos;t have an account? </Text>
+                <Link href={"/(auth)/signup" as any} style={s.signupLink}>
+                  Sign up
+                </Link>
+              </View>
             ) : (
-              <Text style={s.btnText}>Sign In</Text>
+              <Text style={s.adminNote}>
+                Admin accounts are created by the organization.{"\n"}Contact
+                your administrator for access.
+              </Text>
             )}
-          </Pressable>
-
-          <View style={s.divider}>
-            <View style={s.divLine} />
-            <Text style={s.divText}>or</Text>
-            <View style={s.divLine} />
           </View>
-
-          {/* Sign up link only shown for singers */}
-          {role === "singer" ? (
-            <View style={s.footer}>
-              <Text style={s.footerText}>Don&apos;t have an account? </Text>
-              <Link href={"/(auth)/signup" as any} style={s.signupLink}>
-                Sign up
-              </Link>
-            </View>
-          ) : (
-            <Text style={s.adminNote}>
-              Admin accounts are created by the organization.{"\n"}Contact your
-              administrator for access.
-            </Text>
-          )}
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#1a1a2e" },
-  heroBg: { height: HERO_H, width: "100%" },
-  heroOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.25)",
-  },
-  formArea: {
-    flex: 1,
-    marginTop: -28,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    backgroundColor: "#fff",
+
+  hero: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: HERO_H,
     overflow: "hidden",
   },
-  scroll: { flexGrow: 1, padding: 24, paddingTop: 28 },
+  heroImg: { width: "100%", height: "100%" },
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#000",
+  },
 
-  ring: {
-    width: 108,
-    height: 108,
-    borderRadius: 54,
-    backgroundColor: COLORS.black,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 10,
+  scrollContainer: { flex: 1 },
+  scrollContent: {
+    paddingTop: SCROLL_TRAVEL,
+    // Reserve enough scroll room (even on tall screens / short content) for
+    // the sheet to travel all the way from "peeking gap" to "fully covers
+    // the hero", instead of relying on the form content being long enough.
+    minHeight: SCREEN_H + SCROLL_TRAVEL,
   },
-  appName: { fontSize: 28, fontWeight: "800", letterSpacing: 1.5, color: "#fff", textAlign: "center", marginTop: 10 },
-  tagline: {
-    fontSize: 13,
-    color: COLORS.gray,
-    marginTop: 4,
-    letterSpacing: 0.5,
+
+  sheet: {
+    flexGrow: 1,
+    minHeight: SCREEN_H,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: "hidden",
+    padding: 24,
   },
-  accentBar: { flexDirection: "row", marginTop: 14 },
-  accentSeg: { width: 32, height: 4, marginHorizontal: 2, borderRadius: 2 },
 
   card: {
     backgroundColor: COLORS.white,
