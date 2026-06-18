@@ -29,6 +29,7 @@ import {
     FlatList,
     Image,
     KeyboardAvoidingView,
+    Modal,
     Platform,
     Pressable,
     ScrollView,
@@ -111,7 +112,10 @@ export default function MessagesScreen() {
   const scrollRef = useRef<ScrollView>(null);
 
   const router = useRouter();
-  const { studentId, studentName } = useLocalSearchParams<{ studentId: string; studentName: string }>();
+  const { studentId, studentName } = useLocalSearchParams<{
+    studentId: string;
+    studentName: string;
+  }>();
 
   const isAdmin = user?.role === "admin";
   const currentUid = user?.uid ?? "";
@@ -136,15 +140,20 @@ export default function MessagesScreen() {
   // Reply
   const [replyingTo, setReplyingTo] = useState<ThreadMsg | null>(null);
 
-  // Reaction picker
-  const [reactionTarget, setReactionTarget] = useState<string | null>(null);
+  // Selection mode
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Forward modal
+  const [forwardingMsg, setForwardingMsg] = useState<ThreadMsg | null>(null);
 
   // Playback
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [sound, setSound] = useState<any>(null);
 
   const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recordingRef = useRef<any>(null); // mirrors recording state; readable synchronously in stopAndSendRecording
+  const recordingRef = useRef<any>(null);
+
+  const inSelectionMode = selectedIds.size > 0;
 
   // ── Fetch contacts directory (singers + admins) ───────────────────────────
   useEffect(() => {
@@ -177,11 +186,9 @@ export default function MessagesScreen() {
 
     const unsub = messageService.subscribe((msgs) => {
       setLoading(false);
-
       const forUser = msgs.filter(
         (m) => m.sender_id === currentUid || m.receiver_id === currentUid,
       );
-
       setAllMessages(forUser);
       setConversations(groupConversations(forUser, currentUid, isAdmin));
     });
@@ -269,13 +276,12 @@ export default function MessagesScreen() {
   async function openConversation(conv: Conversation) {
     setActiveConv(conv);
     setSearch("");
-    const unread = allMessages.filter((m) => {
-      return (
+    const unread = allMessages.filter(
+      (m) =>
         m.receiver_id === currentUid &&
         m.sender_id === conv.otherPartyId &&
-        !m.is_read
-      );
-    });
+        !m.is_read,
+    );
     await Promise.all(unread.map((m) => messageService.markRead(m.id)));
   }
 
@@ -340,7 +346,11 @@ export default function MessagesScreen() {
       quality: 0.7,
     });
     if (result.canceled || !result.assets[0]) return;
-    await sendMedia(result.assets[0].uri, "image", result.assets[0].fileName ?? "image.jpg");
+    await sendMedia(
+      result.assets[0].uri,
+      "image",
+      result.assets[0].fileName ?? "image.jpg",
+    );
   }
 
   // ── Take photo and send ───────────────────────────────────────────────────
@@ -354,7 +364,9 @@ export default function MessagesScreen() {
 
   // ── Pick and send file ────────────────────────────────────────────────────
   async function pickAndSendFile() {
-    const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+    });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
     const sizeStr = asset.size
@@ -408,11 +420,14 @@ export default function MessagesScreen() {
 
   // ── Voice recording ───────────────────────────────────────────────────────
   async function startRecording() {
-    if (recordingRef.current) return; // native layer already has an active recording
+    if (recordingRef.current) return;
     try {
       const perm = await Audio.requestPermissionsAsync();
       if (!perm.granted) return;
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
       const { recording: rec } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY,
       );
@@ -420,18 +435,19 @@ export default function MessagesScreen() {
       setRecording(rec);
       setIsRecording(true);
       setRecordingDuration(0);
-      recordingTimer.current = setInterval(() => setRecordingDuration((d) => d + 1), 1000);
+      recordingTimer.current = setInterval(
+        () => setRecordingDuration((d) => d + 1),
+        1000,
+      );
     } catch (e) {
       console.error("Recording start error:", e);
     }
   }
 
   async function stopAndSendRecording() {
-    // Use the ref — state may not have updated yet when onPressOut fires immediately after onPressIn
     const rec = recordingRef.current;
     if (!rec || !activeConv) return;
 
-    // Clear synchronously so a second press can't race
     recordingRef.current = null;
     if (recordingTimer.current) clearInterval(recordingTimer.current);
     setIsRecording(false);
@@ -441,8 +457,10 @@ export default function MessagesScreen() {
 
     try {
       await rec.stopAndUnloadAsync();
-      // Reset audio mode so subsequent playback works correctly
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: false });
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: false,
+      });
       const uri = rec.getURI();
       if (!uri) return;
       setUploading(true);
@@ -490,24 +508,67 @@ export default function MessagesScreen() {
     });
   }
 
-  // ── Reactions ─────────────────────────────────────────────────────────────
-  const REACTION_EMOJIS = ["❤️", "👍", "😂", "🔥", "😮", "👏"];
-
-  async function toggleReaction(msgId: string, emoji: string) {
-    const msg = threadMessages.find((m) => m.id === msgId);
-    const existing = msg?.reactions?.[currentUid];
-    if (existing === emoji) {
-      await messageService.removeReaction(msgId, currentUid);
-    } else {
-      await messageService.addReaction(msgId, currentUid, emoji);
-    }
-    setReactionTarget(null);
+  // ── Selection mode ────────────────────────────────────────────────────────
+  function toggleSelection(msgId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(msgId)) next.delete(msgId);
+      else next.add(msgId);
+      return next;
+    });
   }
 
-  // ── Delete message ────────────────────────────────────────────────────────
-  async function handleDeleteMessage(msgId: string) {
-    await messageService.deleteMessage(msgId);
-    setReactionTarget(null);
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  async function handleBulkDelete() {
+    const ids = [...selectedIds];
+    await Promise.all(ids.map((id) => messageService.deleteMessage(id)));
+    clearSelection();
+  }
+
+  function handleReply() {
+    const id = [...selectedIds][0];
+    const msg = threadMessages.find((m) => m.id === id);
+    if (msg) {
+      setReplyingTo(msg);
+      clearSelection();
+    }
+  }
+
+  function handleForward() {
+    const id = [...selectedIds][0];
+    const msg = threadMessages.find((m) => m.id === id);
+    if (msg) setForwardingMsg(msg);
+  }
+
+  async function doForward(targetId: string, targetName: string) {
+    if (!forwardingMsg) return;
+    try {
+      await messageService.send({
+        sender_id: currentUid,
+        sender_name: user?.full_name ?? "Unknown",
+        receiver_id: targetId,
+        receiver_name: targetName,
+        content: forwardingMsg.content,
+        type: forwardingMsg.type,
+        fileName: forwardingMsg.fileName,
+        fileSize: forwardingMsg.fileSize,
+        duration: forwardingMsg.duration,
+        timestamp: new Date().toISOString(),
+        is_read: false,
+      });
+    } catch (e) {
+      console.error("Forward error:", e);
+    }
+    setForwardingMsg(null);
+    clearSelection();
+  }
+
+  function closeForwardModal() {
+    setForwardingMsg(null);
+    clearSelection();
   }
 
   const totalUnread = conversations.filter((c) => c.unread).length;
@@ -515,7 +576,9 @@ export default function MessagesScreen() {
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+      >
         <View style={styles.center}>
           <ActivityIndicator size="large" color={AppColors.primary} />
         </View>
@@ -526,32 +589,166 @@ export default function MessagesScreen() {
   // ── Thread view ───────────────────────────────────────────────────────────
   if (activeConv) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+      >
+        {/* Forward-to modal */}
+        <Modal
+          visible={!!forwardingMsg}
+          transparent
+          animationType="slide"
+          onRequestClose={closeForwardModal}
+        >
+          <View style={styles.forwardOverlay}>
+            <Pressable style={styles.forwardBackdrop} onPress={closeForwardModal} />
+            <View
+              style={[styles.forwardSheet, { backgroundColor: theme.card }]}
+            >
+              <View
+                style={[
+                  styles.forwardSheetHeader,
+                  { borderBottomColor: theme.border },
+                ]}
+              >
+                <Text style={[styles.forwardSheetTitle, { color: theme.text }]}>
+                  Forward to…
+                </Text>
+                <Pressable onPress={closeForwardModal} hitSlop={10}>
+                  <Ionicons name="close" size={22} color={theme.subtext} />
+                </Pressable>
+              </View>
+              <FlatList
+                data={allStudents.filter((s) => s.id !== currentUid)}
+                keyExtractor={(s) => s.id}
+                renderItem={({ item }) => (
+                  <Pressable
+                    style={[
+                      styles.forwardContact,
+                      { borderBottomColor: theme.border },
+                    ]}
+                    onPress={() => doForward(item.id, item.full_name)}
+                  >
+                    <View
+                      style={[
+                        styles.convAvatar,
+                        { backgroundColor: AppColors.primary + "20" },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.convAvatarText,
+                          { color: AppColors.primary },
+                        ]}
+                      >
+                        {(item.full_name ?? "?").charAt(0)}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.forwardContactName,
+                        { color: theme.text },
+                      ]}
+                    >
+                      {item.full_name}
+                    </Text>
+                    <Ionicons
+                      name="arrow-redo-outline"
+                      size={18}
+                      color={theme.subtext}
+                    />
+                  </Pressable>
+                )}
+              />
+            </View>
+          </View>
+        </Modal>
+
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          {/* Thread header */}
-          <View
-            style={[
-              styles.threadHeader,
-              { backgroundColor: theme.card, borderBottomColor: theme.border },
-            ]}
-          >
-            <Pressable onPress={() => setActiveConv(null)} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={22} color={AppColors.primary} />
-            </Pressable>
-            <View style={[styles.convAvatar, { backgroundColor: AppColors.primary + "20" }]}>
-              <Text style={[styles.convAvatarText, { color: AppColors.primary }]}>
-                {activeConv.otherName.charAt(0)}
+          {/* Header — normal or selection mode */}
+          {inSelectionMode ? (
+            <View
+              style={[
+                styles.selectionBar,
+                { backgroundColor: theme.card, borderBottomColor: theme.border },
+              ]}
+            >
+              <Pressable onPress={clearSelection} style={styles.backBtn}>
+                <Ionicons name="close" size={22} color={theme.subtext} />
+              </Pressable>
+              <Text style={[styles.selectionCount, { color: theme.text }]}>
+                {selectedIds.size} selected
               </Text>
+              <View style={styles.selectionActions}>
+                {selectedIds.size === 1 && (
+                  <>
+                    <Pressable
+                      onPress={handleReply}
+                      style={styles.selectionBtn}
+                      hitSlop={6}
+                    >
+                      <Ionicons
+                        name="return-down-back-outline"
+                        size={22}
+                        color={AppColors.primary}
+                      />
+                    </Pressable>
+                    <Pressable
+                      onPress={handleForward}
+                      style={styles.selectionBtn}
+                      hitSlop={6}
+                    >
+                      <Ionicons
+                        name="arrow-redo-outline"
+                        size={22}
+                        color={AppColors.primary}
+                      />
+                    </Pressable>
+                  </>
+                )}
+                <Pressable
+                  onPress={handleBulkDelete}
+                  style={styles.selectionBtn}
+                  hitSlop={6}
+                >
+                  <Ionicons name="trash-outline" size={22} color="#c56451" />
+                </Pressable>
+              </View>
             </View>
-            <View>
-              <Text style={[styles.threadName, { color: theme.text }]}>
-                {activeConv.otherName}
-              </Text>
+          ) : (
+            <View
+              style={[
+                styles.threadHeader,
+                {
+                  backgroundColor: theme.card,
+                  borderBottomColor: theme.border,
+                },
+              ]}
+            >
+              <Pressable onPress={() => setActiveConv(null)} style={styles.backBtn}>
+                <Ionicons name="arrow-back" size={22} color={AppColors.primary} />
+              </Pressable>
+              <View
+                style={[
+                  styles.convAvatar,
+                  { backgroundColor: AppColors.primary + "20" },
+                ]}
+              >
+                <Text
+                  style={[styles.convAvatarText, { color: AppColors.primary }]}
+                >
+                  {activeConv.otherName.charAt(0)}
+                </Text>
+              </View>
+              <View>
+                <Text style={[styles.threadName, { color: theme.text }]}>
+                  {activeConv.otherName}
+                </Text>
+              </View>
             </View>
-          </View>
+          )}
 
           {/* Bubbles */}
           <ScrollView
@@ -565,253 +762,277 @@ export default function MessagesScreen() {
           >
             {threadMessages.length === 0 && (
               <View style={styles.emptyThread}>
-                <Ionicons name="chatbubble-outline" size={36} color={theme.subtext} />
-                <Text style={[styles.emptyThreadText, { color: theme.subtext }]}>
+                <Ionicons
+                  name="chatbubble-outline"
+                  size={36}
+                  color={theme.subtext}
+                />
+                <Text
+                  style={[styles.emptyThreadText, { color: theme.subtext }]}
+                >
                   Start the conversation
                 </Text>
               </View>
             )}
 
-            {threadMessages.map((msg) => (
-              <View
-                key={msg.id}
-                style={[styles.bubbleRow, msg.fromMe ? styles.bubbleRight : styles.bubbleLeft]}
-              >
-                {!msg.fromMe && (
-                  <Text style={[styles.senderLabel, { color: theme.subtext }]}>
-                    {msg.senderName}
-                  </Text>
-                )}
-
-                {/* Long press for reactions/delete */}
-                <Pressable
-                  onLongPress={() =>
-                    setReactionTarget(reactionTarget === msg.id ? null : msg.id)
-                  }
-                  delayLongPress={400}
+            {threadMessages.map((msg) => {
+              const isSelected = selectedIds.has(msg.id);
+              return (
+                <View
+                  key={msg.id}
+                  style={[
+                    styles.bubbleRow,
+                    // in selection mode the row becomes horizontal; otherwise use left/right alignment
+                    inSelectionMode
+                      ? styles.bubbleRowSelectable
+                      : msg.fromMe
+                      ? styles.bubbleRight
+                      : styles.bubbleLeft,
+                    inSelectionMode && isSelected && styles.bubbleRowSelected,
+                  ]}
                 >
+                  {/* Checkbox shown only in selection mode */}
+                  {inSelectionMode && (
+                    <Pressable
+                      onPress={() => toggleSelection(msg.id)}
+                      style={styles.selectionCheck}
+                      hitSlop={6}
+                    >
+                      <Ionicons
+                        name={isSelected ? "checkmark-circle" : "ellipse-outline"}
+                        size={24}
+                        color={isSelected ? AppColors.primary : theme.subtext}
+                      />
+                    </Pressable>
+                  )}
+
+                  {/* Content: sender label + bubble + reactions */}
                   <View
                     style={[
-                      styles.bubble,
+                      styles.bubbleContent,
                       msg.fromMe
-                        ? styles.bubbleSent
-                        : [
-                            styles.bubbleReceived,
-                            { backgroundColor: theme.card, borderColor: theme.border },
-                          ],
-                      msg.type !== "text" && { padding: 6 },
+                        ? { alignItems: "flex-end" }
+                        : { alignItems: "flex-start" },
                     ]}
                   >
-                    {/* TEXT */}
-                    {(msg.type === "text" || !msg.type) && (
-                      <>
-                        <Text
-                          style={[
-                            styles.bubbleText,
-                            { color: msg.fromMe ? "#fff" : theme.text },
-                          ]}
-                        >
-                          {msg.content}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.bubbleTime,
-                            {
-                              color: msg.fromMe
-                                ? "rgba(255,255,255,0.7)"
-                                : theme.subtext,
-                            },
-                          ]}
-                        >
-                          {timeAgo(msg.timestamp)}
-                          {msg.fromMe && (
-                            <Text> {msg.is_read ? " ✓✓" : " ✓"}</Text>
-                          )}
-                        </Text>
-                      </>
+                    {!msg.fromMe && (
+                      <Text
+                        style={[styles.senderLabel, { color: theme.subtext }]}
+                      >
+                        {msg.senderName}
+                      </Text>
                     )}
 
-                    {/* IMAGE */}
-                    {msg.type === "image" && (
-                      <>
-                        <Image
-                          source={{ uri: msg.content }}
-                          style={styles.msgImage}
-                          resizeMode="cover"
-                        />
-                        <Text
-                          style={[
-                            styles.bubbleTime,
-                            {
-                              color: msg.fromMe
-                                ? "rgba(255,255,255,0.7)"
-                                : theme.subtext,
-                              margin: 4,
-                            },
-                          ]}
-                        >
-                          {timeAgo(msg.timestamp)}
-                        </Text>
-                      </>
-                    )}
-
-                    {/* FILE */}
-                    {msg.type === "file" && (
-                      <View style={styles.fileRow}>
-                        <View
-                          style={[
-                            styles.fileIconWrap,
-                            {
-                              backgroundColor: msg.fromMe
-                                ? "rgba(255,255,255,0.2)"
-                                : AppColors.primary + "18",
-                            },
-                          ]}
-                        >
-                          <Ionicons
-                            name="document-outline"
-                            size={22}
-                            color={msg.fromMe ? "#fff" : AppColors.primary}
-                          />
-                        </View>
-                        <View style={{ flex: 1, marginLeft: 10 }}>
-                          <Text
-                            style={[
-                              styles.fileName,
-                              { color: msg.fromMe ? "#fff" : theme.text },
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {msg.fileName ?? "File"}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.fileSize,
-                              {
-                                color: msg.fromMe
-                                  ? "rgba(255,255,255,0.7)"
-                                  : theme.subtext,
-                              },
-                            ]}
-                          >
-                            {msg.fileSize ?? ""} · {timeAgo(msg.timestamp)}
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {/* VOICE NOTE */}
-                    {msg.type === "voice" && (
-                      <View style={styles.voiceRow}>
-                        <Pressable
-                          style={[
-                            styles.voicePlayBtn,
-                            {
-                              backgroundColor: msg.fromMe
-                                ? "rgba(255,255,255,0.25)"
-                                : AppColors.primary + "18",
-                            },
-                          ]}
-                          onPress={() => playVoice(msg.id, msg.content)}
-                        >
-                          <Ionicons
-                            name={playingId === msg.id ? "pause" : "play"}
-                            size={18}
-                            color={msg.fromMe ? "#fff" : AppColors.primary}
-                          />
-                        </Pressable>
-                        <View style={{ flex: 1, marginLeft: 10 }}>
-                          <View style={styles.voiceTrack}>
-                            <View
-                              style={[
-                                styles.voiceFill,
+                    {/* Bubble — long press enters selection, tap in selection mode toggles */}
+                    <Pressable
+                      onLongPress={() => toggleSelection(msg.id)}
+                      onPress={() => inSelectionMode && toggleSelection(msg.id)}
+                      delayLongPress={400}
+                    >
+                      <View
+                        style={[
+                          styles.bubble,
+                          msg.fromMe
+                            ? styles.bubbleSent
+                            : [
+                                styles.bubbleReceived,
                                 {
-                                  backgroundColor: msg.fromMe
-                                    ? "rgba(255,255,255,0.5)"
-                                    : AppColors.primary,
+                                  backgroundColor: theme.card,
+                                  borderColor: theme.border,
+                                },
+                              ],
+                          msg.type !== "text" && { padding: 6 },
+                        ]}
+                      >
+                        {/* TEXT */}
+                        {(msg.type === "text" || !msg.type) && (
+                          <>
+                            <Text
+                              style={[
+                                styles.bubbleText,
+                                { color: msg.fromMe ? "#fff" : theme.text },
+                              ]}
+                            >
+                              {msg.content}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.bubbleTime,
+                                {
+                                  color: msg.fromMe
+                                    ? "rgba(255,255,255,0.7)"
+                                    : theme.subtext,
                                 },
                               ]}
-                            />
-                          </View>
-                          <Text
-                            style={[
-                              styles.voiceDuration,
-                              {
-                                color: msg.fromMe
-                                  ? "rgba(255,255,255,0.7)"
-                                  : theme.subtext,
-                              },
-                            ]}
-                          >
-                            {msg.duration
-                              ? `${Math.floor(msg.duration / 60)}:${String(
-                                  msg.duration % 60,
-                                ).padStart(2, "0")}`
-                              : "0:00"}{" "}
-                            · {timeAgo(msg.timestamp)}
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-                  </View>
-                </Pressable>
+                            >
+                              {timeAgo(msg.timestamp)}
+                              {msg.fromMe && (
+                                <Text> {msg.is_read ? " ✓✓" : " ✓"}</Text>
+                              )}
+                            </Text>
+                          </>
+                        )}
 
-                {/* Reaction row under bubble */}
-                {msg.reactions && Object.keys(msg.reactions).length > 0 && (
-                  <View
-                    style={[
-                      styles.reactionsRow,
-                      msg.fromMe && { justifyContent: "flex-end" },
-                    ]}
-                  >
-                    {Object.entries(
-                      Object.values(msg.reactions).reduce<Record<string, number>>(
-                        (acc, emoji) => {
-                          acc[emoji] = (acc[emoji] ?? 0) + 1;
-                          return acc;
-                        },
-                        {},
-                      ),
-                    ).map(([emoji, count]) => (
-                      <View key={emoji} style={styles.reactionBadge}>
-                        <Text style={styles.reactionEmoji}>{emoji}</Text>
-                        {count > 1 && (
-                          <Text style={styles.reactionCount}>{count}</Text>
+                        {/* IMAGE */}
+                        {msg.type === "image" && (
+                          <>
+                            <Image
+                              source={{ uri: msg.content }}
+                              style={styles.msgImage}
+                              resizeMode="cover"
+                            />
+                            <Text
+                              style={[
+                                styles.bubbleTime,
+                                {
+                                  color: msg.fromMe
+                                    ? "rgba(255,255,255,0.7)"
+                                    : theme.subtext,
+                                  margin: 4,
+                                },
+                              ]}
+                            >
+                              {timeAgo(msg.timestamp)}
+                            </Text>
+                          </>
+                        )}
+
+                        {/* FILE */}
+                        {msg.type === "file" && (
+                          <View style={styles.fileRow}>
+                            <View
+                              style={[
+                                styles.fileIconWrap,
+                                {
+                                  backgroundColor: msg.fromMe
+                                    ? "rgba(255,255,255,0.2)"
+                                    : AppColors.primary + "18",
+                                },
+                              ]}
+                            >
+                              <Ionicons
+                                name="document-outline"
+                                size={22}
+                                color={msg.fromMe ? "#fff" : AppColors.primary}
+                              />
+                            </View>
+                            <View style={{ flex: 1, marginLeft: 10 }}>
+                              <Text
+                                style={[
+                                  styles.fileName,
+                                  { color: msg.fromMe ? "#fff" : theme.text },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {msg.fileName ?? "File"}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.fileSize,
+                                  {
+                                    color: msg.fromMe
+                                      ? "rgba(255,255,255,0.7)"
+                                      : theme.subtext,
+                                  },
+                                ]}
+                              >
+                                {msg.fileSize ?? ""} · {timeAgo(msg.timestamp)}
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+
+                        {/* VOICE NOTE */}
+                        {msg.type === "voice" && (
+                          <View style={styles.voiceRow}>
+                            <Pressable
+                              style={[
+                                styles.voicePlayBtn,
+                                {
+                                  backgroundColor: msg.fromMe
+                                    ? "rgba(255,255,255,0.25)"
+                                    : AppColors.primary + "18",
+                                },
+                              ]}
+                              onPress={() =>
+                                !inSelectionMode &&
+                                playVoice(msg.id, msg.content)
+                              }
+                            >
+                              <Ionicons
+                                name={
+                                  playingId === msg.id ? "pause" : "play"
+                                }
+                                size={18}
+                                color={msg.fromMe ? "#fff" : AppColors.primary}
+                              />
+                            </Pressable>
+                            <View style={{ flex: 1, marginLeft: 10 }}>
+                              <View style={styles.voiceTrack}>
+                                <View
+                                  style={[
+                                    styles.voiceFill,
+                                    {
+                                      backgroundColor: msg.fromMe
+                                        ? "rgba(255,255,255,0.5)"
+                                        : AppColors.primary,
+                                    },
+                                  ]}
+                                />
+                              </View>
+                              <Text
+                                style={[
+                                  styles.voiceDuration,
+                                  {
+                                    color: msg.fromMe
+                                      ? "rgba(255,255,255,0.7)"
+                                      : theme.subtext,
+                                  },
+                                ]}
+                              >
+                                {msg.duration
+                                  ? `${Math.floor(msg.duration / 60)}:${String(
+                                      msg.duration % 60,
+                                    ).padStart(2, "0")}`
+                                  : "0:00"}{" "}
+                                · {timeAgo(msg.timestamp)}
+                              </Text>
+                            </View>
+                          </View>
                         )}
                       </View>
-                    ))}
-                  </View>
-                )}
+                    </Pressable>
 
-                {/* Reaction picker (appears on long press) */}
-                {reactionTarget === msg.id && (
-                  <View
-                    style={[
-                      styles.reactionPicker,
-                      msg.fromMe && { alignSelf: "flex-end" },
-                    ]}
-                  >
-                    {REACTION_EMOJIS.map((emoji) => (
-                      <Pressable
-                        key={emoji}
-                        onPress={() => toggleReaction(msg.id, emoji)}
-                        style={styles.reactionPickerBtn}
-                      >
-                        <Text style={styles.reactionPickerEmoji}>{emoji}</Text>
-                      </Pressable>
-                    ))}
-                    {msg.fromMe && (
-                      <Pressable
-                        onPress={() => handleDeleteMessage(msg.id)}
-                        style={styles.reactionPickerBtn}
-                      >
-                        <Ionicons name="trash-outline" size={16} color="#c56451" />
-                      </Pressable>
-                    )}
+                    {/* Reaction badges (display only — added via other means) */}
+                    {msg.reactions &&
+                      Object.keys(msg.reactions).length > 0 && (
+                        <View
+                          style={[
+                            styles.reactionsRow,
+                            msg.fromMe && { justifyContent: "flex-end" },
+                          ]}
+                        >
+                          {Object.entries(
+                            Object.values(msg.reactions).reduce<
+                              Record<string, number>
+                            >((acc, emoji) => {
+                              acc[emoji] = (acc[emoji] ?? 0) + 1;
+                              return acc;
+                            }, {}),
+                          ).map(([emoji, count]) => (
+                            <View key={emoji} style={styles.reactionBadge}>
+                              <Text style={styles.reactionEmoji}>{emoji}</Text>
+                              {count > 1 && (
+                                <Text style={styles.reactionCount}>{count}</Text>
+                              )}
+                            </View>
+                          ))}
+                        </View>
+                      )}
                   </View>
-                )}
-              </View>
-            ))}
+                </View>
+              );
+            })}
           </ScrollView>
 
           {/* Reply preview */}
@@ -826,8 +1047,11 @@ export default function MessagesScreen() {
               ]}
             >
               <View style={{ flex: 1 }}>
-                <Text style={[styles.replyPreviewLabel, { color: AppColors.primary }]}>
-                  Replying to {replyingTo.fromMe ? "yourself" : replyingTo.senderName}
+                <Text
+                  style={[styles.replyPreviewLabel, { color: AppColors.primary }]}
+                >
+                  Replying to{" "}
+                  {replyingTo.fromMe ? "yourself" : replyingTo.senderName}
                 </Text>
                 <Text
                   style={[styles.replyPreviewText, { color: theme.subtext }]}
@@ -866,22 +1090,44 @@ export default function MessagesScreen() {
               { backgroundColor: theme.card, borderTopColor: theme.border },
             ]}
           >
-            {/* Media buttons — only show when not recording */}
             {!isRecording && (
               <View style={styles.mediaButtons}>
-                <Pressable onPress={pickAndSendImage} style={styles.mediaBtn} hitSlop={6}>
-                  <Ionicons name="image-outline" size={22} color={AppColors.primary} />
+                <Pressable
+                  onPress={pickAndSendImage}
+                  style={styles.mediaBtn}
+                  hitSlop={6}
+                >
+                  <Ionicons
+                    name="image-outline"
+                    size={22}
+                    color={AppColors.primary}
+                  />
                 </Pressable>
-                <Pressable onPress={takeAndSendPhoto} style={styles.mediaBtn} hitSlop={6}>
-                  <Ionicons name="camera-outline" size={22} color={AppColors.primary} />
+                <Pressable
+                  onPress={takeAndSendPhoto}
+                  style={styles.mediaBtn}
+                  hitSlop={6}
+                >
+                  <Ionicons
+                    name="camera-outline"
+                    size={22}
+                    color={AppColors.primary}
+                  />
                 </Pressable>
-                <Pressable onPress={pickAndSendFile} style={styles.mediaBtn} hitSlop={6}>
-                  <Ionicons name="attach-outline" size={22} color={AppColors.primary} />
+                <Pressable
+                  onPress={pickAndSendFile}
+                  style={styles.mediaBtn}
+                  hitSlop={6}
+                >
+                  <Ionicons
+                    name="attach-outline"
+                    size={22}
+                    color={AppColors.primary}
+                  />
                 </Pressable>
               </View>
             )}
 
-            {/* Recording state */}
             {isRecording ? (
               <View style={styles.recordingRow}>
                 <View style={styles.recordingDot} />
@@ -889,7 +1135,9 @@ export default function MessagesScreen() {
                   {Math.floor(recordingDuration / 60)}:
                   {String(recordingDuration % 60).padStart(2, "0")}
                 </Text>
-                <Text style={[styles.recordingHint, { color: theme.subtext }]}>
+                <Text
+                  style={[styles.recordingHint, { color: theme.subtext }]}
+                >
                   Recording… release to send
                 </Text>
               </View>
@@ -912,7 +1160,6 @@ export default function MessagesScreen() {
               />
             )}
 
-            {/* Send or mic button */}
             {draft.trim().length > 0 ? (
               <Pressable
                 style={[styles.sendBtn, sending && styles.sendBtnDisabled]}
@@ -927,11 +1174,18 @@ export default function MessagesScreen() {
               </Pressable>
             ) : (
               <Pressable
-                style={[styles.sendBtn, isRecording && { backgroundColor: "#c56451" }]}
+                style={[
+                  styles.sendBtn,
+                  isRecording && { backgroundColor: "#c56451" },
+                ]}
                 onPressIn={startRecording}
                 onPressOut={stopAndSendRecording}
               >
-                <Ionicons name={isRecording ? "stop" : "mic"} size={18} color="#fff" />
+                <Ionicons
+                  name={isRecording ? "stop" : "mic"}
+                  size={18}
+                  color="#fff"
+                />
               </Pressable>
             )}
           </View>
@@ -944,7 +1198,9 @@ export default function MessagesScreen() {
   const showingSearch = searchTrimmed.length > 0 || conversations.length === 0;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
       {/* Header */}
       <View style={styles.inboxHeader}>
         <Text style={[styles.inboxTitle, { color: theme.text }]}>Messages</Text>
@@ -1013,7 +1269,10 @@ export default function MessagesScreen() {
                   ]}
                 >
                   <Text
-                    style={[styles.convAvatarText, { color: AppColors.primary }]}
+                    style={[
+                      styles.convAvatarText,
+                      { color: AppColors.primary },
+                    ]}
                   >
                     {(item.full_name ?? "?").charAt(0)}
                   </Text>
@@ -1034,7 +1293,8 @@ export default function MessagesScreen() {
                   >
                     {lastMsg
                       ? lastMsg.type !== "text"
-                        ? (lastMsg.fromMe ? "You: " : "") + `[${lastMsg.type}]`
+                        ? (lastMsg.fromMe ? "You: " : "") +
+                          `[${lastMsg.type}]`
                         : (lastMsg.fromMe ? "You: " : "") + lastMsg.content
                       : "Tap to start a conversation"}
                   </Text>
@@ -1096,7 +1356,10 @@ export default function MessagesScreen() {
                   ]}
                 >
                   <Text
-                    style={[styles.convAvatarText, { color: AppColors.primary }]}
+                    style={[
+                      styles.convAvatarText,
+                      { color: AppColors.primary },
+                    ]}
                   >
                     {item.otherName.charAt(0)}
                   </Text>
@@ -1213,6 +1476,8 @@ const styles = StyleSheet.create({
   },
   empty: { alignItems: "center", paddingTop: 60, gap: 12 },
   emptyText: { fontSize: 15 },
+
+  // Thread
   threadHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1226,11 +1491,23 @@ const styles = StyleSheet.create({
   threadContent: { padding: 16, gap: 4, paddingBottom: 8 },
   emptyThread: { alignItems: "center", paddingTop: 60, gap: 10 },
   emptyThreadText: { fontSize: 14 },
+
+  // Bubble rows
   bubbleRow: { marginBottom: 8 },
   bubbleLeft: { alignItems: "flex-start" },
   bubbleRight: { alignItems: "flex-end" },
+  // In selection mode the row becomes horizontal (checkbox + content)
+  bubbleRowSelectable: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    borderRadius: 10,
+  },
+  bubbleRowSelected: { backgroundColor: AppColors.primary + "14" },
+  bubbleContent: { flex: 1 },
+
   senderLabel: { fontSize: 11, marginBottom: 3, marginLeft: 4 },
-  bubble: { maxWidth: "78%", borderRadius: 16, padding: 12 },
+  bubble: { maxWidth: "85%", borderRadius: 16, padding: 12 },
   bubbleReceived: { borderWidth: 1, borderBottomLeftRadius: 4 },
   bubbleSent: {
     backgroundColor: AppColors.primary,
@@ -1238,6 +1515,8 @@ const styles = StyleSheet.create({
   },
   bubbleText: { fontSize: 15, lineHeight: 21 },
   bubbleTime: { fontSize: 10, marginTop: 4, textAlign: "right" },
+
+  // Compose bar
   composeBar: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -1266,7 +1545,12 @@ const styles = StyleSheet.create({
 
   // Media message bubbles
   msgImage: { width: 200, height: 160, borderRadius: 12 },
-  fileRow: { flexDirection: "row", alignItems: "center", padding: 6, minWidth: 180 },
+  fileRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 6,
+    minWidth: 180,
+  },
   fileIconWrap: {
     width: 40,
     height: 40,
@@ -1276,7 +1560,12 @@ const styles = StyleSheet.create({
   },
   fileName: { fontSize: 13, fontWeight: "700" },
   fileSize: { fontSize: 11, marginTop: 2 },
-  voiceRow: { flexDirection: "row", alignItems: "center", padding: 6, minWidth: 180 },
+  voiceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 6,
+    minWidth: 180,
+  },
   voicePlayBtn: {
     width: 36,
     height: 36,
@@ -1294,7 +1583,7 @@ const styles = StyleSheet.create({
   voiceFill: { width: "60%", height: 4, borderRadius: 2 },
   voiceDuration: { fontSize: 10 },
 
-  // Reactions
+  // Reaction badges (display only)
   reactionsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1313,23 +1602,6 @@ const styles = StyleSheet.create({
   },
   reactionEmoji: { fontSize: 14 },
   reactionCount: { fontSize: 11, fontWeight: "700", color: "#555" },
-  reactionPicker: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 24,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 6,
-    marginTop: 6,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
-    alignSelf: "flex-start",
-  },
-  reactionPickerBtn: { padding: 4 },
-  reactionPickerEmoji: { fontSize: 20 },
 
   // Reply preview bar
   replyPreview: {
@@ -1365,7 +1637,55 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 8,
   },
-  recordingDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#c56451" },
+  recordingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#c56451",
+  },
   recordingTimer: { fontSize: 16, fontWeight: "700", minWidth: 40 },
   recordingHint: { fontSize: 12, flex: 1 },
+
+  // Selection mode header
+  selectionBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  selectionCount: { flex: 1, fontSize: 16, fontWeight: "600" },
+  selectionActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+  selectionBtn: { padding: 8 },
+  selectionCheck: { paddingRight: 8, paddingLeft: 4 },
+
+  // Forward modal
+  forwardOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  forwardBackdrop: { flex: 1 },
+  forwardSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "70%",
+  },
+  forwardSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderBottomWidth: 1,
+  },
+  forwardSheetTitle: { fontSize: 16, fontWeight: "700" },
+  forwardContact: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  forwardContactName: { flex: 1, fontSize: 15, fontWeight: "500" },
 });
