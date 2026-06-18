@@ -19,7 +19,7 @@ import {
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 // login-bg.jpg is 1600x900 — derive hero height from its own aspect ratio so
 // the full photo is visible (no cropping) instead of a fixed screen fraction.
-const HERO_H = Math.round(SCREEN_W * (900 / 1600));
+const HERO_H = Math.round((SCREEN_W * 650) / 1000);
 // How far the sheet's rounded top initially overlaps the hero image at rest.
 const CARD_OVERLAP = 28;
 // Extra scroll travel (beyond a normal screen-filling scroll) reserved so the
