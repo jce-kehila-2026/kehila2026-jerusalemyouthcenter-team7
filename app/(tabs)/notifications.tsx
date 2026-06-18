@@ -28,8 +28,8 @@ export default function NotificationsScreen() {
   const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<Tab>("alerts");
-  const [notifs, setNotifs]       = useState<FirestoreNotification[]>([]);
-  const [loading, setLoading]     = useState(true);
+  const [notifs, setNotifs] = useState<FirestoreNotification[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) {
@@ -47,12 +47,12 @@ export default function NotificationsScreen() {
     return unsub;
   }, [user]);
 
-  const alertItems   = notifs.filter((n) => n.type !== "message");
+  const alertItems = notifs.filter((n) => n.type !== "message");
   const messageItems = notifs.filter((n) => n.type === "message");
   const visibleNotifs = activeTab === "alerts" ? alertItems : messageItems;
 
   const alertUnread = alertItems.filter((n) => !n.is_read).length;
-  const msgUnread   = messageItems.filter((n) => !n.is_read).length;
+  const msgUnread = messageItems.filter((n) => !n.is_read).length;
   const activeUnread = activeTab === "alerts" ? alertUnread : msgUnread;
 
   async function markRead(id: string) {
@@ -80,7 +80,9 @@ export default function NotificationsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[s.container, { backgroundColor: theme.background }]}>
+      <SafeAreaView
+        style={[s.container, { backgroundColor: theme.background }]}
+      >
         <View style={s.center}>
           <ActivityIndicator size="large" color={AppColors.primary} />
         </View>
@@ -181,14 +183,18 @@ export default function NotificationsScreen() {
         contentContainerStyle={s.list}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
-          const color       = notifColor(item.type);
-          const accentColor = activeTab === "messages" ? AppColors.purple : AppColors.primary;
+          const color = notifColor(item.type);
+          const accentColor =
+            activeTab === "messages" ? AppColors.purple : AppColors.primary;
           return (
             <Pressable
               style={[
                 s.card,
                 { backgroundColor: theme.card, borderColor: theme.border },
-                !item.is_read && [s.cardUnread, { borderLeftColor: accentColor }],
+                !item.is_read && [
+                  s.cardUnread,
+                  { borderLeftColor: accentColor },
+                ],
               ]}
               onPress={() => markRead(item.id)}
             >
@@ -236,7 +242,9 @@ export default function NotificationsScreen() {
               color={theme.subtext}
             />
             <Text style={[s.emptyTxt, { color: theme.text }]}>
-              {activeTab === "alerts" ? "No alerts" : "No message notifications"}
+              {activeTab === "alerts"
+                ? "No alerts"
+                : "No message notifications"}
             </Text>
             <Text style={[s.emptySubtxt, { color: theme.subtext }]}>
               {activeTab === "alerts"
@@ -253,7 +261,7 @@ export default function NotificationsScreen() {
 // ── Styles ─────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   container: { flex: 1 },
-  center:    { flex: 1, alignItems: "center", justifyContent: "center" },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -262,7 +270,7 @@ const s = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 10,
   },
-  title:      { fontSize: 24, fontWeight: "800" },
+  title: { fontSize: 24, fontWeight: "800" },
   markAllBtn: {
     backgroundColor: AppColors.primaryLight,
     borderRadius: 10,
@@ -288,7 +296,7 @@ const s = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: 9,
   },
-  tabTxt:      { fontSize: 12, fontWeight: "600", color: "#6b7280" },
+  tabTxt: { fontSize: 12, fontWeight: "600", color: "#6b7280" },
   tabBadge: {
     minWidth: 16,
     height: 16,
@@ -298,7 +306,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 3,
   },
   tabBadgeTxt: { color: "#fff", fontSize: 9, fontWeight: "800" },
-  list:        { padding: 16, gap: 10, paddingBottom: 100 },
+  list: { padding: 16, gap: 10, paddingBottom: 100 },
   card: {
     flexDirection: "row",
     alignItems: "center",
@@ -316,20 +324,20 @@ const s = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
   },
-  cardBody:     { flex: 1 },
+  cardBody: { flex: 1 },
   cardTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 3,
     gap: 8,
   },
-  cardTitle:     { fontSize: 14, flex: 1 },
+  cardTitle: { fontSize: 14, flex: 1 },
   cardTitleBold: { fontWeight: "700" },
-  cardTime:      { fontSize: 11, flexShrink: 0 },
-  cardBodyTxt:   { fontSize: 13, lineHeight: 18 },
-  unreadDot:     { width: 9, height: 9, borderRadius: 5, flexShrink: 0 },
-  empty:         { alignItems: "center", paddingTop: 70, gap: 10 },
-  emptyTxt:      { fontSize: 16, fontWeight: "600" },
+  cardTime: { fontSize: 11, flexShrink: 0 },
+  cardBodyTxt: { fontSize: 13, lineHeight: 18 },
+  unreadDot: { width: 9, height: 9, borderRadius: 5, flexShrink: 0 },
+  empty: { alignItems: "center", paddingTop: 70, gap: 10 },
+  emptyTxt: { fontSize: 16, fontWeight: "600" },
   emptySubtxt: {
     fontSize: 13,
     textAlign: "center",

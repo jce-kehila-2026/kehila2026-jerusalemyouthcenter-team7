@@ -39,7 +39,7 @@ export default function CreateFormScreen() {
   const [title, setTitle]         = useState("");
   const [description, setDescription] = useState("");
   const [questions, setQuestions] = useState<
-    { id: string; text: string; type: string; options?: string[] }[]
+    { id: string; text: string; type: string; options?: string[]; scaleMin?: number; scaleMax?: number }[]
   >([]);
   const [loading, setLoading] = useState(false);
 
@@ -106,12 +106,28 @@ export default function CreateFormScreen() {
 
   const updateQuestionType = (qId: string, type: string) => {
     setQuestions(
-      questions.map((q) =>
-        q.id === qId
-          ? { ...q, type, options: q.options?.length ? q.options : [""] }
-          : q,
-      ),
+      questions.map((q) => {
+        if (q.id !== qId) return q;
+        if (type === "scale") {
+          return { ...q, type, scaleMin: q.scaleMin ?? 1, scaleMax: q.scaleMax ?? 10 };
+        }
+        return { ...q, type, options: q.options?.length ? q.options : [""] };
+      }),
     );
+  };
+
+  const updateScaleMin = (qId: string, val: string) => {
+    const num = parseInt(val, 10);
+    if (!isNaN(num)) {
+      setQuestions(questions.map((q) => (q.id === qId ? { ...q, scaleMin: num } : q)));
+    }
+  };
+
+  const updateScaleMax = (qId: string, val: string) => {
+    const num = parseInt(val, 10);
+    if (!isNaN(num)) {
+      setQuestions(questions.map((q) => (q.id === qId ? { ...q, scaleMax: num } : q)));
+    }
   };
 
   const updateOption = (qId: string, optIndex: number, text: string) => {
@@ -277,7 +293,60 @@ export default function CreateFormScreen() {
                       Multiple Choice
                     </Text>
                   </Pressable>
+                  <Pressable
+                    style={[
+                      s.typeBtn,
+                      q.type === "scale" && s.typeBtnActive,
+                    ]}
+                    onPress={() => updateQuestionType(q.id, "scale")}
+                  >
+                    <Ionicons
+                      name="options-outline"
+                      size={16}
+                      color={q.type === "scale" ? ds.teal : ds.subtext}
+                    />
+                    <Text
+                      style={[
+                        s.typeBtnText,
+                        q.type === "scale" && s.typeBtnTextActive,
+                      ]}
+                    >
+                      Scale
+                    </Text>
+                  </Pressable>
                 </View>
+
+                {/* Scale min/max config */}
+                {q.type === "scale" && (
+                  <View style={s.scaleConfig}>
+                    <View style={s.scaleField}>
+                      <Text style={s.scaleLabel}>Min</Text>
+                      <TextInput
+                        style={s.scaleInput}
+                        keyboardType="number-pad"
+                        value={String(q.scaleMin ?? 1)}
+                        onChangeText={(v) => updateScaleMin(q.id, v)}
+                        maxLength={3}
+                      />
+                    </View>
+                    <View style={s.scaleDivider} />
+                    <View style={s.scaleField}>
+                      <Text style={s.scaleLabel}>Max</Text>
+                      <TextInput
+                        style={s.scaleInput}
+                        keyboardType="number-pad"
+                        value={String(q.scaleMax ?? 10)}
+                        onChangeText={(v) => updateScaleMax(q.id, v)}
+                        maxLength={3}
+                      />
+                    </View>
+                    <View style={s.scalePreview}>
+                      <Text style={s.scalePreviewText}>
+                        {q.scaleMin ?? 1} → {q.scaleMax ?? 10}
+                      </Text>
+                    </View>
+                  </View>
+                )}
 
                 {/* Options (multiple choice) */}
                 {q.type === "multiple_choice" && (
@@ -461,6 +530,7 @@ const s = StyleSheet.create({
   // Type selector
   typeSelector: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     marginTop: 8,
   },
@@ -512,6 +582,53 @@ const s = StyleSheet.create({
     paddingVertical: 8,
   },
   addOptionText: { fontSize: 14, fontWeight: "600", color: ds.teal },
+
+  // Scale config
+  scaleConfig: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: ds.teal + "0d",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: ds.teal + "30",
+  },
+  scaleField: { alignItems: "center", gap: 4 },
+  scaleLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: ds.teal,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  scaleInput: {
+    width: 56,
+    borderWidth: 1,
+    borderColor: ds.teal + "60",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 16,
+    fontWeight: "700",
+    color: ds.text,
+    textAlign: "center",
+    backgroundColor: ds.white,
+  },
+  scaleDivider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: ds.teal + "40",
+    marginHorizontal: 4,
+  },
+  scalePreview: {
+    backgroundColor: ds.teal,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  scalePreviewText: { fontSize: 13, fontWeight: "700", color: ds.white },
 
   // Add Question button
   addQuestionBtn: {
