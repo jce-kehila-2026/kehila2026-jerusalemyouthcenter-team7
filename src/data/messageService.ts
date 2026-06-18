@@ -9,19 +9,25 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 
+export type MsgType = "text" | "image" | "file" | "audio" | "voice";
+
 export type FirestoreMsg = {
   id: string;
-  sender_id: string; // Firebase uid
+  sender_id: string;
   sender_name: string;
-  receiver_id: string; // Firebase uid
+  receiver_id: string;
   receiver_name?: string;
   content: string;
-  timestamp: string; // ISO string
+  type: MsgType;
+  fileName?: string;
+  fileSize?: string;
+  duration?: number;
+  timestamp: string;
   is_read: boolean;
+  reactions?: Record<string, string>;
 };
 
 export const messageService = {
-  // Subscribe to all messages ordered by time; returns the unsubscribe function.
   subscribe(callback: (msgs: FirestoreMsg[]) => void): () => void {
     const q = query(collection(db, "messages"), orderBy("timestamp", "asc"));
     return onSnapshot(
@@ -62,5 +68,23 @@ export const messageService = {
 
   async markRead(messageId: string): Promise<void> {
     await updateDoc(doc(db, "messages", messageId), { is_read: true });
+  },
+
+  async addReaction(messageId: string, uid: string, emoji: string): Promise<void> {
+    await updateDoc(doc(db, "messages", messageId), {
+      [`reactions.${uid}`]: emoji,
+    });
+  },
+
+  async removeReaction(messageId: string, uid: string): Promise<void> {
+    const { deleteField } = await import("firebase/firestore");
+    await updateDoc(doc(db, "messages", messageId), {
+      [`reactions.${uid}`]: deleteField(),
+    });
+  },
+
+  async deleteMessage(messageId: string): Promise<void> {
+    const { deleteDoc } = await import("firebase/firestore");
+    await deleteDoc(doc(db, "messages", messageId));
   },
 };
