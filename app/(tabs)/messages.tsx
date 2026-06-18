@@ -2,7 +2,7 @@ import { AppColors, Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/src/context/AuthContext";
 import { FirestoreMsg, messageService } from "@/src/data/messageService";
-import { Student } from "@/src/data/mockData";
+import { Group, Student } from "@/src/data/mockData";
 import { notificationService } from "@/src/data/notificationService";
 import { studentService } from "@/src/data/studentService";
 import { uploadToStorage } from "@/src/data/storageService";
@@ -25,6 +25,7 @@ import {
 import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     FlatList,
     Image,
     KeyboardAvoidingView,
@@ -145,6 +146,15 @@ export default function MessagesScreen() {
   // Forward modal
   const [forwardingMsg, setForwardingMsg] = useState<ThreadMsg | null>(null);
   const [forwardTargets, setForwardTargets] = useState<Set<string>>(new Set());
+
+  // Group management (admin only)
+  const [showGroupsModal, setShowGroupsModal] = useState(false);
+  const [groupsData, setGroupsData] = useState<Group[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null); // null = list view
+  const [groupDraftName, setGroupDraftName] = useState("");
+  const [groupDraftMembers, setGroupDraftMembers] = useState<Set<string>>(new Set());
+  const [groupSaving, setGroupSaving] = useState(false);
 
   // Playback
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -587,6 +597,85 @@ export default function MessagesScreen() {
     setForwardingMsg(null);
     setForwardTargets(new Set());
     clearSelection();
+  }
+
+  // ── Group management (admin only) ─────────────────────────────────────────
+  async function loadGroups() {
+    setGroupsLoading(true);
+    try {
+      const data = await studentService.getGroups();
+      setGroupsData(data);
+    } catch (e) {
+      console.error("Load groups error:", e);
+    }
+    setGroupsLoading(false);
+  }
+
+  function openGroupsModal() {
+    setShowGroupsModal(true);
+    setEditingGroup(null);
+    loadGroups();
+  }
+
+  function startCreateGroup() {
+    setEditingGroup({ id: "", name: "" });
+    setGroupDraftName("");
+    setGroupDraftMembers(new Set());
+  }
+
+  function startEditGroup(group: Group) {
+    setEditingGroup(group);
+    setGroupDraftName(group.name);
+    setGroupDraftMembers(new Set(group.member_ids ?? []));
+  }
+
+  function toggleGroupMember(uid: string) {
+    setGroupDraftMembers((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+  }
+
+  async function saveGroup() {
+    if (!groupDraftName.trim() || !editingGroup) return;
+    setGroupSaving(true);
+    try {
+      const memberIds = [...groupDraftMembers];
+      if (editingGroup.id === "") {
+        await studentService.createGroup(groupDraftName.trim(), memberIds);
+      } else {
+        await studentService.updateGroup(editingGroup.id, groupDraftName.trim(), memberIds);
+      }
+      await loadGroups();
+      setEditingGroup(null);
+    } catch (e) {
+      console.error("Save group error:", e);
+    }
+    setGroupSaving(false);
+  }
+
+  function confirmDeleteGroup(group: Group) {
+    Alert.alert(
+      "Delete Group",
+      `Delete "${group.name}"? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await studentService.deleteGroup(group.id);
+              await loadGroups();
+            } catch (e) {
+              console.error("Delete group error:", e);
+            }
+          },
+        },
+      ],
+    );
   }
 
   const totalUnread = conversations.filter((c) => c.unread).length;
@@ -1241,13 +1330,291 @@ export default function MessagesScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
     >
+      {/* Groups management modal — admin only */}
+      {isAdmin && (
+        <Modal
+          visible={showGroupsModal}
+          animationType="slide"
+          onRequestClose={() => {
+            if (editingGroup) setEditingGroup(null);
+            else setShowGroupsModal(false);
+          }}
+        >
+          <SafeAreaView
+            style={[styles.gmScreen, { backgroundColor: theme.background }]}
+          >
+            {editingGroup === null ? (
+              /* ── Group list ── */
+              <>
+                <View
+                  style={[
+                    styles.gmHeader,
+                    {
+                      backgroundColor: theme.card,
+                      borderBottomColor: theme.border,
+                    },
+                  ]}
+                >
+                  <Pressable
+                    onPress={() => setShowGroupsModal(false)}
+                    style={styles.gmHeaderBtn}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="close" size={22} color={theme.subtext} />
+                  </Pressable>
+                  <Text style={[styles.gmTitle, { color: theme.text }]}>
+                    Groups
+                  </Text>
+                  <Pressable
+                    onPress={startCreateGroup}
+                    style={styles.gmHeaderBtn}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="add" size={26} color={AppColors.primary} />
+                  </Pressable>
+                </View>
+
+                {groupsLoading ? (
+                  <View style={styles.center}>
+                    <ActivityIndicator size="large" color={AppColors.primary} />
+                  </View>
+                ) : groupsData.length === 0 ? (
+                  <View style={styles.empty}>
+                    <Ionicons
+                      name="people-outline"
+                      size={48}
+                      color={theme.subtext}
+                    />
+                    <Text style={[styles.emptyText, { color: theme.subtext }]}>
+                      No groups yet
+                    </Text>
+                    <Pressable
+                      style={[
+                        styles.gmCreateFirstBtn,
+                        { backgroundColor: AppColors.primary },
+                      ]}
+                      onPress={startCreateGroup}
+                    >
+                      <Ionicons name="add" size={18} color="#fff" />
+                      <Text style={styles.gmCreateFirstText}>
+                        Create First Group
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <FlatList
+                    data={groupsData}
+                    keyExtractor={(g) => g.id}
+                    contentContainerStyle={styles.list}
+                    renderItem={({ item }) => (
+                      <View
+                        style={[
+                          styles.gmGroupRow,
+                          {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.gmGroupIcon,
+                            { backgroundColor: AppColors.primary + "18" },
+                          ]}
+                        >
+                          <Ionicons
+                            name="people-outline"
+                            size={22}
+                            color={AppColors.primary}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={[styles.gmGroupName, { color: theme.text }]}
+                          >
+                            {item.name}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.gmGroupCount,
+                              { color: theme.subtext },
+                            ]}
+                          >
+                            {item.member_ids?.length ?? 0} members
+                          </Text>
+                        </View>
+                        <Pressable
+                          onPress={() => startEditGroup(item)}
+                          style={styles.gmActionBtn}
+                          hitSlop={8}
+                        >
+                          <Ionicons
+                            name="pencil-outline"
+                            size={20}
+                            color={AppColors.primary}
+                          />
+                        </Pressable>
+                        <Pressable
+                          onPress={() => confirmDeleteGroup(item)}
+                          style={styles.gmActionBtn}
+                          hitSlop={8}
+                        >
+                          <Ionicons
+                            name="trash-outline"
+                            size={20}
+                            color="#c56451"
+                          />
+                        </Pressable>
+                      </View>
+                    )}
+                  />
+                )}
+              </>
+            ) : (
+              /* ── Create / edit form ── */
+              <>
+                <View
+                  style={[
+                    styles.gmHeader,
+                    {
+                      backgroundColor: theme.card,
+                      borderBottomColor: theme.border,
+                    },
+                  ]}
+                >
+                  <Pressable
+                    onPress={() => setEditingGroup(null)}
+                    style={styles.gmHeaderBtn}
+                    hitSlop={8}
+                  >
+                    <Ionicons
+                      name="arrow-back"
+                      size={22}
+                      color={theme.subtext}
+                    />
+                  </Pressable>
+                  <Text style={[styles.gmTitle, { color: theme.text }]}>
+                    {editingGroup.id === "" ? "New Group" : "Edit Group"}
+                  </Text>
+                  <Pressable
+                    onPress={saveGroup}
+                    style={[
+                      styles.gmSaveBtn,
+                      {
+                        backgroundColor:
+                          groupDraftName.trim() && !groupSaving
+                            ? AppColors.primary
+                            : theme.border,
+                      },
+                    ]}
+                    disabled={groupSaving || !groupDraftName.trim()}
+                  >
+                    {groupSaving ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.gmSaveBtnText}>Save</Text>
+                    )}
+                  </Pressable>
+                </View>
+
+                <View
+                  style={[
+                    styles.gmNameWrap,
+                    { backgroundColor: theme.card, borderColor: theme.border },
+                  ]}
+                >
+                  <TextInput
+                    style={[styles.gmNameInput, { color: theme.text }]}
+                    value={groupDraftName}
+                    onChangeText={setGroupDraftName}
+                    placeholder="Group name"
+                    placeholderTextColor={theme.subtext}
+                    autoFocus
+                  />
+                </View>
+
+                <Text
+                  style={[styles.gmSectionLabel, { color: theme.subtext }]}
+                >
+                  MEMBERS ({groupDraftMembers.size} selected)
+                </Text>
+
+                <FlatList
+                  data={allStudents}
+                  keyExtractor={(s) => s.id}
+                  contentContainerStyle={{ paddingBottom: 24 }}
+                  renderItem={({ item }) => {
+                    const selected = groupDraftMembers.has(item.id);
+                    return (
+                      <Pressable
+                        style={[
+                          styles.gmMemberRow,
+                          { borderBottomColor: theme.border },
+                          selected && {
+                            backgroundColor: AppColors.primary + "0d",
+                          },
+                        ]}
+                        onPress={() => toggleGroupMember(item.id)}
+                      >
+                        <View
+                          style={[
+                            styles.convAvatar,
+                            { backgroundColor: AppColors.primary + "20" },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.convAvatarText,
+                              { color: AppColors.primary },
+                            ]}
+                          >
+                            {(item.full_name ?? "?").charAt(0)}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.gmMemberName,
+                            { color: theme.text },
+                            selected && { fontWeight: "700" },
+                          ]}
+                        >
+                          {item.full_name}
+                        </Text>
+                        <Ionicons
+                          name={
+                            selected ? "checkmark-circle" : "ellipse-outline"
+                          }
+                          size={22}
+                          color={selected ? AppColors.primary : theme.subtext}
+                        />
+                      </Pressable>
+                    );
+                  }}
+                />
+              </>
+            )}
+          </SafeAreaView>
+        </Modal>
+      )}
+
       {/* Header */}
       <View style={styles.inboxHeader}>
-        <Text style={[styles.inboxTitle, { color: theme.text }]}>Messages</Text>
+        <Text style={[styles.inboxTitle, { color: theme.text, flex: 1 }]}>
+          Messages
+        </Text>
         {totalUnread > 0 && (
           <View style={styles.unreadBadge}>
             <Text style={styles.unreadBadgeText}>{totalUnread}</Text>
           </View>
+        )}
+        {isAdmin && (
+          <Pressable onPress={openGroupsModal} hitSlop={8} style={styles.gmBtn}>
+            <Ionicons
+              name="people-circle-outline"
+              size={28}
+              color={AppColors.primary}
+            />
+          </Pressable>
         )}
       </View>
 
@@ -1738,4 +2105,81 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   forwardSendBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+
+  // Group management
+  gmBtn: { padding: 4 },
+  gmScreen: { flex: 1 },
+  gmHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  gmHeaderBtn: { padding: 4, minWidth: 40, alignItems: "center" },
+  gmTitle: { fontSize: 17, fontWeight: "700", flex: 1, textAlign: "center" },
+  gmSaveBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
+    minWidth: 60,
+    alignItems: "center",
+  },
+  gmSaveBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  gmGroupRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  gmGroupIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gmGroupName: { fontSize: 15, fontWeight: "600" },
+  gmGroupCount: { fontSize: 12, marginTop: 2 },
+  gmActionBtn: { padding: 6 },
+  gmNameWrap: {
+    borderWidth: 1,
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 4,
+    paddingHorizontal: 14,
+  },
+  gmNameInput: { fontSize: 16, paddingVertical: 12 },
+  gmSectionLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  gmMemberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  gmMemberName: { flex: 1, fontSize: 15 },
+  gmCreateFirstBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    marginTop: 16,
+  },
+  gmCreateFirstText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 });
