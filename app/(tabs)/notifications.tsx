@@ -17,6 +17,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type Tab = "alerts" | "messages";
@@ -76,6 +77,23 @@ export default function NotificationsScreen() {
     } catch (e) {
       console.error(e);
     }
+  }
+
+  async function handleDelete(id: string) {
+    setNotifs((prev) => prev.filter((n) => n.id !== id));
+    try {
+      await notificationService.deleteNotification(id);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function renderRightActions(id: string) {
+    return (
+      <Pressable style={s.deleteAction} onPress={() => handleDelete(id)}>
+        <Ionicons name="trash-outline" size={22} color="#fff" />
+      </Pressable>
+    );
   }
 
   if (loading) {
@@ -187,47 +205,55 @@ export default function NotificationsScreen() {
           const accentColor =
             activeTab === "messages" ? AppColors.purple : AppColors.primary;
           return (
-            <Pressable
-              style={[
-                s.card,
-                { backgroundColor: theme.card, borderColor: theme.border },
-                !item.is_read && [
-                  s.cardUnread,
-                  { borderLeftColor: accentColor },
-                ],
-              ]}
-              onPress={() => markRead(item.id)}
-            >
-              <View style={[s.iconWrap, { backgroundColor: color + "20" }]}>
-                <Ionicons name={notifIcon(item.type)} size={18} color={color} />
-              </View>
-              <View style={s.cardBody}>
-                <View style={s.cardTop}>
+            <Swipeable renderRightActions={() => renderRightActions(item.id)}>
+              <Pressable
+                style={[
+                  s.card,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                  !item.is_read && [
+                    s.cardUnread,
+                    { borderLeftColor: accentColor },
+                  ],
+                ]}
+                onPress={() => markRead(item.id)}
+              >
+                <View style={[s.iconWrap, { backgroundColor: color + "20" }]}>
+                  <Ionicons
+                    name={notifIcon(item.type)}
+                    size={18}
+                    color={color}
+                  />
+                </View>
+                <View style={s.cardBody}>
+                  <View style={s.cardTop}>
+                    <Text
+                      style={[
+                        s.cardTitle,
+                        { color: theme.text },
+                        !item.is_read && s.cardTitleBold,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {item.title}
+                    </Text>
+                    <Text style={[s.cardTime, { color: theme.subtext }]}>
+                      {timeAgo(item.timestamp)}
+                    </Text>
+                  </View>
                   <Text
-                    style={[
-                      s.cardTitle,
-                      { color: theme.text },
-                      !item.is_read && s.cardTitleBold,
-                    ]}
-                    numberOfLines={1}
+                    style={[s.cardBodyTxt, { color: theme.subtext }]}
+                    numberOfLines={2}
                   >
-                    {item.title}
-                  </Text>
-                  <Text style={[s.cardTime, { color: theme.subtext }]}>
-                    {timeAgo(item.timestamp)}
+                    {item.body}
                   </Text>
                 </View>
-                <Text
-                  style={[s.cardBodyTxt, { color: theme.subtext }]}
-                  numberOfLines={2}
-                >
-                  {item.body}
-                </Text>
-              </View>
-              {!item.is_read && (
-                <View style={[s.unreadDot, { backgroundColor: accentColor }]} />
-              )}
-            </Pressable>
+                {!item.is_read && (
+                  <View
+                    style={[s.unreadDot, { backgroundColor: accentColor }]}
+                  />
+                )}
+              </Pressable>
+            </Swipeable>
           );
         }}
         ListEmptyComponent={
@@ -336,6 +362,14 @@ const s = StyleSheet.create({
   cardTime: { fontSize: 11, flexShrink: 0 },
   cardBodyTxt: { fontSize: 13, lineHeight: 18 },
   unreadDot: { width: 9, height: 9, borderRadius: 5, flexShrink: 0 },
+  deleteAction: {
+    backgroundColor: AppColors.danger,
+    justifyContent: "center",
+    alignItems: "center",
+    width: 72,
+    borderRadius: 14,
+    marginLeft: 8,
+  },
   empty: { alignItems: "center", paddingTop: 70, gap: 10 },
   emptyTxt: { fontSize: 16, fontWeight: "600" },
   emptySubtxt: {
