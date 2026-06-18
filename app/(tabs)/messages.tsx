@@ -20,7 +20,6 @@ import {
     onSnapshot,
     orderBy,
     query,
-    serverTimestamp,
     where,
 } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
@@ -145,6 +144,7 @@ export default function MessagesScreen() {
 
   // Forward modal
   const [forwardingMsg, setForwardingMsg] = useState<ThreadMsg | null>(null);
+  const [forwardTargets, setForwardTargets] = useState<Set<string>>(new Set());
 
   // Playback
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -317,7 +317,8 @@ export default function MessagesScreen() {
         receiver_name: activeConv.otherName,
         content: text,
         type: "text",
-        timestamp: serverTimestamp(),
+        // ISO string keeps ordering stable while the write is pending locally
+        timestamp: new Date().toISOString(),
         is_read: false,
       });
 
@@ -333,6 +334,7 @@ export default function MessagesScreen() {
       console.error("Send failed:", e);
     }
 
+    setReplyingTo(null);
     setSending(false);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
   }
@@ -543,31 +545,47 @@ export default function MessagesScreen() {
     if (msg) setForwardingMsg(msg);
   }
 
-  async function doForward(targetId: string, targetName: string) {
-    if (!forwardingMsg) return;
+  function toggleForwardTarget(id: string) {
+    setForwardTargets((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function doForwardToAll() {
+    if (!forwardingMsg || forwardTargets.size === 0) return;
+    const targets = allStudents.filter((s) => forwardTargets.has(s.id));
     try {
-      await messageService.send({
-        sender_id: currentUid,
-        sender_name: user?.full_name ?? "Unknown",
-        receiver_id: targetId,
-        receiver_name: targetName,
-        content: forwardingMsg.content,
-        type: forwardingMsg.type,
-        fileName: forwardingMsg.fileName,
-        fileSize: forwardingMsg.fileSize,
-        duration: forwardingMsg.duration,
-        timestamp: new Date().toISOString(),
-        is_read: false,
-      });
+      await Promise.all(
+        targets.map((target) =>
+          messageService.send({
+            sender_id: currentUid,
+            sender_name: user?.full_name ?? "Unknown",
+            receiver_id: target.id,
+            receiver_name: target.full_name,
+            content: forwardingMsg.content,
+            type: forwardingMsg.type,
+            fileName: forwardingMsg.fileName,
+            fileSize: forwardingMsg.fileSize,
+            duration: forwardingMsg.duration,
+            timestamp: new Date().toISOString(),
+            is_read: false,
+          }),
+        ),
+      );
     } catch (e) {
       console.error("Forward error:", e);
     }
     setForwardingMsg(null);
+    setForwardTargets(new Set());
     clearSelection();
   }
 
   function closeForwardModal() {
     setForwardingMsg(null);
+    setForwardTargets(new Set());
     clearSelection();
   }
 
@@ -620,44 +638,66 @@ export default function MessagesScreen() {
               <FlatList
                 data={allStudents.filter((s) => s.id !== currentUid)}
                 keyExtractor={(s) => s.id}
-                renderItem={({ item }) => (
-                  <Pressable
-                    style={[
-                      styles.forwardContact,
-                      { borderBottomColor: theme.border },
-                    ]}
-                    onPress={() => doForward(item.id, item.full_name)}
-                  >
-                    <View
+                renderItem={({ item }) => {
+                  const targeted = forwardTargets.has(item.id);
+                  return (
+                    <Pressable
                       style={[
-                        styles.convAvatar,
-                        { backgroundColor: AppColors.primary + "20" },
+                        styles.forwardContact,
+                        { borderBottomColor: theme.border },
+                        targeted && { backgroundColor: AppColors.primary + "0d" },
                       ]}
+                      onPress={() => toggleForwardTarget(item.id)}
                     >
-                      <Text
+                      <View
                         style={[
-                          styles.convAvatarText,
-                          { color: AppColors.primary },
+                          styles.convAvatar,
+                          { backgroundColor: AppColors.primary + "20" },
                         ]}
                       >
-                        {(item.full_name ?? "?").charAt(0)}
+                        <Text
+                          style={[
+                            styles.convAvatarText,
+                            { color: AppColors.primary },
+                          ]}
+                        >
+                          {(item.full_name ?? "?").charAt(0)}
+                        </Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.forwardContactName,
+                          { color: theme.text },
+                          targeted && { fontWeight: "700" },
+                        ]}
+                      >
+                        {item.full_name}
                       </Text>
-                    </View>
-                    <Text
+                      <Ionicons
+                        name={targeted ? "checkmark-circle" : "ellipse-outline"}
+                        size={22}
+                        color={targeted ? AppColors.primary : theme.subtext}
+                      />
+                    </Pressable>
+                  );
+                }}
+                ListFooterComponent={
+                  forwardTargets.size > 0 ? (
+                    <Pressable
                       style={[
-                        styles.forwardContactName,
-                        { color: theme.text },
+                        styles.forwardSendBtn,
+                        { backgroundColor: AppColors.primary },
                       ]}
+                      onPress={doForwardToAll}
                     >
-                      {item.full_name}
-                    </Text>
-                    <Ionicons
-                      name="arrow-redo-outline"
-                      size={18}
-                      color={theme.subtext}
-                    />
-                  </Pressable>
-                )}
+                      <Ionicons name="send" size={16} color="#fff" />
+                      <Text style={styles.forwardSendBtnText}>
+                        Send to {forwardTargets.size}{" "}
+                        {forwardTargets.size === 1 ? "person" : "people"}
+                      </Text>
+                    </Pressable>
+                  ) : null
+                }
               />
             </View>
           </View>
@@ -1688,4 +1728,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   forwardContactName: { flex: 1, fontSize: 15, fontWeight: "500" },
+  forwardSendBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    margin: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  forwardSendBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
 });
