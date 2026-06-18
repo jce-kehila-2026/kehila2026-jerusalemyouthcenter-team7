@@ -1,6 +1,8 @@
 import {
     addDoc,
     collection,
+    deleteDoc,
+    deleteField,
     doc,
     onSnapshot,
     orderBy,
@@ -77,14 +79,12 @@ export const messageService = {
   },
 
   async removeReaction(messageId: string, uid: string): Promise<void> {
-    const { deleteField } = await import("firebase/firestore");
     await updateDoc(doc(db, "messages", messageId), {
       [`reactions.${uid}`]: deleteField(),
     });
   },
 
   async deleteMessage(messageId: string): Promise<void> {
-    const { deleteDoc } = await import("firebase/firestore");
     await deleteDoc(doc(db, "messages", messageId));
   },
 };
