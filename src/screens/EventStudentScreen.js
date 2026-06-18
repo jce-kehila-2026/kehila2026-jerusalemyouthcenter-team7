@@ -31,7 +31,7 @@ const T = {
 const sp = (n) => n * 8;
 
 const GOOGLE_CALENDAR_SUBSCRIBE_URL =
-  "https://calendar.google.com/calendar/u/0?cid=NmVlNjUzMzRmMGE0Yzk4YjVkMDlhYmQxZjFmMmUzOGM0MmE5M2Y4Y2UyNDZkNTZmYjBlOTA0MWYwZWQ3ZmE0ZEBncm91cC5jYWxlbmRhci5nb29nbGUuY29t";
+  "https://calendar.google.com/calendar/r?cid=https://calendar.google.com/calendar/ical/6ee65334f0a4c98b5d09abd1f1f2e38c42a93f8ce246d56fb0e9041f0ed7fa4d%40group.calendar.google.com/private-956d897f3255c9d53850f11442e4b179/basic.ics";
 
 const openGoogleCalendarSubscribe = () => {
   if (Platform.OS === "web") {
@@ -348,14 +348,6 @@ export default function EventStudentScreen({
           {myEvents.length !== 1 ? "s" : ""}.
         </Text>
       </View>
-
-      <Pressable style={s.calSyncBanner} onPress={openGoogleCalendarSubscribe}>
-        <Text style={s.calSyncBannerIcon}>📅</Text>
-        <Text style={s.calSyncBannerText}>
-          Add our events to your Google Calendar
-        </Text>
-        <Text style={s.calSyncBannerArrow}>›</Text>
-      </Pressable>
 
       {/* ── LIST VIEW ── */}
       {activeTab === "list" &&

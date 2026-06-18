@@ -28,12 +28,7 @@ const T = {
   muted: "#9aa8b4",
 };
 
-const GROUP_STYLES: Record<string, { bg: string; text: string }> = {
-  "All Groups": { bg: T.tealBg, text: T.teal },
-  "Year 1": { bg: T.yellowBg, text: "#9a7b20" },
-  "Year 2": { bg: T.redBg, text: T.red },
-  "Year 3": { bg: T.purpleBg, text: T.purple },
-};
+const sp = (n: number) => n * 8;
 
 const MONTH_ABBR = [
   "JAN",
@@ -50,8 +45,19 @@ const MONTH_ABBR = [
   "DEC",
 ];
 
-function getDateParts(dateStr?: string) {
-  if (!dateStr) return { day: "--", month: "" };
+const GROUP_STYLES: Record<
+  string,
+  { bg: string; text: string; block: string }
+> = {
+  "All Groups": { bg: T.tealBg, text: T.teal, block: T.teal },
+  "Year 1": { bg: T.yellowBg, text: "#9a7b20", block: T.yellow },
+  "Year 2": { bg: T.redBg, text: T.red, block: T.red },
+  "Year 3": { bg: T.purpleBg, text: T.purple, block: T.purple },
+  "From Google Calendar": { bg: T.tealBg, text: T.teal, block: T.teal },
+};
+
+function getDateParts(dateStr: string | string[] | undefined) {
+  if (!dateStr || typeof dateStr !== "string") return { day: "--", month: "" };
   const isoPart = dateStr.split("T")[0];
   const segments = isoPart.includes("-") ? isoPart.split("-") : null;
   if (!segments || segments.length < 3) return { day: "--", month: "" };
@@ -67,10 +73,9 @@ export default function EventDetail() {
   const params = useLocalSearchParams();
   const router = useRouter();
 
-  // Two calling conventions are supported:
-  // 1) individual fields — used by the admin Events screen
-  //    (title, date, time, location, group, eventId)
-  // 2) a single JSON-encoded "event" param — used by older student screens
+  // Two calling conventions:
+  // 1) individual fields — admin Events screen
+  // 2) JSON-encoded "event" param — student screen
   let parsedEvent: any = {};
   if (params.event) {
     try {
@@ -83,8 +88,8 @@ export default function EventDetail() {
   const eventId = params.eventId || parsedEvent.id || parsedEvent.eventId;
   const title = params.title || parsedEvent.title;
   const description = params.description || parsedEvent.description;
-  const date = params.date || parsedEvent.date;
-  const time = params.time || parsedEvent.time;
+  const date = (params.date || parsedEvent.date) as string | undefined;
+  const time = (params.time || parsedEvent.time) as string | undefined;
   const location = params.location || parsedEvent.location;
   const group =
     (params.group as string) ||
@@ -93,15 +98,17 @@ export default function EventDetail() {
     "All Groups";
   const studentName = params.studentName as string | undefined;
   const studentId = params.studentId as string | undefined;
-  // Prefer a real auth uid when available; fall back to the student's name
-  // since there's no auth/ID system wired up everywhere yet.
   const studentKey = studentId || studentName;
 
   const groupStyle = GROUP_STYLES[group] || GROUP_STYLES["All Groups"];
-  const dateParts = getDateParts(typeof date === "string" ? date : undefined);
+  const { day, month } = getDateParts(date);
 
-  // RSVP — a separate "intent" declaration from the student, independent
-  // of the admin's actual attendance marking.
+  const formattedDate =
+    date && typeof date === "string" && date.includes("-")
+      ? date.split("-").reverse().join("/")
+      : date;
+
+  // RSVP
   const [rsvpStatus, setRsvpStatus] = useState<"coming" | "not_coming" | null>(
     null,
   );
@@ -153,12 +160,12 @@ export default function EventDetail() {
       <View
         style={{
           backgroundColor: T.teal,
-          paddingHorizontal: 20,
+          paddingHorizontal: sp(2),
           paddingTop: 50,
-          paddingBottom: 20,
+          paddingBottom: sp(2),
           flexDirection: "row",
           alignItems: "center",
-          gap: 12,
+          gap: sp(1.5),
         }}
       >
         <Pressable
@@ -184,228 +191,248 @@ export default function EventDetail() {
         </Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20 }}>
-        {/* Group badge */}
+      <ScrollView contentContainerStyle={{ padding: sp(2), gap: sp(2) }}>
+        {/* ── Single unified card ── */}
         <View
           style={{
-            alignSelf: "flex-start",
-            backgroundColor: groupStyle.bg,
-            paddingHorizontal: 14,
-            paddingVertical: 6,
-            borderRadius: 999,
-            marginBottom: 16,
-          }}
-        >
-          <Text
-            style={{ color: groupStyle.text, fontWeight: "700", fontSize: 12 }}
-          >
-            {group}
-          </Text>
-        </View>
-
-        {/* Main card */}
-        <View
-          style={{
-            backgroundColor: "#fff",
+            backgroundColor: T.white,
             borderRadius: 20,
+            overflow: "hidden",
             borderWidth: 1,
             borderColor: T.border,
-            overflow: "hidden",
-            flexDirection: "row",
+            shadowColor: T.teal,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 3,
           }}
         >
-          <View
-            style={{
-              width: 80,
-              flexShrink: 0,
-              backgroundColor: groupStyle.text,
-              alignItems: "center",
-              justifyContent: "center",
-              paddingVertical: 20,
-            }}
-          >
-            <Text
-              style={{
-                color: "#fff",
-                fontSize: 26,
-                fontWeight: "700",
-                lineHeight: 28,
-              }}
-            >
-              {dateParts.day}
-            </Text>
-            <Text
-              style={{
-                color: "rgba(255,255,255,0.9)",
-                fontSize: 12,
-                fontWeight: "600",
-                letterSpacing: 1,
-                marginTop: 2,
-              }}
-            >
-              {dateParts.month}
-            </Text>
-            {time ? (
-              <Text
-                style={{
-                  color: "rgba(255,255,255,0.85)",
-                  fontSize: 11,
-                  marginTop: 10,
-                }}
-              >
-                {time}
-              </Text>
-            ) : null}
-          </View>
-
-          <View style={{ flex: 1, minWidth: 0, padding: 22 }}>
-            <Text
-              style={{
-                color: T.text,
-                fontSize: 22,
-                fontWeight: "800",
-                marginBottom: 14,
-              }}
-            >
-              {title}
-            </Text>
-
+          {/* Top row: date block + content */}
+          <View style={{ flexDirection: "row" }}>
+            {/* Side date block */}
             <View
               style={{
-                flexDirection: "row",
+                width: 80,
+                backgroundColor: groupStyle.block,
                 alignItems: "center",
-                gap: 6,
-                marginBottom: 18,
+                justifyContent: "center",
+                paddingVertical: sp(3),
               }}
             >
-              <Text style={{ fontSize: 14 }}>📍</Text>
-              <Text style={{ color: T.teal, fontSize: 14, fontWeight: "600" }}>
-                {location || "Jerusalem Community Center"}
+              <Text
+                style={{
+                  color: "#fff",
+                  fontSize: 28,
+                  fontWeight: "800",
+                  lineHeight: 30,
+                }}
+              >
+                {day}
               </Text>
+              <Text
+                style={{
+                  color: "rgba(255,255,255,0.9)",
+                  fontSize: 12,
+                  fontWeight: "600",
+                  letterSpacing: 1,
+                  marginTop: 2,
+                }}
+              >
+                {month}
+              </Text>
+              {time ? (
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.85)",
+                    fontSize: 11,
+                    marginTop: sp(0.5),
+                  }}
+                >
+                  {time}
+                </Text>
+              ) : null}
             </View>
 
-            <View
-              style={{
-                height: 1,
-                backgroundColor: T.border,
-                marginBottom: 18,
-              }}
-            />
+            {/* Main content */}
+            <View style={{ flex: 1, padding: sp(2) }}>
+              {/* Group badge */}
+              <View
+                style={{
+                  alignSelf: "flex-start",
+                  backgroundColor: groupStyle.bg,
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 999,
+                  marginBottom: sp(1),
+                }}
+              >
+                <Text
+                  style={{
+                    color: groupStyle.text,
+                    fontWeight: "700",
+                    fontSize: 11,
+                  }}
+                >
+                  {group}
+                </Text>
+              </View>
 
-            <Text style={{ color: T.text, fontSize: 15, lineHeight: 23 }}>
-              {description}
-            </Text>
+              <Text
+                style={{
+                  color: T.text,
+                  fontSize: 20,
+                  fontWeight: "800",
+                  marginBottom: sp(0.5),
+                }}
+              >
+                {title}
+              </Text>
+
+              {location ? (
+                <Text
+                  style={{
+                    color: T.teal,
+                    fontSize: 13,
+                    fontWeight: "600",
+                    marginBottom: sp(1),
+                  }}
+                >
+                  📍 {location}
+                </Text>
+              ) : null}
+            </View>
           </View>
-        </View>
 
-        {/* RSVP — only shown when we know who's responding (student flow) */}
-        {studentKey ? (
+          {/* Divider */}
           <View
             style={{
-              backgroundColor: "#fff",
-              borderRadius: 20,
-              padding: 22,
-              borderWidth: 1,
-              borderColor: T.border,
-              marginTop: 16,
+              height: 1,
+              backgroundColor: T.border,
+              marginHorizontal: sp(2),
             }}
-          >
-            <Text
-              style={{
-                color: T.text,
-                fontSize: 15,
-                fontWeight: "700",
-                marginBottom: 14,
-              }}
-            >
-              Are you coming?
-            </Text>
+          />
 
-            {loadingRsvp ? (
-              <ActivityIndicator color={T.teal} />
-            ) : (
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <Pressable
-                  disabled={saving}
-                  onPress={() => respond("coming")}
+          {/* Description */}
+          {description ? (
+            <View style={{ padding: sp(2) }}>
+              <Text style={{ color: T.textSub, fontSize: 14, lineHeight: 22 }}>
+                {description}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* RSVP section — only for students */}
+          {studentKey ? (
+            <>
+              <View
+                style={{
+                  height: 1,
+                  backgroundColor: T.border,
+                  marginHorizontal: sp(2),
+                }}
+              />
+              <View style={{ padding: sp(2) }}>
+                <Text
                   style={{
-                    flex: 1,
-                    backgroundColor:
-                      rsvpStatus === "coming" ? T.teal : T.tealBg,
-                    borderWidth: 1.5,
-                    borderColor: T.teal,
-                    paddingVertical: 14,
-                    borderRadius: 14,
-                    alignItems: "center",
+                    color: T.text,
+                    fontSize: 14,
+                    fontWeight: "700",
+                    marginBottom: sp(1.5),
                   }}
                 >
-                  <Text
-                    style={{
-                      color: rsvpStatus === "coming" ? "#fff" : T.teal,
-                      fontWeight: "700",
-                      fontSize: 14,
-                    }}
-                  >
-                    ✓ I&apos;m Coming
-                  </Text>
-                </Pressable>
+                  Are you coming?
+                </Text>
 
-                <Pressable
-                  disabled={saving}
-                  onPress={() => respond("not_coming")}
-                  style={{
-                    flex: 1,
-                    backgroundColor:
-                      rsvpStatus === "not_coming" ? T.red : T.redBg,
-                    borderWidth: 1.5,
-                    borderColor: T.red,
-                    paddingVertical: 14,
-                    borderRadius: 14,
-                    alignItems: "center",
-                  }}
-                >
+                {loadingRsvp ? (
+                  <ActivityIndicator color={T.teal} />
+                ) : (
+                  <View style={{ flexDirection: "row", gap: sp(1) }}>
+                    <Pressable
+                      disabled={saving}
+                      onPress={() => respond("coming")}
+                      style={{
+                        flex: 1,
+                        backgroundColor:
+                          rsvpStatus === "coming"
+                            ? groupStyle.block
+                            : groupStyle.bg,
+                        borderWidth: 1.5,
+                        borderColor: groupStyle.block,
+                        paddingVertical: sp(1.5),
+                        borderRadius: 12,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color:
+                            rsvpStatus === "coming" ? "#fff" : groupStyle.text,
+                          fontWeight: "700",
+                          fontSize: 14,
+                        }}
+                      >
+                        ✓ I&apos;m Coming
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      disabled={saving}
+                      onPress={() => respond("not_coming")}
+                      style={{
+                        flex: 1,
+                        backgroundColor:
+                          rsvpStatus === "not_coming" ? T.red : T.redBg,
+                        borderWidth: 1.5,
+                        borderColor: T.red,
+                        paddingVertical: sp(1.5),
+                        borderRadius: 12,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: rsvpStatus === "not_coming" ? "#fff" : T.red,
+                          fontWeight: "700",
+                          fontSize: 14,
+                        }}
+                      >
+                        ✕ Can&apos;t Make It
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
+
+                {rsvpStatus && !loadingRsvp && !rsvpError && (
                   <Text
                     style={{
-                      color: rsvpStatus === "not_coming" ? "#fff" : T.red,
-                      fontWeight: "700",
-                      fontSize: 14,
+                      color: T.muted,
+                      fontSize: 12,
+                      marginTop: sp(1),
+                      textAlign: "center",
                     }}
                   >
-                    ✕ Can&apos;t Make It
+                    {rsvpStatus === "coming"
+                      ? "You're marked as coming ✓"
+                      : "You're marked as not coming"}
                   </Text>
-                </Pressable>
+                )}
+
+                {rsvpError && (
+                  <Text
+                    style={{
+                      color: T.red,
+                      fontSize: 12,
+                      marginTop: sp(1),
+                      textAlign: "center",
+                    }}
+                  >
+                    Couldn&apos;t save your response — please try again.
+                  </Text>
+                )}
               </View>
-            )}
-
-            {rsvpStatus && !loadingRsvp && !rsvpError && (
-              <Text
-                style={{
-                  color: T.muted,
-                  fontSize: 12,
-                  marginTop: 10,
-                  textAlign: "center",
-                }}
-              >
-                {rsvpStatus === "coming"
-                  ? "You're marked as coming ✓"
-                  : "You're marked as not coming"}
-              </Text>
-            )}
-
-            {rsvpError && (
-              <Text
-                style={{
-                  color: T.red,
-                  fontSize: 12,
-                  marginTop: 10,
-                  textAlign: "center",
-                }}
-              >
-                Couldn&apos;t save your response — please try again.
-              </Text>
-            )}
-          </View>
-        ) : null}
+            </>
+          ) : null}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
