@@ -8,11 +8,12 @@ export default function StudentEventsPage() {
     <EventStudentScreen
       studentYear={1}
       studentName="Ameer"
-      onEventPress={(event) =>
+      onEventPress={(event: any) =>
         router.push({
           pathname: "/event-detail",
           params: {
             event: JSON.stringify(event),
+            studentName: "Ameer",
           },
         })
       }
