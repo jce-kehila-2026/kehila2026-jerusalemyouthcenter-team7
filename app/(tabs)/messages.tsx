@@ -5,6 +5,8 @@ import { FirestoreMsg, messageService } from "@/src/data/messageService";
 import { Student } from "@/src/data/mockData";
 import { notificationService } from "@/src/data/notificationService";
 import { studentService } from "@/src/data/studentService";
+import { db } from "@/src/firebase/firebase";
+import { addDoc, collection, getDocs, onSnapshot, orderBy, query, serverTimestamp, where } from "firebase/firestore";
 import { timeAgo } from "@/src/utils/timeUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -102,17 +104,30 @@ export default function MessagesScreen() {
   const [search, setSearch] = useState("");
 
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
+  const [threadMessages, setThreadMessages] = useState<ThreadMsg[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
 
-  // ── Fetch student directory ───────────────────────────────────────────────
+  // ── Fetch contacts directory (singers + admins) ───────────────────────────
   useEffect(() => {
-    studentService
-      .getAllStudents()
-      .then((s) => {
-        if (s.length > 0) setAllStudents(s);
-      })
-      .catch(() => {});
+    (async () => {
+      try {
+        const [singers, adminSnap] = await Promise.all([
+          studentService.getAllStudents(),
+          getDocs(query(collection(db, "users"), where("role", "==", "admin"))),
+        ]);
+        const admins: Student[] = adminSnap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            ...data,
+            id: d.id,
+            full_name: data.full_name ?? data.name ?? "Admin",
+          } as Student;
+        });
+        const all = [...singers, ...admins];
+        if (all.length > 0) setAllStudents(all);
+      } catch {}
+    })();
   }, []);
 
   // ── Firestore real-time subscription ─────────────────────────────────────
@@ -125,27 +140,53 @@ export default function MessagesScreen() {
     const unsub = messageService.subscribe((msgs) => {
       setLoading(false);
 
-      const forUser = isAdmin
-        ? msgs
-        : msgs.filter(
-            (m) => m.sender_id === currentUid || m.receiver_id === currentUid,
-          );
+      const forUser = msgs.filter(
+        (m) => m.sender_id === currentUid || m.receiver_id === currentUid,
+      );
 
-      setAllMessages(msgs);
+      setAllMessages(forUser);
       setConversations(groupConversations(forUser, currentUid, isAdmin));
     });
 
     return unsub;
   }, [currentUid, isAdmin]);
 
-  // Keep active thread in sync when conversations update
+  // Per-conversation real-time listener — fires when a chat is opened/changed
   useEffect(() => {
-    if (!activeConv) return;
-    const updated = conversations.find(
-      (c) => c.otherPartyId === activeConv.otherPartyId,
-    );
-    if (updated) setActiveConv(updated);
-  }, [conversations]);
+    if (!activeConv) {
+      setThreadMessages([]);
+      return;
+    }
+    const otherUid = activeConv.otherPartyId;
+    const q = query(collection(db, "messages"), orderBy("timestamp", "asc"));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const msgs: ThreadMsg[] = snapshot.docs
+        .map((d) => ({ id: d.id, ...(d.data() as any) } as FirestoreMsg))
+        .filter(
+          (m) =>
+            (m.sender_id === currentUid && m.receiver_id === otherUid) ||
+            (m.sender_id === otherUid && m.receiver_id === currentUid),
+        )
+        .map((m) => {
+          const raw = (m as any).timestamp;
+          const ts: string =
+            raw && typeof raw === "object" && typeof raw.toDate === "function"
+              ? raw.toDate().toISOString()
+              : typeof raw === "string"
+              ? raw
+              : new Date().toISOString();
+          return {
+            id: m.id,
+            content: m.content,
+            timestamp: ts,
+            fromMe: m.sender_id === currentUid,
+            senderName: m.sender_name,
+          };
+        });
+      setThreadMessages(msgs);
+    });
+    return unsub;
+  }, [activeConv?.otherPartyId, currentUid]);
 
   // Auto-open chat when arriving from the students screen via URL params
   useEffect(() => {
@@ -176,7 +217,7 @@ export default function MessagesScreen() {
   const filteredStudents = searchTrimmed
     ? allStudents.filter(
         (s) =>
-          s.full_name.toLowerCase().includes(searchTrimmed) &&
+          (s.full_name ?? "").toLowerCase().includes(searchTrimmed) &&
           s.id !== currentUid,
       )
     : allStudents.filter((s) => s.id !== currentUid);
@@ -220,13 +261,13 @@ export default function MessagesScreen() {
     const receiverId = activeConv.otherPartyId;
 
     try {
-      await messageService.send({
+      await addDoc(collection(db, "messages"), {
         sender_id: currentUid,
         sender_name: senderName,
         receiver_id: receiverId,
         receiver_name: activeConv.otherName,
         content: text,
-        timestamp: new Date().toISOString(),
+        timestamp: serverTimestamp(),
         is_read: false,
       });
 
@@ -315,7 +356,7 @@ export default function MessagesScreen() {
               scrollRef.current?.scrollToEnd({ animated: false })
             }
           >
-            {activeConv.thread.length === 0 && (
+            {threadMessages.length === 0 && (
               <View style={styles.emptyThread}>
                 <Ionicons
                   name="chatbubble-outline"
@@ -329,7 +370,7 @@ export default function MessagesScreen() {
                 </Text>
               </View>
             )}
-            {activeConv.thread.map((msg) => (
+            {threadMessages.map((msg) => (
               <View
                 key={msg.id}
                 style={[
@@ -504,7 +545,7 @@ export default function MessagesScreen() {
                       { color: AppColors.primary },
                     ]}
                   >
-                    {item.full_name.charAt(0)}
+                    {(item.full_name ?? "?").charAt(0)}
                   </Text>
                 </View>
                 <View style={styles.convBody}>

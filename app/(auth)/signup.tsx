@@ -19,9 +19,9 @@ import {
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 // login-bg.jpg is 1600x900 — derive hero height from its own aspect ratio so
 // the full photo is visible (no cropping) instead of a fixed screen fraction.
-const HERO_H = Math.round((SCREEN_W * 650) / 1000);
+const HERO_H = Math.round((SCREEN_W * 600) / 950);
 // How far the sheet's rounded top initially overlaps the hero image at rest.
-const CARD_OVERLAP = 28;
+const CARD_OVERLAP = 15;
 // Extra scroll travel (beyond a normal screen-filling scroll) reserved so the
 // sheet can keep sliding up until it fully covers the hero image.
 const SCROLL_TRAVEL = HERO_H - CARD_OVERLAP;
@@ -750,27 +750,6 @@ const s = StyleSheet.create({
     paddingBottom: 40,
   },
 
-  ring: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.black,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: COLORS.teal,
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  appName: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: COLORS.teal,
-    letterSpacing: 1.5,
-  },
-  tagline: { fontSize: 12, color: COLORS.gray, marginTop: 2 },
-
   badge: {
     backgroundColor: COLORS.tealLight,
     borderRadius: 10,
@@ -834,8 +813,6 @@ const s = StyleSheet.create({
     marginBottom: 12,
     fontWeight: "600",
   },
-  sep: { height: 1, backgroundColor: COLORS.border, marginVertical: 18 },
-
   navRow: { flexDirection: "row", gap: 12, marginTop: 8 },
   backBtn: {
     flex: 1,

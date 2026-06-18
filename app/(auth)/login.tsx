@@ -19,9 +19,9 @@ import {
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 // login-bg.jpg is 1600x900 — derive hero height from its own aspect ratio so
 // the full photo is visible (no cropping) instead of a fixed screen fraction.
-const HERO_H = Math.round((SCREEN_W * 650) / 1000);
+const HERO_H = Math.round((SCREEN_W * 600) / 950);
 // How far the sheet's rounded top initially overlaps the hero image at rest.
-const CARD_OVERLAP = 28;
+const CARD_OVERLAP = 15;
 // Extra scroll travel (beyond a normal screen-filling scroll) reserved so the
 // sheet can keep sliding up until it fully covers the hero image.
 const SCROLL_TRAVEL = HERO_H - CARD_OVERLAP;
@@ -304,6 +304,7 @@ const s = StyleSheet.create({
     left: 0,
     right: 0,
     height: HERO_H,
+
     overflow: "hidden",
   },
   heroImg: { width: "100%", height: "100%" },

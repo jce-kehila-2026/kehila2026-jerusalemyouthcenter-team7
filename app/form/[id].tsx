@@ -3,8 +3,17 @@ import {
   getFormTemplate,
   submitStudentForm,
 } from "@/src/firebase/firestoreService";
+import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  writeBatch,
+  doc,
+} from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -69,7 +78,8 @@ export default function FormDetailScreen() {
     let allAnswered = true;
     for (const q of questions) {
       const qId = q.id || `q_${questions.indexOf(q)}`;
-      if (!answers[qId] || String(answers[qId]).trim() === "") {
+      const val = answers[qId];
+      if (val === undefined || val === null || String(val).trim() === "") {
         allAnswered = false;
         break;
       }
@@ -88,6 +98,30 @@ export default function FormDetailScreen() {
       }));
 
       await submitStudentForm(studentId, id as string, formattedResponses);
+
+      try {
+        const studentName = user?.full_name ?? "A student";
+        const formTitle = typeof form?.title === "string" ? form.title : "a form";
+        const adminsSnap = await getDocs(
+          query(collection(db, "users"), where("role", "==", "admin")),
+        );
+        const batch = writeBatch(db);
+        adminsSnap.forEach((adminDoc) => {
+          const notifRef = doc(collection(db, "notifications"));
+          batch.set(notifRef, {
+            target_uid: adminDoc.id,
+            title: "New Form Submission",
+            body: `${studentName} has submitted the form: ${formTitle}`,
+            timestamp: Date.now(),
+            is_read: false,
+            type: "alert",
+          });
+        });
+        await batch.commit();
+      } catch (error) {
+        console.error("🔥 Notification Error: ", error);
+      }
+
       setIsSuccess(true); // Triggers the beautiful success screen
     } catch (error) {
       console.error("Submission error:", error);
@@ -313,6 +347,47 @@ export default function FormDetailScreen() {
                       ))}
                     </View>
                   )}
+
+                  {qType === "scale" && (() => {
+                    const min = typeof q.scaleMin === "number" ? q.scaleMin : 1;
+                    const max = typeof q.scaleMax === "number" ? q.scaleMax : 10;
+                    const steps = Array.from({ length: max - min + 1 }, (_, i) => min + i);
+                    return (
+                      <View style={styles.scaleWrapper}>
+                        <View style={styles.scaleRow}>
+                          {steps.map((val) => {
+                            const selected = answers[qId] === String(val);
+                            return (
+                              <Pressable
+                                key={val}
+                                style={[
+                                  styles.scaleBtn,
+                                  selected && {
+                                    backgroundColor: activeColor,
+                                    borderWidth: 0,
+                                    shadowColor: activeColor,
+                                    shadowOffset: { width: 0, height: 4 },
+                                    shadowOpacity: 0.35,
+                                    shadowRadius: 6,
+                                    elevation: 5,
+                                  },
+                                ]}
+                                onPress={() => handleAnswerChange(qId, String(val))}
+                              >
+                                <Text style={[styles.scaleBtnText, selected && styles.scaleBtnTextActive]}>
+                                  {val}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                        <View style={styles.scaleLabels}>
+                          <Text style={styles.scaleLabelText}>{min}</Text>
+                          <Text style={styles.scaleLabelText}>{max}</Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
                 </View>
               );
             })
@@ -494,5 +569,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     flex: 1,
+  },
+
+  // Scale question
+  scaleWrapper: { gap: 12 },
+  scaleRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 10,
+  },
+  scaleBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scaleBtnText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  scaleBtnTextActive: { color: themeColors.white },
+  scaleLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 2,
+    marginTop: 4,
+  },
+  scaleLabelText: {
+    fontSize: 11,
+    color: "#94A3B8",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
 });
