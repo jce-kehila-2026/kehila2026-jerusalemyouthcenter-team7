@@ -12,7 +12,6 @@ import {
   query,
   where,
   writeBatch,
-  serverTimestamp,
   doc,
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
@@ -100,29 +99,27 @@ export default function FormDetailScreen() {
 
       await submitStudentForm(studentId, id as string, formattedResponses);
 
-      // Notify all admins silently — never block the success screen
       try {
+        const studentName = user?.full_name ?? "A student";
+        const formTitle = typeof form?.title === "string" ? form.title : "a form";
         const adminsSnap = await getDocs(
           query(collection(db, "users"), where("role", "==", "admin")),
         );
-        if (!adminsSnap.empty) {
-          const studentName = user?.full_name ?? "A student";
-          const formTitle = typeof form?.title === "string" ? form.title : "a form";
-          const batch = writeBatch(db);
-          adminsSnap.forEach((adminDoc) => {
-            const notifRef = doc(collection(db, "notifications"));
-            batch.set(notifRef, {
-              target_uid: adminDoc.id,
-              title: "New Form Submission",
-              message: `${studentName} has submitted the form: ${formTitle}`,
-              createdAt: serverTimestamp(),
-              read: false,
-            });
+        const batch = writeBatch(db);
+        adminsSnap.forEach((adminDoc) => {
+          const notifRef = doc(collection(db, "notifications"));
+          batch.set(notifRef, {
+            target_uid: adminDoc.id,
+            title: "New Form Submission",
+            body: `${studentName} has submitted the form: ${formTitle}`,
+            timestamp: Date.now(),
+            is_read: false,
+            type: "alert",
           });
-          await batch.commit();
-        }
-      } catch {
-        // Notification failure must never surface to the student
+        });
+        await batch.commit();
+      } catch (error) {
+        console.error("🔥 Notification Error: ", error);
       }
 
       setIsSuccess(true); // Triggers the beautiful success screen
