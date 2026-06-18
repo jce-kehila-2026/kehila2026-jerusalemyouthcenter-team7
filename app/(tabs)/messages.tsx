@@ -5,15 +5,29 @@ import { FirestoreMsg, messageService } from "@/src/data/messageService";
 import { Student } from "@/src/data/mockData";
 import { notificationService } from "@/src/data/notificationService";
 import { studentService } from "@/src/data/studentService";
+import { uploadToStorage } from "@/src/data/storageService";
 import { db } from "@/src/firebase/firebase";
-import { addDoc, collection, getDocs, onSnapshot, orderBy, query, serverTimestamp, where } from "firebase/firestore";
 import { timeAgo } from "@/src/utils/timeUtils";
 import { Ionicons } from "@expo/vector-icons";
+import { Audio } from "expo-av";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import {
+    addDoc,
+    collection,
+    getDocs,
+    onSnapshot,
+    orderBy,
+    query,
+    serverTimestamp,
+    where,
+} from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
+    Image,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -29,9 +43,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 type ThreadMsg = {
   id: string;
   content: string;
+  type: "text" | "image" | "file" | "audio" | "voice";
+  fileName?: string;
+  fileSize?: string;
+  duration?: number;
   timestamp: string;
   fromMe: boolean;
   senderName: string;
+  reactions?: Record<string, string>;
+  is_read: boolean;
 };
 
 type Conversation = {
@@ -50,21 +70,14 @@ function groupConversations(
   const map = new Map<string, Conversation>();
 
   msgs.forEach((msg) => {
-    // Determine if message is from current user (use actual UID, not "admin")
     const fromMe = msg.sender_id === currentUid;
-
     const otherPartyId = fromMe ? msg.receiver_id : msg.sender_id;
     const otherName = fromMe
       ? (map.get(otherPartyId)?.otherName ?? msg.receiver_name ?? otherPartyId)
       : msg.sender_name;
 
     if (!map.has(otherPartyId)) {
-      map.set(otherPartyId, {
-        otherPartyId,
-        otherName,
-        unread: false,
-        thread: [],
-      });
+      map.set(otherPartyId, { otherPartyId, otherName, unread: false, thread: [] });
     }
 
     const conv = map.get(otherPartyId)!;
@@ -73,9 +86,15 @@ function groupConversations(
     conv.thread.push({
       id: msg.id,
       content: msg.content,
+      type: msg.type ?? "text",
+      fileName: msg.fileName,
+      fileSize: msg.fileSize,
+      duration: msg.duration,
       timestamp: msg.timestamp,
       fromMe,
       senderName: msg.sender_name,
+      reactions: msg.reactions,
+      is_read: msg.is_read,
     });
 
     if (!fromMe && !msg.is_read) conv.unread = true;
@@ -107,6 +126,24 @@ export default function MessagesScreen() {
   const [threadMessages, setThreadMessages] = useState<ThreadMsg[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+
+  // Rich media
+  const [isRecording, setIsRecording] = useState(false);
+  const [recording, setRecording] = useState<any>(null);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [uploading, setUploading] = useState(false);
+
+  // Reply
+  const [replyingTo, setReplyingTo] = useState<ThreadMsg | null>(null);
+
+  // Reaction picker
+  const [reactionTarget, setReactionTarget] = useState<string | null>(null);
+
+  // Playback
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [sound, setSound] = useState<any>(null);
+
+  const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Fetch contacts directory (singers + admins) ───────────────────────────
   useEffect(() => {
@@ -151,7 +188,7 @@ export default function MessagesScreen() {
     return unsub;
   }, [currentUid, isAdmin]);
 
-  // Per-conversation real-time listener — fires when a chat is opened/changed
+  // ── Per-conversation real-time listener ───────────────────────────────────
   useEffect(() => {
     if (!activeConv) {
       setThreadMessages([]);
@@ -178,9 +215,15 @@ export default function MessagesScreen() {
           return {
             id: m.id,
             content: m.content,
+            type: m.type ?? "text",
+            fileName: m.fileName,
+            fileSize: m.fileSize,
+            duration: m.duration,
             timestamp: ts,
             fromMe: m.sender_id === currentUid,
             senderName: m.sender_name,
+            reactions: m.reactions,
+            is_read: m.is_read,
           };
         });
       setThreadMessages(msgs);
@@ -188,7 +231,7 @@ export default function MessagesScreen() {
     return unsub;
   }, [activeConv?.otherPartyId, currentUid]);
 
-  // Auto-open chat when arriving from the students screen via URL params
+  // ── Auto-open chat when arriving from students screen via URL params ───────
   useEffect(() => {
     if (!studentId) return;
     const sid = String(studentId);
@@ -208,7 +251,6 @@ export default function MessagesScreen() {
       });
       setSearch("");
     }
-    // Clear params so re-visiting the screen doesn't re-open the same chat
     router.setParams({ studentId: "", studentName: "" });
   }, [studentId]);
 
@@ -267,12 +309,11 @@ export default function MessagesScreen() {
         receiver_id: receiverId,
         receiver_name: activeConv.otherName,
         content: text,
+        type: "text",
         timestamp: serverTimestamp(),
         is_read: false,
       });
 
-      // Write a notification for the receiver so it appears in their notification centre.
-      // If receiver is 'admin', omit target_uid so all admins see it.
       await notificationService.create({
         title: "New Message",
         body: `${senderName} sent you a message`,
@@ -289,14 +330,181 @@ export default function MessagesScreen() {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
   }
 
+  // ── Send image from gallery ───────────────────────────────────────────────
+  async function pickAndSendImage() {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    await sendMedia(result.assets[0].uri, "image", result.assets[0].fileName ?? "image.jpg");
+  }
+
+  // ── Take photo and send ───────────────────────────────────────────────────
+  async function takeAndSendPhoto() {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) return;
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+    if (result.canceled || !result.assets[0]) return;
+    await sendMedia(result.assets[0].uri, "image", "photo.jpg");
+  }
+
+  // ── Pick and send file ────────────────────────────────────────────────────
+  async function pickAndSendFile() {
+    const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    const sizeStr = asset.size
+      ? asset.size > 1024 * 1024
+        ? `${(asset.size / (1024 * 1024)).toFixed(1)} MB`
+        : `${Math.round(asset.size / 1024)} KB`
+      : "";
+    setUploading(true);
+    try {
+      const url = await uploadToStorage(asset.uri, "files", asset.name);
+      await messageService.send({
+        sender_id: currentUid,
+        sender_name: user?.full_name ?? "Unknown",
+        receiver_id: activeConv!.otherPartyId,
+        receiver_name: activeConv!.otherName,
+        content: url,
+        type: "file",
+        fileName: asset.name,
+        fileSize: sizeStr,
+        timestamp: new Date().toISOString(),
+        is_read: false,
+      });
+    } catch (e) {
+      console.error("File send error:", e);
+    }
+    setUploading(false);
+  }
+
+  // ── Shared upload + send for images ──────────────────────────────────────
+  async function sendMedia(uri: string, type: "image", name: string) {
+    if (!activeConv) return;
+    setUploading(true);
+    try {
+      const url = await uploadToStorage(uri, "images", name);
+      await messageService.send({
+        sender_id: currentUid,
+        sender_name: user?.full_name ?? "Unknown",
+        receiver_id: activeConv.otherPartyId,
+        receiver_name: activeConv.otherName,
+        content: url,
+        type,
+        timestamp: new Date().toISOString(),
+        is_read: false,
+      });
+    } catch (e) {
+      console.error("Media send error:", e);
+    }
+    setUploading(false);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+  }
+
+  // ── Voice recording ───────────────────────────────────────────────────────
+  async function startRecording() {
+    try {
+      const perm = await Audio.requestPermissionsAsync();
+      if (!perm.granted) return;
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording: rec } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+      );
+      setRecording(rec);
+      setIsRecording(true);
+      setRecordingDuration(0);
+      recordingTimer.current = setInterval(() => setRecordingDuration((d) => d + 1), 1000);
+    } catch (e) {
+      console.error("Recording start error:", e);
+    }
+  }
+
+  async function stopAndSendRecording() {
+    if (!recording || !activeConv) return;
+    if (recordingTimer.current) clearInterval(recordingTimer.current);
+    setIsRecording(false);
+    const dur = recordingDuration;
+    setRecordingDuration(0);
+    try {
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      setRecording(null);
+      if (!uri) return;
+      setUploading(true);
+      const url = await uploadToStorage(uri, "audio", `voice_${Date.now()}.m4a`);
+      await messageService.send({
+        sender_id: currentUid,
+        sender_name: user?.full_name ?? "Unknown",
+        receiver_id: activeConv.otherPartyId,
+        receiver_name: activeConv.otherName,
+        content: url,
+        type: "voice",
+        duration: dur,
+        timestamp: new Date().toISOString(),
+        is_read: false,
+      });
+      setUploading(false);
+    } catch (e) {
+      console.error("Recording stop error:", e);
+      setUploading(false);
+    }
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+  }
+
+  // ── Audio playback ────────────────────────────────────────────────────────
+  async function playVoice(msgId: string, url: string) {
+    if (playingId === msgId) {
+      await sound?.stopAsync();
+      setPlayingId(null);
+      setSound(null);
+      return;
+    }
+    if (sound) {
+      await sound.stopAsync();
+      await sound.unloadAsync();
+    }
+    const { sound: newSound } = await Audio.Sound.createAsync({ uri: url });
+    setSound(newSound);
+    setPlayingId(msgId);
+    await newSound.playAsync();
+    newSound.setOnPlaybackStatusUpdate((status: any) => {
+      if (status.didJustFinish) {
+        setPlayingId(null);
+        setSound(null);
+      }
+    });
+  }
+
+  // ── Reactions ─────────────────────────────────────────────────────────────
+  const REACTION_EMOJIS = ["❤️", "👍", "😂", "🔥", "😮", "👏"];
+
+  async function toggleReaction(msgId: string, emoji: string) {
+    const msg = threadMessages.find((m) => m.id === msgId);
+    const existing = msg?.reactions?.[currentUid];
+    if (existing === emoji) {
+      await messageService.removeReaction(msgId, currentUid);
+    } else {
+      await messageService.addReaction(msgId, currentUid, emoji);
+    }
+    setReactionTarget(null);
+  }
+
+  // ── Delete message ────────────────────────────────────────────────────────
+  async function handleDeleteMessage(msgId: string) {
+    await messageService.deleteMessage(msgId);
+    setReactionTarget(null);
+  }
+
   const totalUnread = conversations.filter((c) => c.unread).length;
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.background }]}
-      >
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.center}>
           <ActivityIndicator size="large" color={AppColors.primary} />
         </View>
@@ -307,9 +515,7 @@ export default function MessagesScreen() {
   // ── Thread view ───────────────────────────────────────────────────────────
   if (activeConv) {
     return (
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.background }]}
-      >
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -321,21 +527,11 @@ export default function MessagesScreen() {
               { backgroundColor: theme.card, borderBottomColor: theme.border },
             ]}
           >
-            <Pressable
-              onPress={() => setActiveConv(null)}
-              style={styles.backBtn}
-            >
+            <Pressable onPress={() => setActiveConv(null)} style={styles.backBtn}>
               <Ionicons name="arrow-back" size={22} color={AppColors.primary} />
             </Pressable>
-            <View
-              style={[
-                styles.convAvatar,
-                { backgroundColor: AppColors.primary + "20" },
-              ]}
-            >
-              <Text
-                style={[styles.convAvatarText, { color: AppColors.primary }]}
-              >
+            <View style={[styles.convAvatar, { backgroundColor: AppColors.primary + "20" }]}>
+              <Text style={[styles.convAvatarText, { color: AppColors.primary }]}>
                 {activeConv.otherName.charAt(0)}
               </Text>
             </View>
@@ -358,69 +554,299 @@ export default function MessagesScreen() {
           >
             {threadMessages.length === 0 && (
               <View style={styles.emptyThread}>
-                <Ionicons
-                  name="chatbubble-outline"
-                  size={36}
-                  color={theme.subtext}
-                />
-                <Text
-                  style={[styles.emptyThreadText, { color: theme.subtext }]}
-                >
+                <Ionicons name="chatbubble-outline" size={36} color={theme.subtext} />
+                <Text style={[styles.emptyThreadText, { color: theme.subtext }]}>
                   Start the conversation
                 </Text>
               </View>
             )}
+
             {threadMessages.map((msg) => (
               <View
                 key={msg.id}
-                style={[
-                  styles.bubbleRow,
-                  msg.fromMe ? styles.bubbleRight : styles.bubbleLeft,
-                ]}
+                style={[styles.bubbleRow, msg.fromMe ? styles.bubbleRight : styles.bubbleLeft]}
               >
                 {!msg.fromMe && (
                   <Text style={[styles.senderLabel, { color: theme.subtext }]}>
                     {msg.senderName}
                   </Text>
                 )}
-                <View
-                  style={[
-                    styles.bubble,
-                    msg.fromMe
-                      ? styles.bubbleSent
-                      : [
-                          styles.bubbleReceived,
-                          {
-                            backgroundColor: theme.card,
-                            borderColor: theme.border,
-                          },
-                        ],
-                  ]}
+
+                {/* Long press for reactions/delete */}
+                <Pressable
+                  onLongPress={() =>
+                    setReactionTarget(reactionTarget === msg.id ? null : msg.id)
+                  }
+                  delayLongPress={400}
                 >
-                  <Text
+                  <View
                     style={[
-                      styles.bubbleText,
-                      { color: msg.fromMe ? "#fff" : theme.text },
+                      styles.bubble,
+                      msg.fromMe
+                        ? styles.bubbleSent
+                        : [
+                            styles.bubbleReceived,
+                            { backgroundColor: theme.card, borderColor: theme.border },
+                          ],
+                      msg.type !== "text" && { padding: 6 },
                     ]}
                   >
-                    {msg.content}
-                  </Text>
-                  <Text
+                    {/* TEXT */}
+                    {(msg.type === "text" || !msg.type) && (
+                      <>
+                        <Text
+                          style={[
+                            styles.bubbleText,
+                            { color: msg.fromMe ? "#fff" : theme.text },
+                          ]}
+                        >
+                          {msg.content}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.bubbleTime,
+                            {
+                              color: msg.fromMe
+                                ? "rgba(255,255,255,0.7)"
+                                : theme.subtext,
+                            },
+                          ]}
+                        >
+                          {timeAgo(msg.timestamp)}
+                          {msg.fromMe && (
+                            <Text> {msg.is_read ? " ✓✓" : " ✓"}</Text>
+                          )}
+                        </Text>
+                      </>
+                    )}
+
+                    {/* IMAGE */}
+                    {msg.type === "image" && (
+                      <>
+                        <Image
+                          source={{ uri: msg.content }}
+                          style={styles.msgImage}
+                          resizeMode="cover"
+                        />
+                        <Text
+                          style={[
+                            styles.bubbleTime,
+                            {
+                              color: msg.fromMe
+                                ? "rgba(255,255,255,0.7)"
+                                : theme.subtext,
+                              margin: 4,
+                            },
+                          ]}
+                        >
+                          {timeAgo(msg.timestamp)}
+                        </Text>
+                      </>
+                    )}
+
+                    {/* FILE */}
+                    {msg.type === "file" && (
+                      <View style={styles.fileRow}>
+                        <View
+                          style={[
+                            styles.fileIconWrap,
+                            {
+                              backgroundColor: msg.fromMe
+                                ? "rgba(255,255,255,0.2)"
+                                : AppColors.primary + "18",
+                            },
+                          ]}
+                        >
+                          <Ionicons
+                            name="document-outline"
+                            size={22}
+                            color={msg.fromMe ? "#fff" : AppColors.primary}
+                          />
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <Text
+                            style={[
+                              styles.fileName,
+                              { color: msg.fromMe ? "#fff" : theme.text },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {msg.fileName ?? "File"}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.fileSize,
+                              {
+                                color: msg.fromMe
+                                  ? "rgba(255,255,255,0.7)"
+                                  : theme.subtext,
+                              },
+                            ]}
+                          >
+                            {msg.fileSize ?? ""} · {timeAgo(msg.timestamp)}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* VOICE NOTE */}
+                    {msg.type === "voice" && (
+                      <View style={styles.voiceRow}>
+                        <Pressable
+                          style={[
+                            styles.voicePlayBtn,
+                            {
+                              backgroundColor: msg.fromMe
+                                ? "rgba(255,255,255,0.25)"
+                                : AppColors.primary + "18",
+                            },
+                          ]}
+                          onPress={() => playVoice(msg.id, msg.content)}
+                        >
+                          <Ionicons
+                            name={playingId === msg.id ? "pause" : "play"}
+                            size={18}
+                            color={msg.fromMe ? "#fff" : AppColors.primary}
+                          />
+                        </Pressable>
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <View style={styles.voiceTrack}>
+                            <View
+                              style={[
+                                styles.voiceFill,
+                                {
+                                  backgroundColor: msg.fromMe
+                                    ? "rgba(255,255,255,0.5)"
+                                    : AppColors.primary,
+                                },
+                              ]}
+                            />
+                          </View>
+                          <Text
+                            style={[
+                              styles.voiceDuration,
+                              {
+                                color: msg.fromMe
+                                  ? "rgba(255,255,255,0.7)"
+                                  : theme.subtext,
+                              },
+                            ]}
+                          >
+                            {msg.duration
+                              ? `${Math.floor(msg.duration / 60)}:${String(
+                                  msg.duration % 60,
+                                ).padStart(2, "0")}`
+                              : "0:00"}{" "}
+                            · {timeAgo(msg.timestamp)}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                </Pressable>
+
+                {/* Reaction row under bubble */}
+                {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                  <View
                     style={[
-                      styles.bubbleTime,
-                      {
-                        color: msg.fromMe
-                          ? "rgba(255,255,255,0.7)"
-                          : theme.subtext,
-                      },
+                      styles.reactionsRow,
+                      msg.fromMe && { justifyContent: "flex-end" },
                     ]}
                   >
-                    {timeAgo(msg.timestamp)}
-                  </Text>
-                </View>
+                    {Object.entries(
+                      Object.values(msg.reactions).reduce<Record<string, number>>(
+                        (acc, emoji) => {
+                          acc[emoji] = (acc[emoji] ?? 0) + 1;
+                          return acc;
+                        },
+                        {},
+                      ),
+                    ).map(([emoji, count]) => (
+                      <View key={emoji} style={styles.reactionBadge}>
+                        <Text style={styles.reactionEmoji}>{emoji}</Text>
+                        {count > 1 && (
+                          <Text style={styles.reactionCount}>{count}</Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Reaction picker (appears on long press) */}
+                {reactionTarget === msg.id && (
+                  <View
+                    style={[
+                      styles.reactionPicker,
+                      msg.fromMe && { alignSelf: "flex-end" },
+                    ]}
+                  >
+                    {REACTION_EMOJIS.map((emoji) => (
+                      <Pressable
+                        key={emoji}
+                        onPress={() => toggleReaction(msg.id, emoji)}
+                        style={styles.reactionPickerBtn}
+                      >
+                        <Text style={styles.reactionPickerEmoji}>{emoji}</Text>
+                      </Pressable>
+                    ))}
+                    {msg.fromMe && (
+                      <Pressable
+                        onPress={() => handleDeleteMessage(msg.id)}
+                        style={styles.reactionPickerBtn}
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#c56451" />
+                      </Pressable>
+                    )}
+                  </View>
+                )}
               </View>
             ))}
           </ScrollView>
+
+          {/* Reply preview */}
+          {replyingTo && (
+            <View
+              style={[
+                styles.replyPreview,
+                {
+                  backgroundColor: AppColors.primary + "12",
+                  borderLeftColor: AppColors.primary,
+                },
+              ]}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.replyPreviewLabel, { color: AppColors.primary }]}>
+                  Replying to {replyingTo.fromMe ? "yourself" : replyingTo.senderName}
+                </Text>
+                <Text
+                  style={[styles.replyPreviewText, { color: theme.subtext }]}
+                  numberOfLines={1}
+                >
+                  {replyingTo.type === "text"
+                    ? replyingTo.content
+                    : `[${replyingTo.type}]`}
+                </Text>
+              </View>
+              <Pressable onPress={() => setReplyingTo(null)} hitSlop={8}>
+                <Ionicons name="close" size={18} color={theme.subtext} />
+              </Pressable>
+            </View>
+          )}
+
+          {/* Upload progress */}
+          {uploading && (
+            <View
+              style={[
+                styles.uploadingBar,
+                { backgroundColor: AppColors.primary + "12" },
+              ]}
+            >
+              <ActivityIndicator size="small" color={AppColors.primary} />
+              <Text style={[styles.uploadingText, { color: AppColors.primary }]}>
+                Uploading…
+              </Text>
+            </View>
+          )}
 
           {/* Compose bar */}
           <View
@@ -429,36 +855,74 @@ export default function MessagesScreen() {
               { backgroundColor: theme.card, borderTopColor: theme.border },
             ]}
           >
-            <TextInput
-              style={[
-                styles.composeInput,
-                {
-                  color: theme.text,
-                  backgroundColor: theme.background,
-                  borderColor: theme.border,
-                },
-              ]}
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="Type a message…"
-              placeholderTextColor={theme.subtext}
-              multiline
-              maxLength={500}
-            />
-            <Pressable
-              style={[
-                styles.sendBtn,
-                (!draft.trim() || sending) && styles.sendBtnDisabled,
-              ]}
-              onPress={sendMessage}
-              disabled={!draft.trim() || sending}
-            >
-              {sending ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Ionicons name="send" size={18} color="#fff" />
-              )}
-            </Pressable>
+            {/* Media buttons — only show when not recording */}
+            {!isRecording && (
+              <View style={styles.mediaButtons}>
+                <Pressable onPress={pickAndSendImage} style={styles.mediaBtn} hitSlop={6}>
+                  <Ionicons name="image-outline" size={22} color={AppColors.primary} />
+                </Pressable>
+                <Pressable onPress={takeAndSendPhoto} style={styles.mediaBtn} hitSlop={6}>
+                  <Ionicons name="camera-outline" size={22} color={AppColors.primary} />
+                </Pressable>
+                <Pressable onPress={pickAndSendFile} style={styles.mediaBtn} hitSlop={6}>
+                  <Ionicons name="attach-outline" size={22} color={AppColors.primary} />
+                </Pressable>
+              </View>
+            )}
+
+            {/* Recording state */}
+            {isRecording ? (
+              <View style={styles.recordingRow}>
+                <View style={styles.recordingDot} />
+                <Text style={[styles.recordingTimer, { color: theme.text }]}>
+                  {Math.floor(recordingDuration / 60)}:
+                  {String(recordingDuration % 60).padStart(2, "0")}
+                </Text>
+                <Text style={[styles.recordingHint, { color: theme.subtext }]}>
+                  Recording… release to send
+                </Text>
+              </View>
+            ) : (
+              <TextInput
+                style={[
+                  styles.composeInput,
+                  {
+                    color: theme.text,
+                    backgroundColor: theme.background,
+                    borderColor: theme.border,
+                  },
+                ]}
+                value={draft}
+                onChangeText={setDraft}
+                placeholder="Type a message…"
+                placeholderTextColor={theme.subtext}
+                multiline
+                maxLength={500}
+              />
+            )}
+
+            {/* Send or mic button */}
+            {draft.trim().length > 0 ? (
+              <Pressable
+                style={[styles.sendBtn, sending && styles.sendBtnDisabled]}
+                onPress={sendMessage}
+                disabled={sending}
+              >
+                {sending ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="send" size={18} color="#fff" />
+                )}
+              </Pressable>
+            ) : (
+              <Pressable
+                style={[styles.sendBtn, isRecording && { backgroundColor: "#c56451" }]}
+                onPressIn={startRecording}
+                onPressOut={stopAndSendRecording}
+              >
+                <Ionicons name={isRecording ? "stop" : "mic"} size={18} color="#fff" />
+              </Pressable>
+            )}
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -469,9 +933,7 @@ export default function MessagesScreen() {
   const showingSearch = searchTrimmed.length > 0 || conversations.length === 0;
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
       <View style={styles.inboxHeader}>
         <Text style={[styles.inboxTitle, { color: theme.text }]}>Messages</Text>
@@ -540,10 +1002,7 @@ export default function MessagesScreen() {
                   ]}
                 >
                   <Text
-                    style={[
-                      styles.convAvatarText,
-                      { color: AppColors.primary },
-                    ]}
+                    style={[styles.convAvatarText, { color: AppColors.primary }]}
                   >
                     {(item.full_name ?? "?").charAt(0)}
                   </Text>
@@ -563,7 +1022,9 @@ export default function MessagesScreen() {
                     numberOfLines={1}
                   >
                     {lastMsg
-                      ? (lastMsg.fromMe ? "You: " : "") + lastMsg.content
+                      ? lastMsg.type !== "text"
+                        ? (lastMsg.fromMe ? "You: " : "") + `[${lastMsg.type}]`
+                        : (lastMsg.fromMe ? "You: " : "") + lastMsg.content
                       : "Tap to start a conversation"}
                   </Text>
                 </View>
@@ -624,10 +1085,7 @@ export default function MessagesScreen() {
                   ]}
                 >
                   <Text
-                    style={[
-                      styles.convAvatarText,
-                      { color: AppColors.primary },
-                    ]}
+                    style={[styles.convAvatarText, { color: AppColors.primary }]}
                   >
                     {item.otherName.charAt(0)}
                   </Text>
@@ -648,7 +1106,9 @@ export default function MessagesScreen() {
                       numberOfLines={1}
                     >
                       {lastMsg.fromMe ? "You: " : ""}
-                      {lastMsg.content}
+                      {lastMsg.type !== "text"
+                        ? `[${lastMsg.type}]`
+                        : lastMsg.content}
                     </Text>
                   )}
                 </View>
@@ -792,4 +1252,109 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sendBtnDisabled: { backgroundColor: "#ccc" },
+
+  // Media message bubbles
+  msgImage: { width: 200, height: 160, borderRadius: 12 },
+  fileRow: { flexDirection: "row", alignItems: "center", padding: 6, minWidth: 180 },
+  fileIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fileName: { fontSize: 13, fontWeight: "700" },
+  fileSize: { fontSize: 11, marginTop: 2 },
+  voiceRow: { flexDirection: "row", alignItems: "center", padding: 6, minWidth: 180 },
+  voicePlayBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  voiceTrack: {
+    height: 4,
+    backgroundColor: "rgba(0,0,0,0.1)",
+    borderRadius: 2,
+    overflow: "hidden",
+    marginBottom: 4,
+  },
+  voiceFill: { width: "60%", height: 4, borderRadius: 2 },
+  voiceDuration: { fontSize: 10 },
+
+  // Reactions
+  reactionsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    marginTop: 4,
+    marginHorizontal: 4,
+  },
+  reactionBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.06)",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 2,
+  },
+  reactionEmoji: { fontSize: 14 },
+  reactionCount: { fontSize: 11, fontWeight: "700", color: "#555" },
+  reactionPicker: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 6,
+    marginTop: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+    alignSelf: "flex-start",
+  },
+  reactionPickerBtn: { padding: 4 },
+  reactionPickerEmoji: { fontSize: 20 },
+
+  // Reply preview bar
+  replyPreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 10,
+    paddingHorizontal: 14,
+    borderLeftWidth: 3,
+    gap: 10,
+  },
+  replyPreviewLabel: { fontSize: 11, fontWeight: "700", marginBottom: 2 },
+  replyPreviewText: { fontSize: 12 },
+
+  // Upload indicator
+  uploadingBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 8,
+    paddingHorizontal: 16,
+  },
+  uploadingText: { fontSize: 13, fontWeight: "600" },
+
+  // Media buttons in compose bar
+  mediaButtons: { flexDirection: "row", alignItems: "center", gap: 2 },
+  mediaBtn: { padding: 6 },
+
+  // Recording state
+  recordingRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 8,
+  },
+  recordingDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#c56451" },
+  recordingTimer: { fontSize: 16, fontWeight: "700", minWidth: 40 },
+  recordingHint: { fontSize: 12, flex: 1 },
 });
