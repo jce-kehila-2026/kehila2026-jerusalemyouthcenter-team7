@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -93,5 +94,22 @@ export const studentService = {
       ...studentData,
       role: "singer",
     });
+  },
+
+  async createGroup(name: string, memberIds: string[]): Promise<string> {
+    const ref = await addDoc(collection(db, "groups"), {
+      name,
+      member_ids: memberIds,
+      created_at: new Date().toISOString(),
+    });
+    return ref.id;
+  },
+
+  async updateGroup(groupId: string, name: string, memberIds: string[]): Promise<void> {
+    await updateDoc(doc(db, "groups", groupId), { name, member_ids: memberIds });
+  },
+
+  async deleteGroup(groupId: string): Promise<void> {
+    await deleteDoc(doc(db, "groups", groupId));
   },
 };
