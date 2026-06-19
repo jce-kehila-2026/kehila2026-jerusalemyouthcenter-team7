@@ -67,15 +67,6 @@ type JoinRequest = {
   status: string;
 };
 
-// ── Filter data ───────────────────────────────────────────────────────────────
-const VOICE_FILTERS = [
-  { label: "All", value: null },
-  { label: "Bass", value: "bass" },
-  { label: "Tenor", value: "tenor" },
-  { label: "Alto", value: "alto" },
-  { label: "Soprano", value: "soprano" },
-];
-
 // Helper inside service mapped locally for snapshot cleanups
 const mapToStudent = (id: string, data: any): Student => {
   return {
@@ -113,6 +104,9 @@ export default function StudentsListScreen() {
   const [dynamicYearFilters, setDynamicYearFilters] = useState<
     { label: string; value: string | null }[]
   >([{ label: "All", value: null }]);
+  const [dynamicVoiceFilters, setDynamicVoiceFilters] = useState<
+    { label: string; value: string | null }[]
+  >([{ label: "All", value: null }]);
 
   // ── Join Requests state ───────────────────────────────────────────────────
   const [joinRequestsVisible, setJoinRequestsVisible] = useState(false);
@@ -148,6 +142,30 @@ export default function StudentsListScreen() {
     return unsub;
   }, []);
 
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "voice_types"), (snap) => {
+      const customVoices = snap.docs
+        .map((d) => String(d.data().name || "").trim())
+        .filter((name) => !["Bass", "Tenor", "Alto", "Soprano"].includes(name))
+        .map((name) => ({
+          label: name,
+          value: name.toLowerCase(),
+        }));
+
+      setDynamicVoiceFilters([
+        { label: "All", value: null },
+
+        { label: "Bass", value: "bass" },
+        { label: "Tenor", value: "tenor" },
+        { label: "Alto", value: "alto" },
+        { label: "Soprano", value: "soprano" },
+
+        ...customVoices,
+      ]);
+    });
+
+    return unsub;
+  }, []);
   // ── Real-time active active students listener ──────────────────────────────
   useEffect(() => {
     const q = query(
@@ -530,7 +548,7 @@ export default function StudentsListScreen() {
 
             <Text style={[s.filterLabel, { marginTop: 8 }]}>Voice Section</Text>
             <View style={s.filterRow}>
-              {VOICE_FILTERS.map((f) => (
+              {dynamicVoiceFilters.map((f) => (
                 <Pressable
                   key={f.label}
                   onPress={() => setSelectedVoiceFilter(f.value)}
