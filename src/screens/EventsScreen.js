@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -19,6 +20,8 @@ import {
   getEvents,
   updateEvent,
 } from "../../backend/eventsService";
+import { db } from "@/src/firebase/firebase";
+import { doc, deleteDoc } from "firebase/firestore";
 
 // ─── Design System ─────────────────────────────────────────────────────────
 const T = {
@@ -38,6 +41,17 @@ const T = {
   muted: "#9aa8b4",
 };
 const sp = (n) => n * 8;
+
+const GOOGLE_CALENDAR_SUBSCRIBE_URL =
+  "https://calendar.google.com/calendar/r?cid=https://calendar.google.com/calendar/ical/6ee65334f0a4c98b5d09abd1f1f2e38c42a93f8ce246d56fb0e9041f0ed7fa4d%40group.calendar.google.com/private-956d897f3255c9d53850f11442e4b179/basic.ics";
+
+const openGoogleCalendarSubscribe = () => {
+  if (Platform.OS === "web") {
+    window.open(GOOGLE_CALENDAR_SUBSCRIBE_URL, "_blank");
+  } else {
+    Linking.openURL(GOOGLE_CALENDAR_SUBSCRIBE_URL).catch(() => {});
+  }
+};
 
 const BADGE_STYLES = {
   all: { bg: T.tealBg, text: T.teal },
@@ -59,6 +73,14 @@ const FILTERS = [
   { key: "year2", label: "Year 2" },
   { key: "year3", label: "Year 3" },
   { key: "all", label: "All Groups" },
+];
+
+const VOICE_FILTERS = [
+  { key: "all_voices", label: "All" },
+  { key: "bass", label: "Bass" },
+  { key: "tenor", label: "Tenor" },
+  { key: "alto", label: "Alto" },
+  { key: "soprano", label: "Soprano" },
 ];
 
 const MONTH_ABBR = [
@@ -108,6 +130,8 @@ const emptyForm = {
   location: "",
   group: "all",
   groupLabel: "All Groups",
+  voiceSection: "all_voices",
+  voiceSectionLabel: "All",
 };
 const emptyErrors = { title: "", date: "", time: "", location: "" };
 const STATUSBAR_H =
@@ -294,6 +318,34 @@ function FormFields({ values, setValues, errors }) {
           </Pressable>
         ))}
       </View>
+      <Text style={s.label}>Voice Section</Text>
+      <View style={s.groupRow}>
+        {VOICE_FILTERS.map((f) => (
+          <Pressable
+            key={f.key}
+            style={[
+              s.groupPill,
+              values.voiceSection === f.key && s.groupPillActive,
+            ]}
+            onPress={() =>
+              setValues((p) => ({
+                ...p,
+                voiceSection: f.key,
+                voiceSectionLabel: f.label,
+              }))
+            }
+          >
+            <Text
+              style={[
+                s.groupPillText,
+                values.voiceSection === f.key && { color: "#fff" },
+              ]}
+            >
+              {f.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
     </ScrollView>
   );
 }
@@ -305,6 +357,7 @@ export default function EventsScreen() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("list");
   const [activeFilter, setFilter] = useState("all_events");
+  const [activeVoiceFilter, setVoiceFilter] = useState("all_voices");
   const [selectedDate, setSelectedDate] = useState(null);
   const [editVisible, setEditVisible] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
@@ -327,6 +380,17 @@ export default function EventsScreen() {
   useEffect(() => {
     const loadEvents = async () => {
       try {
+        // Trigger the Google Calendar → Firestore sync first (best-effort —
+        // if this is slow or fails, the events list below still loads
+        // normally from whatever was already in Firestore).
+        try {
+          await fetch(
+            "https://us-central1-fullstack-team-7.cloudfunctions.net/getGoogleCalendarEvents",
+          );
+        } catch (syncErr) {
+          console.error("Google Calendar sync error:", syncErr);
+        }
+
         const data = await getEvents();
         setEvents(data);
       } catch (e) {
@@ -338,12 +402,23 @@ export default function EventsScreen() {
     loadEvents();
   }, []);
 
-  const filtered =
+  const matchesYearFilter = (e) =>
     activeFilter === "all_events"
-      ? events
+      ? true
       : activeFilter === "all"
-        ? events.filter((e) => e.group === "all")
-        : events.filter((e) => e.group === activeFilter || e.group === "all");
+        ? e.group === "all"
+        : e.group === activeFilter || e.group === "all";
+
+  const matchesVoiceFilter = (e) =>
+    activeVoiceFilter === "all_voices"
+      ? true
+      : !e.voiceSection ||
+        e.voiceSection === "all_voices" ||
+        e.voiceSection === activeVoiceFilter;
+
+  const filtered = events.filter(
+    (e) => matchesYearFilter(e) && matchesVoiceFilter(e),
+  );
 
   const formatDisplayDate = (date) =>
     date && date.includes("-") ? date.split("-").reverse().join("/") : date;
@@ -361,6 +436,9 @@ export default function EventsScreen() {
   const calendarEvents = selectedDate
     ? events.filter((e) => (e.date || "").split("T")[0] === selectedDate)
     : events;
+
+  const todayObj = new Date();
+  const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, "0")}-${String(todayObj.getDate()).padStart(2, "0")}`;
 
   const calendarDays = [];
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
@@ -409,6 +487,13 @@ export default function EventsScreen() {
   const doDelete = async () => {
     try {
       await deleteEvent(deleteTarget.id);
+      // Attendance is stored as its own document keyed by the event id —
+      // delete it too so it doesn't linger as an orphaned record.
+      try {
+        await deleteDoc(doc(db, "attendance", deleteTarget.id));
+      } catch (attendanceErr) {
+        console.error("Failed to delete attendance record:", attendanceErr);
+      }
       setEvents((p) => p.filter((e) => e.id !== deleteTarget.id));
     } catch (e) {
       console.error(e);
@@ -430,6 +515,8 @@ export default function EventsScreen() {
       location: item.location,
       group: item.group,
       groupLabel: item.groupLabel,
+      voiceSection: item.voiceSection || "all_voices",
+      voiceSectionLabel: item.voiceSectionLabel || "All",
     });
     setFormErrors(emptyErrors);
     setEditVisible(true);
@@ -506,10 +593,19 @@ export default function EventsScreen() {
         </View>
         <View style={s.cardInner}>
           <View style={s.cardTop}>
-            <View style={[s.badge, { backgroundColor: badge.bg }]}>
-              <Text style={[s.badgeText, { color: badge.text }]}>
-                {item.groupLabel}
-              </Text>
+            <View style={{ flexDirection: "row", gap: 6, flexShrink: 1 }}>
+              <View style={[s.badge, { backgroundColor: badge.bg }]}>
+                <Text style={[s.badgeText, { color: badge.text }]}>
+                  {item.groupLabel}
+                </Text>
+              </View>
+              {item.voiceSectionLabel && item.voiceSection !== "all_voices" && (
+                <View style={[s.badge, s.voiceBadge]}>
+                  <Text style={[s.badgeText, s.voiceBadgeText]}>
+                    {item.voiceSectionLabel}
+                  </Text>
+                </View>
+              )}
             </View>
             <Pressable
               style={s.deleteSmall}
@@ -619,29 +715,48 @@ export default function EventsScreen() {
           </View>
         </View>
 
-        {/* Tab toggle - only visible in List tab */}
-        {activeTab === "list" && (
-          <View style={s.tabToggle}>
-            <Pressable
-              style={[s.tabToggleBtn, s.tabToggleBtnActive]}
-              onPress={() => setActiveTab("list")}
+        {/* Tab toggle - always visible, so List can be tapped from Calendar mode */}
+        <View style={s.tabToggle}>
+          <Pressable
+            style={[
+              s.tabToggleBtn,
+              activeTab === "list" && s.tabToggleBtnActive,
+            ]}
+            onPress={() => setActiveTab("list")}
+          >
+            <Text
+              style={[
+                s.tabToggleText,
+                activeTab === "list" && s.tabToggleTextActive,
+              ]}
             >
-              <Text style={[s.tabToggleText, s.tabToggleTextActive]}>List</Text>
-            </Pressable>
-            <Pressable
-              style={s.tabToggleBtn}
-              onPress={() => setActiveTab("calendar")}
+              List
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              s.tabToggleBtn,
+              activeTab === "calendar" && s.tabToggleBtnActive,
+            ]}
+            onPress={() => setActiveTab("calendar")}
+          >
+            <Text
+              style={[
+                s.tabToggleText,
+                activeTab === "calendar" && s.tabToggleTextActive,
+              ]}
             >
-              <Text style={s.tabToggleText}>Calendar</Text>
-            </Pressable>
-          </View>
-        )}
+              Calendar
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* ── LIST VIEW ── */}
       {activeTab === "list" && (
         <View style={{ flex: 1 }}>
           <View style={s.filtersWrap}>
+            <Text style={s.filterSectionLabel}>Year</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -660,6 +775,33 @@ export default function EventsScreen() {
                     style={[
                       s.filterText,
                       activeFilter === f.key && s.filterTextActive,
+                    ]}
+                  >
+                    {f.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            <Text style={s.filterSectionLabel}>Voice Section</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.filtersContent}
+            >
+              {VOICE_FILTERS.map((f) => (
+                <Pressable
+                  key={f.key}
+                  style={[
+                    s.filterBtn,
+                    activeVoiceFilter === f.key && s.filterBtnActive,
+                  ]}
+                  onPress={() => setVoiceFilter(f.key)}
+                >
+                  <Text
+                    style={[
+                      s.filterText,
+                      activeVoiceFilter === f.key && s.filterTextActive,
                     ]}
                   >
                     {f.label}
@@ -728,6 +870,7 @@ export default function EventsScreen() {
                   ? GROUP_COLORS[eventsByDate[dateStr][0]?.groupLabel] || T.teal
                   : null;
                 const isSelected = dateStr === selectedDate;
+                const isToday = dateStr === todayStr;
 
                 return (
                   <Pressable
@@ -735,6 +878,7 @@ export default function EventsScreen() {
                     style={[
                       s.calendarDay,
                       hasEvent && { borderColor: eventColor, borderWidth: 2.5 },
+                      isToday && s.calendarDayToday,
                       isSelected && s.calendarDaySelected,
                     ]}
                     onPress={() => {
@@ -746,6 +890,7 @@ export default function EventsScreen() {
                         <Text
                           style={[
                             s.calendarDayNum,
+                            isToday && s.calendarDayNumToday,
                             isSelected && { color: T.white },
                           ]}
                         >
@@ -987,13 +1132,22 @@ const s = StyleSheet.create({
 
   // Filters
   filtersWrap: {
-    height: 56,
     marginTop: sp(1),
     marginBottom: sp(2.5),
     backgroundColor: T.white,
     borderBottomWidth: 1,
     borderBottomColor: T.border,
-    justifyContent: "center",
+    paddingBottom: sp(1.25),
+  },
+  filterSectionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: T.muted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    paddingHorizontal: sp(2),
+    marginTop: sp(1.25),
+    marginBottom: sp(0.5),
   },
   filtersContent: {
     paddingHorizontal: sp(2),
@@ -1015,6 +1169,25 @@ const s = StyleSheet.create({
   filterTextActive: { color: "#fff", fontWeight: "700" },
 
   // Events list (ScrollView content)
+  calSyncBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: T.tealBg,
+    borderRadius: 12,
+    marginHorizontal: sp(2),
+    marginBottom: sp(1.5),
+    paddingVertical: sp(1.25),
+    paddingHorizontal: sp(1.5),
+    gap: sp(1),
+  },
+  calSyncBannerIcon: { fontSize: 18 },
+  calSyncBannerText: {
+    flex: 1,
+    color: T.teal,
+    fontWeight: "600",
+    fontSize: 13,
+  },
+  calSyncBannerArrow: { color: T.teal, fontSize: 20, fontWeight: "700" },
   eventsListContent: {
     paddingHorizontal: sp(2),
     paddingBottom: 100,
@@ -1067,6 +1240,8 @@ const s = StyleSheet.create({
   },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   badgeText: { fontSize: 11, fontWeight: "700" },
+  voiceBadge: { backgroundColor: T.bg, borderWidth: 1, borderColor: T.border },
+  voiceBadgeText: { color: T.textSub },
   cardTitle: {
     fontSize: 18,
     fontWeight: "800",
@@ -1197,6 +1372,12 @@ const s = StyleSheet.create({
     backgroundColor: T.white,
   },
   calendarDaySelected: { backgroundColor: T.teal, borderColor: T.teal },
+  calendarDayToday: {
+    backgroundColor: T.tealBg,
+    borderColor: T.teal,
+    borderWidth: 2,
+  },
+  calendarDayNumToday: { color: T.teal, fontWeight: "800" },
   calendarDayNum: { fontSize: 13, fontWeight: "600", color: T.text },
   calendarEventName: {
     fontSize: 10,

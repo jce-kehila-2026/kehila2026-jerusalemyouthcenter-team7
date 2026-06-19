@@ -2,6 +2,7 @@
 import { useState } from "react";
 import {
   FlatList,
+  Linking,
   Platform,
   Pressable,
   SafeAreaView,
@@ -28,6 +29,17 @@ const T = {
 };
 
 const sp = (n) => n * 8;
+
+const GOOGLE_CALENDAR_SUBSCRIBE_URL =
+  "https://calendar.google.com/calendar/r?cid=https://calendar.google.com/calendar/ical/6ee65334f0a4c98b5d09abd1f1f2e38c42a93f8ce246d56fb0e9041f0ed7fa4d%40group.calendar.google.com/private-956d897f3255c9d53850f11442e4b179/basic.ics";
+
+const openGoogleCalendarSubscribe = () => {
+  if (Platform.OS === "web") {
+    window.open(GOOGLE_CALENDAR_SUBSCRIBE_URL, "_blank");
+  } else {
+    Linking.openURL(GOOGLE_CALENDAR_SUBSCRIBE_URL).catch(() => {});
+  }
+};
 
 const GROUP_COLORS = {
   "All Groups": T.teal,
@@ -92,6 +104,7 @@ function MusicTrace() {
 export default function EventStudentScreen({
   studentYear = 1,
   studentName = "Student",
+  onEventPress,
 }) {
   const { events } = useEvents();
   const [activeTab, setActiveTab] = useState("list");
@@ -133,6 +146,9 @@ export default function EventStudentScreen({
   });
 
   // Generate calendar grid
+  const todayObj = new Date();
+  const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, "0")}-${String(todayObj.getDate()).padStart(2, "0")}`;
+
   const calendarDays = [];
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -192,7 +208,10 @@ export default function EventStudentScreen({
           <Text style={s.dateBlockDay}>{day}</Text>
           <Text style={s.dateBlockMonth}>{month}</Text>
         </View>
-        <View style={s.cardInner}>
+        <Pressable
+          style={s.cardInner}
+          onPress={() => onEventPress && onEventPress(item)}
+        >
           <View style={[s.badge, s.badgeTop, { backgroundColor: badge.bg }]}>
             <Text style={[s.badgeText, { color: badge.text }]}>
               {item.groupLabel || item.group_name}
@@ -207,7 +226,7 @@ export default function EventStudentScreen({
           <Text style={s.cardDesc} numberOfLines={2}>
             {item.description}
           </Text>
-        </View>
+        </Pressable>
         <MusicTrace />
       </View>
     );
@@ -285,43 +304,41 @@ export default function EventStudentScreen({
             </View>
           </View>
         </View>
-        {/* List / Calendar toggle — only visible in List tab */}
-        {activeTab === "list" && (
-          <View style={s.tabToggle}>
-            <Pressable
+        {/* List / Calendar toggle — always visible */}
+        <View style={s.tabToggle}>
+          <Pressable
+            style={[
+              s.tabToggleBtn,
+              activeTab === "list" && s.tabToggleBtnActive,
+            ]}
+            onPress={() => setActiveTab("list")}
+          >
+            <Text
               style={[
-                s.tabToggleBtn,
-                activeTab === "list" && s.tabToggleBtnActive,
+                s.tabToggleText,
+                activeTab === "list" && s.tabToggleTextActive,
               ]}
-              onPress={() => setActiveTab("list")}
             >
-              <Text
-                style={[
-                  s.tabToggleText,
-                  activeTab === "list" && s.tabToggleTextActive,
-                ]}
-              >
-                List
-              </Text>
-            </Pressable>
-            <Pressable
+              List
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              s.tabToggleBtn,
+              activeTab === "calendar" && s.tabToggleBtnActive,
+            ]}
+            onPress={() => setActiveTab("calendar")}
+          >
+            <Text
               style={[
-                s.tabToggleBtn,
-                activeTab === "calendar" && s.tabToggleBtnActive,
+                s.tabToggleText,
+                activeTab === "calendar" && s.tabToggleTextActive,
               ]}
-              onPress={() => setActiveTab("calendar")}
             >
-              <Text
-                style={[
-                  s.tabToggleText,
-                  activeTab === "calendar" && s.tabToggleTextActive,
-                ]}
-              >
-                Calendar
-              </Text>
-            </Pressable>
-          </View>
-        )}
+              Calendar
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* Welcome */}
@@ -393,6 +410,7 @@ export default function EventStudentScreen({
                   ? GROUP_COLORS[eventsByDate[dateStr][0]?.groupLabel] || T.teal
                   : null;
                 const isSelected = dateStr === selectedDate;
+                const isToday = dateStr === todayStr;
 
                 return (
                   <Pressable
@@ -403,6 +421,7 @@ export default function EventStudentScreen({
                         borderColor: eventColor,
                         borderWidth: 2.5,
                       },
+                      isToday && s.calendarDayToday,
                       isSelected && s.calendarDaySelected,
                     ]}
                     onPress={() => {
@@ -416,6 +435,7 @@ export default function EventStudentScreen({
                         <Text
                           style={[
                             s.calendarDayNum,
+                            isToday && s.calendarDayNumToday,
                             isSelected && { color: T.white },
                           ]}
                         >
@@ -537,6 +557,26 @@ const s = StyleSheet.create({
     borderLeftColor: T.teal,
   },
   welcomeText: { color: "#333", fontSize: 14, lineHeight: 20 },
+
+  calSyncBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: T.tealBg,
+    borderRadius: 12,
+    marginHorizontal: sp(2),
+    marginBottom: sp(2),
+    paddingVertical: sp(1.25),
+    paddingHorizontal: sp(1.5),
+    gap: sp(1),
+  },
+  calSyncBannerIcon: { fontSize: 18 },
+  calSyncBannerText: {
+    flex: 1,
+    color: T.teal,
+    fontWeight: "600",
+    fontSize: 13,
+  },
+  calSyncBannerArrow: { color: T.teal, fontSize: 20, fontWeight: "700" },
 
   empty: {
     flex: 1,
@@ -689,6 +729,12 @@ const s = StyleSheet.create({
     backgroundColor: T.teal,
     borderColor: T.teal,
   },
+  calendarDayToday: {
+    backgroundColor: T.tealBg,
+    borderColor: T.teal,
+    borderWidth: 2,
+  },
+  calendarDayNumToday: { color: T.teal, fontWeight: "800" },
   calendarDayNum: {
     fontSize: 13,
     fontWeight: "600",

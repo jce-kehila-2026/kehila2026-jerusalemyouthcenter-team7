@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   orderBy,
@@ -91,5 +92,9 @@ export const notificationService = {
         updateDoc(doc(db, "notifications", id), { is_read: true }),
       ),
     );
+  },
+
+  async deleteNotification(id: string): Promise<void> {
+    await deleteDoc(doc(db, "notifications", id));
   },
 };

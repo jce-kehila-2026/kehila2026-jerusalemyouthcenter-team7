@@ -52,7 +52,7 @@ export const studentService = {
     return mapToStudent(docSnap.id, docSnap.data());
   },
 
-  // Fetch all groups from the "groups" collection
+  // Fetch all groups (overridden to return exactly Year 1, Year 2, Year 3)
   async getGroups(): Promise<Group[]> {
     const querySnapshot = await getDocs(collection(db, "groups"));
     return querySnapshot.docs.map((doc) => {
@@ -62,21 +62,21 @@ export const studentService = {
         id: doc.id, // must come after spread so stored 'id' field never overwrites the real doc ID
       } as Group;
     });
+    return [
+      { id: "Year 1", name: "Year 1", year_id: 1, program_id: 1 },
+      { id: "Year 2", name: "Year 2", year_id: 2, program_id: 2 },
+      { id: "Year 3", name: "Year 3", year_id: 3, program_id: 1 },
+    ];
   },
 
   // Update a student's group assignment
   async updateStudentGroup(studentId: string, newGroupId: string) {
     const studentRef = doc(db, "users", studentId);
 
-    // Fetch the new group's details to get its year_id
-    const groupDoc = await getDoc(doc(db, "groups", newGroupId));
     let newYearId: number | undefined;
-
-    if (groupDoc.exists()) {
-      const gData = groupDoc.data();
-      newYearId =
-        gData.year_id !== undefined ? Number(gData.year_id) : undefined;
-    }
+    if (newGroupId === "1" || newGroupId === "Year 1") newYearId = 1;
+    else if (newGroupId === "2" || newGroupId === "Year 2") newYearId = 2;
+    else if (newGroupId === "3" || newGroupId === "Year 3") newYearId = 3;
 
     const updateData: { group_id: string; year_id?: number } = {
       group_id: newGroupId,
