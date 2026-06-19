@@ -38,6 +38,19 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(BUNDLE_IDENTIFIER) to access your photos to send images in messages.",
+          "cameraPermission": "Allow $(BUNDLE_IDENTIFIER) to access your camera to take photos in messages."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow $(BUNDLE_IDENTIFIER) to access your microphone to record voice messages."
+        }
       ]
     ],
     "experiments": {

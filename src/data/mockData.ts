@@ -22,10 +22,12 @@ export type Student = {
 };
 
 export type Group = {
-  id: string; // Changed from number to string to match Firestore doc.id
+  id: string;
   name: string;
-  year_id: number;
-  program_id: number;
+  year_id?: number;
+  program_id?: number;
+  member_ids?: string[];
+  created_at?: string;
 };
 
 export type Event = {

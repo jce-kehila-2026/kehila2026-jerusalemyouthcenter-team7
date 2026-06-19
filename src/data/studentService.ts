@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -53,6 +54,14 @@ export const studentService = {
 
   // Fetch all groups (overridden to return exactly Year 1, Year 2, Year 3)
   async getGroups(): Promise<Group[]> {
+    const querySnapshot = await getDocs(collection(db, "groups"));
+    return querySnapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        id: doc.id, // must come after spread so stored 'id' field never overwrites the real doc ID
+      } as Group;
+    });
     return [
       { id: "Year 1", name: "Year 1", year_id: 1, program_id: 1 },
       { id: "Year 2", name: "Year 2", year_id: 2, program_id: 2 },
@@ -85,5 +94,22 @@ export const studentService = {
       ...studentData,
       role: "singer",
     });
+  },
+
+  async createGroup(name: string, memberIds: string[]): Promise<string> {
+    const ref = await addDoc(collection(db, "groups"), {
+      name,
+      member_ids: memberIds,
+      created_at: new Date().toISOString(),
+    });
+    return ref.id;
+  },
+
+  async updateGroup(groupId: string, name: string, memberIds: string[]): Promise<void> {
+    await updateDoc(doc(db, "groups", groupId), { name, member_ids: memberIds });
+  },
+
+  async deleteGroup(groupId: string): Promise<void> {
+    await deleteDoc(doc(db, "groups", groupId));
   },
 };
