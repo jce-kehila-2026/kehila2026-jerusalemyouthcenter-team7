@@ -58,8 +58,8 @@ export const studentService = {
     return querySnapshot.docs.map((doc) => {
       const data = doc.data();
       return {
-        id: doc.id,
         ...data,
+        id: doc.id, // must come after spread so stored 'id' field never overwrites the real doc ID
       } as Group;
     });
   },
