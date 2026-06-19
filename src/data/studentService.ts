@@ -97,7 +97,7 @@ export const studentService = {
     await setDoc(doc(db, "groups", name), {
       name,
       year_id: yearId,
-      program_id: 1,
+      program_id: yearId, // Assuming program_id is the same as year_id for simplicity
     });
   },
 
