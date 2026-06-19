@@ -424,7 +424,7 @@ export default function ProfileScreen() {
                 </View>
                 <View style={s.rowText}>
                   <Text style={s.rowLabel}>Groups</Text>
-                  <Text style={s.rowValue}>Manage Years & Voice Types</Text>
+                  <Text style={s.rowValue}>Manage Years</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={ds.subtext} />
               </TouchableOpacity>
