@@ -2,7 +2,7 @@ import { AppColors, Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/src/context/AuthContext";
 import { FirestoreMsg, messageService } from "@/src/data/messageService";
-import { Group, Student } from "@/src/data/mockData";
+import { COLORS, Group, Student } from "@/src/data/mockData";
 import { notificationService } from "@/src/data/notificationService";
 import { studentService } from "@/src/data/studentService";
 import { uploadToStorage } from "@/src/data/storageService";
@@ -126,6 +126,7 @@ export default function MessagesScreen() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<"groups" | "dms">("groups");
 
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [threadMessages, setThreadMessages] = useState<ThreadMsg[]>([]);
@@ -2031,6 +2032,52 @@ export default function MessagesScreen() {
         )}
       </View>
 
+      {/* Tab toggle — same pill design as the login screen */}
+      <View style={styles.msgTabWrapper}>
+        <Pressable
+          style={[
+            styles.msgTabPill,
+            activeTab === "groups" && { backgroundColor: AppColors.primary },
+          ]}
+          onPress={() => { setActiveTab("groups"); setSearch(""); }}
+        >
+          <Ionicons
+            name="people"
+            size={15}
+            color={activeTab === "groups" ? "#fff" : theme.subtext}
+          />
+          <Text
+            style={[
+              styles.msgTabText,
+              { color: activeTab === "groups" ? "#fff" : theme.subtext },
+            ]}
+          >
+            Group Chats
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[
+            styles.msgTabPill,
+            activeTab === "dms" && { backgroundColor: AppColors.primary },
+          ]}
+          onPress={() => { setActiveTab("dms"); setSearch(""); }}
+        >
+          <Ionicons
+            name="chatbubble"
+            size={15}
+            color={activeTab === "dms" ? "#fff" : theme.subtext}
+          />
+          <Text
+            style={[
+              styles.msgTabText,
+              { color: activeTab === "dms" ? "#fff" : theme.subtext },
+            ]}
+          >
+            Direct Messages
+          </Text>
+        </Pressable>
+      </View>
+
       {/* Search bar */}
       <View
         style={[
@@ -2043,7 +2090,9 @@ export default function MessagesScreen() {
           style={[styles.searchInput, { color: theme.text }]}
           value={search}
           onChangeText={setSearch}
-          placeholder="Search students…"
+          placeholder={
+            activeTab === "groups" ? "Search groups…" : "Search people…"
+          }
           placeholderTextColor={theme.subtext}
           returnKeyType="search"
         />
@@ -2054,223 +2103,232 @@ export default function MessagesScreen() {
         )}
       </View>
 
-      {/* Group chats — all users see their groups, searchable by name */}
-      {(() => {
-        const visibleGroups = searchTrimmed
-          ? userGroups.filter((g) =>
-              g.name.toLowerCase().includes(searchTrimmed),
-            )
-          : userGroups;
-        if (visibleGroups.length === 0) return null;
-        return (
-          <View style={styles.groupsSection}>
-            <Text style={[styles.listHeader, { color: theme.subtext }]}>
-              GROUP CHATS
-            </Text>
-            {visibleGroups.map((group) => (
-              <Pressable
-                key={group.id}
-                style={[
-                  styles.convCard,
-                  { backgroundColor: theme.card, borderColor: theme.border },
-                ]}
-                onPress={() => setActiveGroupChat(group)}
-              >
-                <View
-                  style={[
-                    styles.gmGroupIcon,
-                    { backgroundColor: AppColors.primary + "20" },
-                  ]}
-                >
-                  <Ionicons
-                    name="people-outline"
-                    size={22}
-                    color={AppColors.primary}
-                  />
-                </View>
-                <View style={styles.convBody}>
-                  <Text style={[styles.convName, { color: theme.text }]}>
-                    {group.name}
-                  </Text>
-                  <Text style={[styles.convPreview, { color: theme.subtext }]}>
-                    {group.member_ids?.length ?? 0} members · Tap to broadcast
-                  </Text>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={16}
-                  color={theme.subtext}
-                />
-              </Pressable>
-            ))}
-          </View>
-        );
-      })()}
-
-      {showingSearch ? (
-        /* Student directory */
+      {activeTab === "groups" ? (
+        /* ── GROUP CHATS TAB ── */
         <FlatList
-          data={filteredStudents}
-          keyExtractor={(s) => s.id}
+          data={
+            searchTrimmed
+              ? userGroups.filter((g) =>
+                  g.name.toLowerCase().includes(searchTrimmed),
+                )
+              : userGroups
+          }
+          keyExtractor={(g) => g.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            <Text style={[styles.listHeader, { color: theme.subtext }]}>
-              {searchTrimmed
-                ? `People matching "${search.trim()}"`
-                : "DIRECT MESSAGES"}
-            </Text>
-          }
-          renderItem={({ item }) => {
-            const existing = conversations.find(
-              (c) => c.otherPartyId === item.id,
-            );
-            const lastMsg = existing?.thread[existing.thread.length - 1];
-            return (
-              <Pressable
+          renderItem={({ item: group }) => (
+            <Pressable
+              style={[
+                styles.convCard,
+                { backgroundColor: theme.card, borderColor: theme.border },
+              ]}
+              onPress={() => setActiveGroupChat(group)}
+            >
+              <View
                 style={[
-                  styles.convCard,
-                  { backgroundColor: theme.card, borderColor: theme.border },
-                  existing?.unread && styles.convCardUnread,
+                  styles.gmGroupIcon,
+                  { backgroundColor: AppColors.primary + "20" },
                 ]}
-                onPress={() => openStudentConversation(item)}
               >
-                <View
-                  style={[
-                    styles.convAvatar,
-                    { backgroundColor: AppColors.primary + "20" },
-                  ]}
+                <Ionicons name="people" size={22} color={AppColors.primary} />
+              </View>
+              <View style={styles.convBody}>
+                <Text style={[styles.convName, { color: theme.text }]}>
+                  {group.name}
+                </Text>
+                <Text
+                  style={[styles.convPreview, { color: theme.subtext }]}
                 >
-                  <Text
-                    style={[
-                      styles.convAvatarText,
-                      { color: AppColors.primary },
-                    ]}
-                  >
-                    {(item.full_name ?? "?").charAt(0)}
-                  </Text>
-                </View>
-                <View style={styles.convBody}>
-                  <Text
-                    style={[
-                      styles.convName,
-                      { color: theme.text },
-                      existing?.unread && styles.convNameBold,
-                    ]}
-                  >
-                    {item.full_name}
-                  </Text>
-                  <Text
-                    style={[styles.convPreview, { color: theme.subtext }]}
-                    numberOfLines={1}
-                  >
-                    {lastMsg
-                      ? lastMsg.type !== "text"
-                        ? (lastMsg.fromMe ? "You: " : "") +
-                          `[${lastMsg.type}]`
-                        : (lastMsg.fromMe ? "You: " : "") + lastMsg.content
-                      : "Tap to start a conversation"}
-                  </Text>
-                </View>
-                <View style={styles.convRight}>
-                  {lastMsg && (
-                    <Text style={[styles.convTime, { color: theme.subtext }]}>
-                      {timeAgo(lastMsg.timestamp)}
-                    </Text>
-                  )}
-                  {existing?.unread && <View style={styles.unreadDot} />}
-                  {!existing && (
-                    <Ionicons
-                      name="add-circle-outline"
-                      size={18}
-                      color={AppColors.primary}
-                    />
-                  )}
-                </View>
-              </Pressable>
-            );
-          }}
+                  {group.member_ids?.length ?? 0} members
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.subtext} />
+            </Pressable>
+          )}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={48} color={theme.subtext} />
               <Text style={[styles.emptyText, { color: theme.subtext }]}>
-                No students found
+                {searchTrimmed
+                  ? "No groups match your search"
+                  : isAdmin
+                  ? "No groups yet — tap ⊕ to create one"
+                  : "You haven't been added to any groups yet"}
               </Text>
             </View>
           }
         />
       ) : (
-        /* Conversation list */
-        <FlatList
-          data={conversations}
-          keyExtractor={(item) => item.otherPartyId}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            <Text style={[styles.listHeader, { color: theme.subtext }]}>
-              DIRECT MESSAGES
-            </Text>
-          }
-          renderItem={({ item }) => {
-            const lastMsg = item.thread[item.thread.length - 1];
-            return (
-              <Pressable
-                style={[
-                  styles.convCard,
-                  { backgroundColor: theme.card, borderColor: theme.border },
-                  item.unread && styles.convCardUnread,
-                ]}
-                onPress={() => openConversation(item)}
-              >
-                <View
+        /* ── DIRECT MESSAGES TAB ── */
+        showingSearch ? (
+          <FlatList
+            data={filteredStudents}
+            keyExtractor={(s) => s.id}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              <Text style={[styles.listHeader, { color: theme.subtext }]}>
+                {searchTrimmed
+                  ? `People matching "${search.trim()}"`
+                  : "All People"}
+              </Text>
+            }
+            renderItem={({ item }) => {
+              const existing = conversations.find(
+                (c) => c.otherPartyId === item.id,
+              );
+              const lastMsg = existing?.thread[existing.thread.length - 1];
+              return (
+                <Pressable
                   style={[
-                    styles.convAvatar,
-                    { backgroundColor: AppColors.primary + "20" },
+                    styles.convCard,
+                    { backgroundColor: theme.card, borderColor: theme.border },
+                    existing?.unread && styles.convCardUnread,
                   ]}
+                  onPress={() => openStudentConversation(item)}
                 >
-                  <Text
+                  <View
                     style={[
-                      styles.convAvatarText,
-                      { color: AppColors.primary },
+                      styles.convAvatar,
+                      { backgroundColor: AppColors.primary + "20" },
                     ]}
                   >
-                    {item.otherName.charAt(0)}
-                  </Text>
-                </View>
-                <View style={styles.convBody}>
-                  <Text
-                    style={[
-                      styles.convName,
-                      { color: theme.text },
-                      item.unread && styles.convNameBold,
-                    ]}
-                  >
-                    {item.otherName}
-                  </Text>
-                  {lastMsg && (
+                    <Text
+                      style={[
+                        styles.convAvatarText,
+                        { color: AppColors.primary },
+                      ]}
+                    >
+                      {(item.full_name ?? "?").charAt(0)}
+                    </Text>
+                  </View>
+                  <View style={styles.convBody}>
+                    <Text
+                      style={[
+                        styles.convName,
+                        { color: theme.text },
+                        existing?.unread && styles.convNameBold,
+                      ]}
+                    >
+                      {item.full_name}
+                    </Text>
                     <Text
                       style={[styles.convPreview, { color: theme.subtext }]}
                       numberOfLines={1}
                     >
-                      {lastMsg.fromMe ? "You: " : ""}
-                      {lastMsg.type !== "text"
-                        ? `[${lastMsg.type}]`
-                        : lastMsg.content}
+                      {lastMsg
+                        ? lastMsg.type !== "text"
+                          ? (lastMsg.fromMe ? "You: " : "") +
+                            `[${lastMsg.type}]`
+                          : (lastMsg.fromMe ? "You: " : "") + lastMsg.content
+                        : "Tap to start a conversation"}
                     </Text>
-                  )}
-                </View>
-                <View style={styles.convRight}>
-                  {lastMsg && (
-                    <Text style={[styles.convTime, { color: theme.subtext }]}>
-                      {timeAgo(lastMsg.timestamp)}
+                  </View>
+                  <View style={styles.convRight}>
+                    {lastMsg && (
+                      <Text style={[styles.convTime, { color: theme.subtext }]}>
+                        {timeAgo(lastMsg.timestamp)}
+                      </Text>
+                    )}
+                    {existing?.unread && <View style={styles.unreadDot} />}
+                    {!existing && (
+                      <Ionicons
+                        name="add-circle-outline"
+                        size={18}
+                        color={AppColors.primary}
+                      />
+                    )}
+                  </View>
+                </Pressable>
+              );
+            }}
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <Ionicons
+                  name="people-outline"
+                  size={48}
+                  color={theme.subtext}
+                />
+                <Text style={[styles.emptyText, { color: theme.subtext }]}>
+                  No people found
+                </Text>
+              </View>
+            }
+          />
+        ) : (
+          <FlatList
+            data={conversations}
+            keyExtractor={(item) => item.otherPartyId}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              <Text style={[styles.listHeader, { color: theme.subtext }]}>
+                Conversations
+              </Text>
+            }
+            renderItem={({ item }) => {
+              const lastMsg = item.thread[item.thread.length - 1];
+              return (
+                <Pressable
+                  style={[
+                    styles.convCard,
+                    { backgroundColor: theme.card, borderColor: theme.border },
+                    item.unread && styles.convCardUnread,
+                  ]}
+                  onPress={() => openConversation(item)}
+                >
+                  <View
+                    style={[
+                      styles.convAvatar,
+                      { backgroundColor: AppColors.primary + "20" },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.convAvatarText,
+                        { color: AppColors.primary },
+                      ]}
+                    >
+                      {item.otherName.charAt(0)}
                     </Text>
-                  )}
-                  {item.unread && <View style={styles.unreadDot} />}
-                </View>
-              </Pressable>
-            );
-          }}
-        />
+                  </View>
+                  <View style={styles.convBody}>
+                    <Text
+                      style={[
+                        styles.convName,
+                        { color: theme.text },
+                        item.unread && styles.convNameBold,
+                      ]}
+                    >
+                      {item.otherName}
+                    </Text>
+                    {lastMsg && (
+                      <Text
+                        style={[styles.convPreview, { color: theme.subtext }]}
+                        numberOfLines={1}
+                      >
+                        {lastMsg.fromMe ? "You: " : ""}
+                        {lastMsg.type !== "text"
+                          ? `[${lastMsg.type}]`
+                          : lastMsg.content}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={styles.convRight}>
+                    {lastMsg && (
+                      <Text
+                        style={[styles.convTime, { color: theme.subtext }]}
+                      >
+                        {timeAgo(lastMsg.timestamp)}
+                      </Text>
+                    )}
+                    {item.unread && <View style={styles.unreadDot} />}
+                  </View>
+                </Pressable>
+              );
+            }}
+          />
+        )
       )}
     </SafeAreaView>
   );
@@ -2661,8 +2719,28 @@ const styles = StyleSheet.create({
   },
   gmBroadcastText: { flex: 1, fontSize: 13, fontWeight: "500" },
 
-  // Groups section in inbox
+  // Groups section in inbox (kept for layout padding)
   groupsSection: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4, gap: 8 },
+
+  // Tab toggle — mirrors the RoleToggle design from the login screen exactly
+  msgTabWrapper: {
+    flexDirection: "row",
+    backgroundColor: COLORS.grayLight,
+    borderRadius: 14,
+    padding: 4,
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  msgTabPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 11,
+    gap: 6,
+  },
+  msgTabText: { fontSize: 14, fontWeight: "600" },
 
   // Inline delete confirmation bar
   gmDeleteBar: {
