@@ -3,24 +3,19 @@ import { studentService } from "@/src/data/studentService";
 import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
-import {
-    collection,
-    onSnapshot,
-    orderBy,
-    query
-} from "firebase/firestore";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -213,7 +208,7 @@ export default function ManageYearsScreen() {
             </View>
           ) : (
             groups.map((group) => {
-              const accent = yearAccent(group.year_id);
+              const accent = yearAccent(group.year_id ?? 1);
               const isDeleting = deletingId === group.id;
               return (
                 <View key={group.id} style={s.yearCard}>
@@ -269,7 +264,7 @@ export default function ManageYearsScreen() {
             />
             <Text style={s.infoText}>
               Years added here appear automatically in the Students list filters
-              and in each student's "Change Group" modal.
+              and in each student&apos;s &quot;Change Group&quot; modal.
             </Text>
           </View>
 
