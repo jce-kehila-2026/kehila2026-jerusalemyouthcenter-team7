@@ -72,7 +72,8 @@ function groupConversations(
 
   msgs.forEach((msg) => {
     const fromMe = msg.sender_id === currentUid;
-    const otherPartyId = fromMe ? msg.receiver_id : msg.sender_id;
+    // DMs always have receiver_id; group messages are filtered out before reaching here
+    const otherPartyId = (fromMe ? msg.receiver_id : msg.sender_id) as string;
     const otherName = fromMe
       ? (map.get(otherPartyId)?.otherName ?? msg.receiver_name ?? otherPartyId)
       : msg.sender_name;
@@ -155,11 +156,12 @@ export default function MessagesScreen() {
   const [groupDraftName, setGroupDraftName] = useState("");
   const [groupDraftMembers, setGroupDraftMembers] = useState<Set<string>>(new Set());
   const [groupSaving, setGroupSaving] = useState(false);
+  const [pendingDeleteGroup, setPendingDeleteGroup] = useState<Group | null>(null);
+  const [deletingGroup, setDeletingGroup] = useState(false);
 
-  // Group broadcast (tap a group from inbox)
-  const [activeGroup, setActiveGroup] = useState<Group | null>(null);
-  const [groupBroadcastDraft, setGroupBroadcastDraft] = useState("");
-  const [groupBroadcastSending, setGroupBroadcastSending] = useState(false);
+  // Group chat thread
+  const [activeGroupChat, setActiveGroupChat] = useState<Group | null>(null);
+  const [groupThreadMessages, setGroupThreadMessages] = useState<ThreadMsg[]>([]);
 
   // Playback
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -169,6 +171,10 @@ export default function MessagesScreen() {
   const recordingRef = useRef<any>(null);
 
   const inSelectionMode = selectedIds.size > 0;
+  // Singers see only groups they belong to; admins see all groups
+  const userGroups = isAdmin
+    ? groupsData
+    : groupsData.filter((g) => g.member_ids?.includes(currentUid));
 
   // ── Fetch contacts directory (singers + admins) ───────────────────────────
   useEffect(() => {
@@ -201,8 +207,11 @@ export default function MessagesScreen() {
 
     const unsub = messageService.subscribe((msgs) => {
       setLoading(false);
+      // exclude group-chat messages — they have their own listener
       const forUser = msgs.filter(
-        (m) => m.sender_id === currentUid || m.receiver_id === currentUid,
+        (m) =>
+          !m.group_id &&
+          (m.sender_id === currentUid || m.receiver_id === currentUid),
       );
       setAllMessages(forUser);
       setConversations(groupConversations(forUser, currentUid, isAdmin));
@@ -254,10 +263,50 @@ export default function MessagesScreen() {
     return unsub;
   }, [activeConv?.otherPartyId, currentUid]);
 
-  // ── Load groups on mount so admin sees them in the inbox immediately ─────
+  // ── Load groups on mount for every user (singers need their groups too) ──
   useEffect(() => {
-    if (isAdmin && currentUid) loadGroups();
-  }, [isAdmin, currentUid]);
+    if (currentUid) loadGroups();
+  }, [currentUid]);
+
+  // ── Group chat real-time listener ─────────────────────────────────────────
+  useEffect(() => {
+    if (!activeGroupChat) { setGroupThreadMessages([]); return; }
+    const gid = activeGroupChat.id;
+    // No composite index needed: we query by group_id and sort client-side
+    const q = query(
+      collection(db, "messages"),
+      where("group_id", "==", gid),
+    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      const msgs: ThreadMsg[] = snapshot.docs
+        .map((d) => ({ id: d.id, ...(d.data() as any) }))
+        .map((m) => {
+          const raw = m.timestamp;
+          const ts: string =
+            raw && typeof raw === "object" && typeof raw.toDate === "function"
+              ? raw.toDate().toISOString()
+              : typeof raw === "string"
+              ? raw
+              : new Date().toISOString();
+          return {
+            id: m.id,
+            content: m.content,
+            type: m.type ?? "text",
+            fileName: m.fileName,
+            fileSize: m.fileSize,
+            duration: m.duration,
+            timestamp: ts,
+            fromMe: m.sender_id === currentUid,
+            senderName: m.sender_name,
+            reactions: m.reactions,
+            is_read: true,
+          } as ThreadMsg;
+        })
+        .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      setGroupThreadMessages(msgs);
+    });
+    return unsub;
+  }, [activeGroupChat?.id, currentUid]);
 
   // ── Auto-open chat when arriving from students screen via URL params ───────
   useEffect(() => {
@@ -667,61 +716,43 @@ export default function MessagesScreen() {
   }
 
   function confirmDeleteGroup(group: Group) {
-    Alert.alert(
-      "Delete Group",
-      `Delete "${group.name}"? This cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await studentService.deleteGroup(group.id);
-              await loadGroups();
-            } catch (e: any) {
-              console.error("Delete group error:", e);
-              Alert.alert(
-                "Delete Failed",
-                e?.message?.includes("permission")
-                  ? "Permission denied. Make sure your Firestore rules allow deleting from the 'groups' collection."
-                  : (e?.message ?? "Could not delete the group."),
-              );
-            }
-          },
-        },
-      ],
-    );
+    setPendingDeleteGroup(group);
   }
 
-  async function sendGroupBroadcast() {
-    if (!groupBroadcastDraft.trim() || !activeGroup || groupBroadcastSending) return;
-    setGroupBroadcastSending(true);
-    const text = groupBroadcastDraft.trim();
-    setGroupBroadcastDraft("");
-    const members = allStudents.filter((s) =>
-      activeGroup.member_ids?.includes(s.id),
-    );
+  async function executeDeleteGroup() {
+    if (!pendingDeleteGroup) return;
+    const group = pendingDeleteGroup;
+    setPendingDeleteGroup(null);
+    setDeletingGroup(true);
     try {
-      const senderName = user?.full_name ?? "Unknown";
-      await Promise.all(
-        members.map((member) =>
-          addDoc(collection(db, "messages"), {
-            sender_id: currentUid,
-            sender_name: senderName,
-            receiver_id: member.id,
-            receiver_name: member.full_name,
-            content: text,
-            type: "text",
-            timestamp: new Date().toISOString(),
-            is_read: false,
-          }),
-        ),
-      );
+      await studentService.deleteGroup(group.id);
+      await loadGroups();
     } catch (e) {
-      console.error("Group broadcast error:", e);
+      console.error("Delete group error:", e);
     }
-    setGroupBroadcastSending(false);
+    setDeletingGroup(false);
+  }
+
+  async function sendGroupMessage() {
+    if (!draft.trim() || !activeGroupChat || sending) return;
+    setSending(true);
+    const text = draft.trim();
+    setDraft("");
+    try {
+      await addDoc(collection(db, "messages"), {
+        sender_id: currentUid,
+        sender_name: user?.full_name ?? "Unknown",
+        group_id: activeGroupChat.id,
+        content: text,
+        type: "text",
+        timestamp: new Date().toISOString(),
+        is_read: false,
+      });
+    } catch (e) {
+      console.error("Group send error:", e);
+    }
+    setSending(false);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
   }
 
   const totalUnread = conversations.filter((c) => c.unread).length;
@@ -739,11 +770,9 @@ export default function MessagesScreen() {
     );
   }
 
-  // ── Group broadcast view ─────────────────────────────────────────────────
-  if (activeGroup) {
-    const groupMembers = allStudents.filter((s) =>
-      activeGroup.member_ids?.includes(s.id),
-    );
+  // ── Group chat thread ─────────────────────────────────────────────────────
+  if (activeGroupChat) {
+    const memberCount = activeGroupChat.member_ids?.length ?? 0;
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.background }]}
@@ -760,7 +789,7 @@ export default function MessagesScreen() {
             ]}
           >
             <Pressable
-              onPress={() => setActiveGroup(null)}
+              onPress={() => { setActiveGroupChat(null); setDraft(""); }}
               style={styles.backBtn}
             >
               <Ionicons name="arrow-back" size={22} color={AppColors.primary} />
@@ -771,106 +800,217 @@ export default function MessagesScreen() {
                 { backgroundColor: AppColors.primary + "20" },
               ]}
             >
-              <Ionicons
-                name="people-outline"
-                size={22}
-                color={AppColors.primary}
-              />
+              <Ionicons name="people-outline" size={22} color={AppColors.primary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.threadName, { color: theme.text }]}>
-                {activeGroup.name}
+                {activeGroupChat.name}
               </Text>
               <Text style={{ fontSize: 12, color: theme.subtext }}>
-                {groupMembers.length}{" "}
-                {groupMembers.length === 1 ? "member" : "members"}
+                {memberCount} {memberCount === 1 ? "member" : "members"}
               </Text>
             </View>
           </View>
 
-          {/* Member list + broadcast info */}
-          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 8 }}>
-            {groupMembers.length === 0 ? (
+          {/* Messages */}
+          <ScrollView
+            ref={scrollRef}
+            style={styles.threadScroll}
+            contentContainerStyle={styles.threadContent}
+            showsVerticalScrollIndicator={false}
+            onContentSizeChange={() =>
+              scrollRef.current?.scrollToEnd({ animated: false })
+            }
+          >
+            {groupThreadMessages.length === 0 && (
               <View style={styles.emptyThread}>
                 <Ionicons
-                  name="people-outline"
+                  name="chatbubbles-outline"
                   size={36}
                   color={theme.subtext}
                 />
                 <Text
                   style={[styles.emptyThreadText, { color: theme.subtext }]}
                 >
-                  This group has no members yet.
-                </Text>
-                <Text
-                  style={{
-                    color: theme.subtext,
-                    fontSize: 13,
-                    textAlign: "center",
-                    marginTop: 4,
-                  }}
-                >
-                  Add members via Manage Groups.
+                  No messages yet — say hello!
                 </Text>
               </View>
-            ) : (
-              <>
+            )}
+
+            {groupThreadMessages.map((msg) => (
+              <View
+                key={msg.id}
+                style={[
+                  styles.bubbleRow,
+                  msg.fromMe ? styles.bubbleRight : styles.bubbleLeft,
+                ]}
+              >
+                {!msg.fromMe && (
+                  <Text
+                    style={[styles.senderLabel, { color: theme.subtext }]}
+                  >
+                    {msg.senderName}
+                  </Text>
+                )}
                 <View
                   style={[
-                    styles.gmBroadcastBanner,
-                    {
-                      backgroundColor: AppColors.primary + "0f",
-                      borderColor: AppColors.primary + "30",
-                    },
+                    styles.bubble,
+                    msg.fromMe
+                      ? styles.bubbleSent
+                      : [
+                          styles.bubbleReceived,
+                          {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                          },
+                        ],
+                    msg.type !== "text" && { padding: 6 },
                   ]}
                 >
-                  <Ionicons
-                    name="megaphone-outline"
-                    size={16}
-                    color={AppColors.primary}
-                  />
-                  <Text
-                    style={[
-                      styles.gmBroadcastText,
-                      { color: AppColors.primary },
-                    ]}
-                  >
-                    Your message will be sent individually to all{" "}
-                    {groupMembers.length} members
-                  </Text>
-                </View>
-                {groupMembers.map((member) => (
-                  <View
-                    key={member.id}
-                    style={[
-                      styles.gmMemberRow,
-                      { borderBottomColor: theme.border },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.convAvatar,
-                        { backgroundColor: AppColors.primary + "20" },
-                      ]}
-                    >
+                  {(msg.type === "text" || !msg.type) && (
+                    <>
                       <Text
                         style={[
-                          styles.convAvatarText,
-                          { color: AppColors.primary },
+                          styles.bubbleText,
+                          { color: msg.fromMe ? "#fff" : theme.text },
                         ]}
                       >
-                        {member.full_name.charAt(0)}
+                        {msg.content}
                       </Text>
+                      <Text
+                        style={[
+                          styles.bubbleTime,
+                          {
+                            color: msg.fromMe
+                              ? "rgba(255,255,255,0.7)"
+                              : theme.subtext,
+                          },
+                        ]}
+                      >
+                        {timeAgo(msg.timestamp)}
+                      </Text>
+                    </>
+                  )}
+                  {msg.type === "image" && (
+                    <>
+                      <Image
+                        source={{ uri: msg.content }}
+                        style={styles.msgImage}
+                        resizeMode="cover"
+                      />
+                      <Text
+                        style={[
+                          styles.bubbleTime,
+                          {
+                            color: msg.fromMe
+                              ? "rgba(255,255,255,0.7)"
+                              : theme.subtext,
+                            margin: 4,
+                          },
+                        ]}
+                      >
+                        {timeAgo(msg.timestamp)}
+                      </Text>
+                    </>
+                  )}
+                  {msg.type === "file" && (
+                    <View style={styles.fileRow}>
+                      <View
+                        style={[
+                          styles.fileIconWrap,
+                          {
+                            backgroundColor: msg.fromMe
+                              ? "rgba(255,255,255,0.2)"
+                              : AppColors.primary + "18",
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name="document-outline"
+                          size={22}
+                          color={msg.fromMe ? "#fff" : AppColors.primary}
+                        />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text
+                          style={[
+                            styles.fileName,
+                            { color: msg.fromMe ? "#fff" : theme.text },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {msg.fileName ?? "File"}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.fileSize,
+                            {
+                              color: msg.fromMe
+                                ? "rgba(255,255,255,0.7)"
+                                : theme.subtext,
+                            },
+                          ]}
+                        >
+                          {msg.fileSize ?? ""} · {timeAgo(msg.timestamp)}
+                        </Text>
+                      </View>
                     </View>
-                    <Text
-                      style={[styles.gmMemberName, { color: theme.text }]}
-                    >
-                      {member.full_name}
-                    </Text>
-                  </View>
-                ))}
-              </>
-            )}
+                  )}
+                  {msg.type === "voice" && (
+                    <View style={styles.voiceRow}>
+                      <Pressable
+                        style={[
+                          styles.voicePlayBtn,
+                          {
+                            backgroundColor: msg.fromMe
+                              ? "rgba(255,255,255,0.25)"
+                              : AppColors.primary + "18",
+                          },
+                        ]}
+                        onPress={() => playVoice(msg.id, msg.content)}
+                      >
+                        <Ionicons
+                          name={playingId === msg.id ? "pause" : "play"}
+                          size={18}
+                          color={msg.fromMe ? "#fff" : AppColors.primary}
+                        />
+                      </Pressable>
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <View style={styles.voiceTrack}>
+                          <View
+                            style={[
+                              styles.voiceFill,
+                              {
+                                backgroundColor: msg.fromMe
+                                  ? "rgba(255,255,255,0.5)"
+                                  : AppColors.primary,
+                              },
+                            ]}
+                          />
+                        </View>
+                        <Text
+                          style={[
+                            styles.voiceDuration,
+                            {
+                              color: msg.fromMe
+                                ? "rgba(255,255,255,0.7)"
+                                : theme.subtext,
+                            },
+                          ]}
+                        >
+                          {msg.duration
+                            ? `${Math.floor(msg.duration / 60)}:${String(
+                                msg.duration % 60,
+                              ).padStart(2, "0")}`
+                            : "0:00"}{" "}
+                          · {timeAgo(msg.timestamp)}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              </View>
+            ))}
           </ScrollView>
 
           {/* Compose bar */}
@@ -889,34 +1029,22 @@ export default function MessagesScreen() {
                   borderColor: theme.border,
                 },
               ]}
-              value={groupBroadcastDraft}
-              onChangeText={setGroupBroadcastDraft}
-              placeholder={
-                groupMembers.length > 0
-                  ? `Message all ${groupMembers.length} members…`
-                  : "No members in this group"
-              }
+              value={draft}
+              onChangeText={setDraft}
+              placeholder={`Message ${activeGroupChat.name}…`}
               placeholderTextColor={theme.subtext}
               multiline
               maxLength={500}
-              editable={groupMembers.length > 0}
             />
             <Pressable
               style={[
                 styles.sendBtn,
-                (!groupBroadcastDraft.trim() ||
-                  groupBroadcastSending ||
-                  groupMembers.length === 0) &&
-                  styles.sendBtnDisabled,
+                (!draft.trim() || sending) && styles.sendBtnDisabled,
               ]}
-              onPress={sendGroupBroadcast}
-              disabled={
-                !groupBroadcastDraft.trim() ||
-                groupBroadcastSending ||
-                groupMembers.length === 0
-              }
+              onPress={sendGroupMessage}
+              disabled={!draft.trim() || sending}
             >
-              {groupBroadcastSending ? (
+              {sending ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <Ionicons name="send" size={18} color="#fff" />
@@ -1637,72 +1765,122 @@ export default function MessagesScreen() {
                     </Pressable>
                   </View>
                 ) : (
-                  <FlatList
-                    data={groupsData}
-                    keyExtractor={(g) => g.id}
-                    contentContainerStyle={styles.list}
-                    renderItem={({ item }) => (
+                  <>
+                    {/* Inline delete confirmation — avoids Alert.alert inside Modal */}
+                    {pendingDeleteGroup && (
                       <View
                         style={[
-                          styles.gmGroupRow,
+                          styles.gmDeleteBar,
                           {
-                            backgroundColor: theme.card,
-                            borderColor: theme.border,
+                            backgroundColor: "#fff3f2",
+                            borderColor: "#c56451",
                           },
                         ]}
                       >
-                        <View
-                          style={[
-                            styles.gmGroupIcon,
-                            { backgroundColor: AppColors.primary + "18" },
-                          ]}
-                        >
-                          <Ionicons
-                            name="people-outline"
-                            size={22}
-                            color={AppColors.primary}
-                          />
-                        </View>
                         <View style={{ flex: 1 }}>
-                          <Text
-                            style={[styles.gmGroupName, { color: theme.text }]}
-                          >
-                            {item.name}
+                          <Text style={styles.gmDeleteLabel}>
+                            Delete "{pendingDeleteGroup.name}"?
                           </Text>
-                          <Text
-                            style={[
-                              styles.gmGroupCount,
-                              { color: theme.subtext },
-                            ]}
-                          >
-                            {item.member_ids?.length ?? 0} members
+                          <Text style={styles.gmDeleteSub}>
+                            This cannot be undone.
                           </Text>
                         </View>
                         <Pressable
-                          onPress={() => startEditGroup(item)}
-                          style={styles.gmActionBtn}
+                          onPress={() => setPendingDeleteGroup(null)}
+                          style={styles.gmDeleteCancelBtn}
                           hitSlop={8}
                         >
-                          <Ionicons
-                            name="pencil-outline"
-                            size={20}
-                            color={AppColors.primary}
-                          />
+                          <Text style={styles.gmDeleteCancelText}>Cancel</Text>
                         </Pressable>
                         <Pressable
-                          onPress={() => confirmDeleteGroup(item)}
-                          style={styles.gmActionBtn}
-                          hitSlop={8}
+                          onPress={executeDeleteGroup}
+                          style={styles.gmDeleteConfirmBtn}
+                          disabled={deletingGroup}
                         >
-                          <Ionicons
-                            name="trash-outline"
-                            size={20}
-                            color="#c56451"
-                          />
+                          {deletingGroup ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <Text style={styles.gmDeleteConfirmText}>
+                              Delete
+                            </Text>
+                          )}
                         </Pressable>
                       </View>
                     )}
-                  />
+
+                    <FlatList
+                      data={groupsData}
+                      keyExtractor={(g) => g.id}
+                      contentContainerStyle={styles.list}
+                      renderItem={({ item }) => (
+                        <View
+                          style={[
+                            styles.gmGroupRow,
+                            {
+                              backgroundColor: theme.card,
+                              borderColor:
+                                pendingDeleteGroup?.id === item.id
+                                  ? "#c56451"
+                                  : theme.border,
+                            },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.gmGroupIcon,
+                              { backgroundColor: AppColors.primary + "18" },
+                            ]}
+                          >
+                            <Ionicons
+                              name="people-outline"
+                              size={22}
+                              color={AppColors.primary}
+                            />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={[
+                                styles.gmGroupName,
+                                { color: theme.text },
+                              ]}
+                            >
+                              {item.name}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.gmGroupCount,
+                                { color: theme.subtext },
+                              ]}
+                            >
+                              {item.member_ids?.length ?? 0} members
+                            </Text>
+                          </View>
+                          <Pressable
+                            onPress={() => startEditGroup(item)}
+                            style={styles.gmActionBtn}
+                            hitSlop={8}
+                          >
+                            <Ionicons
+                              name="pencil-outline"
+                              size={20}
+                              color={AppColors.primary}
+                            />
+                          </Pressable>
+                          <Pressable
+                            onPress={() => confirmDeleteGroup(item)}
+                            style={styles.gmActionBtn}
+                            hitSlop={8}
+                          >
+                            <Ionicons
+                              name="trash-outline"
+                              size={20}
+                              color="#c56451"
+                            />
+                          </Pressable>
+                        </View>
+                      )}
+                    />
+                  </>
                 )}
               </>
             ) : (
@@ -1876,18 +2054,18 @@ export default function MessagesScreen() {
         )}
       </View>
 
-      {/* Groups section — visible to admins, searchable by group name */}
-      {isAdmin && (() => {
+      {/* Group chats — all users see their groups, searchable by name */}
+      {(() => {
         const visibleGroups = searchTrimmed
-          ? groupsData.filter((g) =>
+          ? userGroups.filter((g) =>
               g.name.toLowerCase().includes(searchTrimmed),
             )
-          : groupsData;
+          : userGroups;
         if (visibleGroups.length === 0) return null;
         return (
           <View style={styles.groupsSection}>
             <Text style={[styles.listHeader, { color: theme.subtext }]}>
-              GROUPS
+              GROUP CHATS
             </Text>
             {visibleGroups.map((group) => (
               <Pressable
@@ -1896,7 +2074,7 @@ export default function MessagesScreen() {
                   styles.convCard,
                   { backgroundColor: theme.card, borderColor: theme.border },
                 ]}
-                onPress={() => setActiveGroup(group)}
+                onPress={() => setActiveGroupChat(group)}
               >
                 <View
                   style={[
@@ -1939,8 +2117,8 @@ export default function MessagesScreen() {
           ListHeaderComponent={
             <Text style={[styles.listHeader, { color: theme.subtext }]}>
               {searchTrimmed
-                ? `Results for "${search.trim()}"`
-                : "All Students"}
+                ? `People matching "${search.trim()}"`
+                : "DIRECT MESSAGES"}
             </Text>
           }
           renderItem={({ item }) => {
@@ -2030,7 +2208,7 @@ export default function MessagesScreen() {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <Text style={[styles.listHeader, { color: theme.subtext }]}>
-              Conversations
+              DIRECT MESSAGES
             </Text>
           }
           renderItem={({ item }) => {
@@ -2485,4 +2663,30 @@ const styles = StyleSheet.create({
 
   // Groups section in inbox
   groupsSection: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4, gap: 8 },
+
+  // Inline delete confirmation bar
+  gmDeleteBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    marginTop: 4,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  gmDeleteLabel: { fontSize: 13, fontWeight: "700", color: "#c56451" },
+  gmDeleteSub: { fontSize: 11, color: "#c56451", opacity: 0.8, marginTop: 2 },
+  gmDeleteCancelBtn: { paddingHorizontal: 12, paddingVertical: 7 },
+  gmDeleteCancelText: { fontSize: 14, fontWeight: "600", color: "#666" },
+  gmDeleteConfirmBtn: {
+    backgroundColor: "#c56451",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    minWidth: 60,
+    alignItems: "center",
+  },
+  gmDeleteConfirmText: { fontSize: 14, fontWeight: "700", color: "#fff" },
 });
