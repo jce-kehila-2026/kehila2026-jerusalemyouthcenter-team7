@@ -13,6 +13,7 @@ import {
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,6 +21,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const ds = {
@@ -81,9 +83,25 @@ export default function ManageYearsScreen() {
   };
 
   const handleAddVoice = async () => {
-    if (!newVoice.trim()) return;
+    const voice = newVoice.trim();
+
+    if (!voice) return;
+
+    const exists = voices.some(
+      (v) => v.name.toLowerCase() === voice.toLowerCase(),
+    );
+
+    if (exists) {
+      Alert.alert("Voice already exists");
+      return;
+    }
+
     setAdding((p) => ({ ...p, v: true }));
-    await addDoc(collection(db, "voice_types"), { name: newVoice.trim() });
+
+    await addDoc(collection(db, "voice_types"), {
+      name: voice,
+    });
+
     setNewVoice("");
     setAdding((p) => ({ ...p, v: false }));
   };
