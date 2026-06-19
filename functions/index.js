@@ -2,6 +2,10 @@ const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onRequest } = require("firebase-functions/v2/https");
 const { google } = require("googleapis");
 const path = require("path");
+const admin = require("firebase-admin");
+
+admin.initializeApp();
+const db = admin.firestore();
 
 // The calendar we created and shared with the service account.
 const CALENDAR_ID =
@@ -47,6 +51,11 @@ function buildEventTimes(date, time) {
 // Runs every time a document in the "events" collection is created or
 // updated. Creates a matching Google Calendar event, or updates the
 // existing one if this event was already synced before.
+//
+// Events that were themselves imported FROM Google Calendar (source ===
+// "google", written by getGoogleCalendarEvents below) are skipped here —
+// otherwise we'd push them straight back to Google as "new" events,
+// creating a duplicate / infinite back-and-forth loop.
 exports.syncEventToGoogleCalendar = onDocumentWritten(
   "events/{eventId}",
   async (event) => {
@@ -54,6 +63,9 @@ exports.syncEventToGoogleCalendar = onDocumentWritten(
 
     // Document was deleted — nothing to sync.
     if (!afterData) return;
+
+    // Avoid re-pushing events that originated in Google Calendar.
+    if (afterData.source === "google") return;
 
     const { title, description, date, time, location } = afterData;
     if (!date) return;
@@ -104,10 +116,16 @@ exports.syncEventToGoogleCalendar = onDocumentWritten(
   },
 );
 
-// HTTP endpoint the app calls to read events that exist in Google Calendar
-// but were NOT created by the app itself (no appEventId marker) — i.e.
-// events someone added directly in Google Calendar, which should now also
-// show up inside the app's own calendar view.
+// HTTP endpoint the app calls (on the Events screen load) to pull in events
+// that exist in Google Calendar but were NOT created by the app itself (no
+// appEventId marker) — i.e. events someone added directly in Google
+// Calendar. These are now written into Firestore's "events" collection as
+// real documents (not just returned for display), so they behave exactly
+// like app-created events everywhere else in the app — including the
+// Attendance screen, which looks events up by id in Firestore.
+//
+// Each Google event gets a stable Firestore doc id ("google_<googleId>"),
+// so repeated calls update the same doc instead of creating duplicates.
 exports.getGoogleCalendarEvents = onRequest(async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   try {
@@ -119,24 +137,47 @@ exports.getGoogleCalendarEvents = onRequest(async (req, res) => {
       orderBy: "startTime",
     });
 
-    const externalEvents = (result.data.items || [])
-      .filter((item) => !item.extendedProperties?.private?.appEventId)
-      .map((item) => {
-        const startDateTime = item.start?.dateTime || item.start?.date || "";
-        return {
-          id: item.id,
-          title: item.summary || "Untitled Event",
-          description: item.description || "",
-          location: item.location || "",
-          date: startDateTime.split("T")[0],
-          time: item.start?.dateTime
-            ? item.start.dateTime.split("T")[1].slice(0, 5)
-            : "",
-          groupLabel: "From Google Calendar",
-          group: "all",
-          source: "google",
-        };
-      });
+    const externalItems = (result.data.items || []).filter(
+      (item) => !item.extendedProperties?.private?.appEventId,
+    );
+
+    const externalEvents = externalItems.map((item) => {
+      const startDateTime = item.start?.dateTime || item.start?.date || "";
+      return {
+        id: `google_${item.id}`,
+        title: item.summary || "Untitled Event",
+        description: item.description || "",
+        location: item.location || "",
+        date: startDateTime.split("T")[0],
+        time: item.start?.dateTime
+          ? item.start.dateTime.split("T")[1].slice(0, 5)
+          : "",
+        group: "all",
+        groupLabel: "From Google Calendar",
+        voiceSection: "all_voices",
+        voiceSectionLabel: "All",
+        source: "google",
+        googleCalendarEventId: item.id,
+      };
+    });
+
+    // Persist each one into Firestore so it becomes a first-class event —
+    // visible in the events table, usable for attendance, etc.
+    await Promise.all(
+      externalEvents.map((ev) =>
+        db
+          .collection("events")
+          .doc(ev.id)
+          .set(ev, { merge: true })
+          .catch((err) =>
+            console.error(
+              "Failed to upsert Google event into Firestore:",
+              ev.id,
+              err,
+            ),
+          ),
+      ),
+    );
 
     res.json({ events: externalEvents });
   } catch (err) {

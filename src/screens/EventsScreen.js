@@ -1,6 +1,4 @@
-import { db } from "@/src/firebase/firebase";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { deleteDoc, doc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -22,6 +20,8 @@ import {
   getEvents,
   updateEvent,
 } from "../../backend/eventsService";
+import { db } from "@/src/firebase/firebase";
+import { doc, deleteDoc } from "firebase/firestore";
 
 // ─── Design System ─────────────────────────────────────────────────────────
 const T = {
@@ -380,6 +380,17 @@ export default function EventsScreen() {
   useEffect(() => {
     const loadEvents = async () => {
       try {
+        // Trigger the Google Calendar → Firestore sync first (best-effort —
+        // if this is slow or fails, the events list below still loads
+        // normally from whatever was already in Firestore).
+        try {
+          await fetch(
+            "https://us-central1-fullstack-team-7.cloudfunctions.net/getGoogleCalendarEvents",
+          );
+        } catch (syncErr) {
+          console.error("Google Calendar sync error:", syncErr);
+        }
+
         const data = await getEvents();
         setEvents(data);
       } catch (e) {
@@ -389,26 +400,6 @@ export default function EventsScreen() {
       }
     };
     loadEvents();
-  }, []);
-
-  // Pull in events that were created directly in Google Calendar (not by
-  // the app itself) so they also show up here. Fetched separately so a
-  // slow/failed Google Calendar call never blocks the main event list.
-  useEffect(() => {
-    const loadGoogleEvents = async () => {
-      try {
-        const res = await fetch(
-          "https://us-central1-fullstack-team-7.cloudfunctions.net/getGoogleCalendarEvents",
-        );
-        const json = await res.json();
-        if (json.events?.length) {
-          setEvents((prev) => [...prev, ...json.events]);
-        }
-      } catch (e) {
-        console.error("Google Calendar fetch error:", e);
-      }
-    };
-    loadGoogleEvents();
   }, []);
 
   const matchesYearFilter = (e) =>

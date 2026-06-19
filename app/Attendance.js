@@ -1,5 +1,6 @@
 // app/attendance.js
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { doc, getDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
   FlatList,
@@ -14,6 +15,7 @@ import {
   saveAttendance as saveToFirebase,
 } from "../backend/attendanceService";
 import { getStudents } from "../backend/eventsService";
+import { db } from "../src/firebase/firebase";
 
 const C = {
   teal: "#039899",
@@ -43,15 +45,50 @@ export default function AttendancePage() {
   const [students, setStudents] = useState([]);
   const [attendance, setAttendance] = useState({});
   const [saved, setSaved] = useState(false);
+  const [eventGroup, setEventGroup] = useState(null);
 
   useEffect(() => {
     const load = async () => {
-      const studentsData = await getStudents();
-      setStudents(studentsData);
-      const initial = Object.fromEntries(studentsData.map((s) => [s.id, null]));
+      // Find out which group this event belongs to (e.g. "year1", "all"),
+      // so the roster only shows students that actually belong to it.
+      let group = "all";
+      try {
+        const eventSnap = await getDoc(doc(db, "events", eventId));
+        if (eventSnap.exists()) {
+          group = eventSnap.data().group || "all";
+        }
+      } catch (e) {
+        console.error("Failed to load event group:", e);
+      }
+      setEventGroup(group);
+
+      const allStudents = await getStudents();
+      const filteredStudents =
+        group === "all"
+          ? allStudents
+          : allStudents.filter((s) => {
+              const studentYear = String(s.year_id ?? s.year ?? "");
+              // group is like "year1" — compare against the trailing digit
+              const groupYear = group.replace("year", "");
+              return studentYear === groupYear;
+            });
+
+      setStudents(filteredStudents);
+      const initial = Object.fromEntries(
+        filteredStudents.map((s) => [s.id, null]),
+      );
       const existing = await getAttendance(eventId);
       if (existing && Object.keys(existing).length > 0) {
-        setAttendance({ ...initial, ...existing });
+        // Only carry over existing entries for students who still belong
+        // to the current filtered roster — otherwise stale entries for
+        // students outside this group (saved before the group filter
+        // existed) silently survive every merge and get re-saved forever.
+        const relevantExisting = Object.fromEntries(
+          Object.entries(existing).filter(
+            ([studentId]) => studentId in initial,
+          ),
+        );
+        setAttendance({ ...initial, ...relevantExisting });
       } else {
         setAttendance(initial);
       }
@@ -156,6 +193,15 @@ export default function AttendancePage() {
         <Text style={s.eventName} numberOfLines={1}>
           {eventTitle || "Attendance"}
         </Text>
+        {eventGroup && (
+          <View style={s.groupPill}>
+            <Text style={s.groupPillText}>
+              {eventGroup === "all"
+                ? "All Groups"
+                : `Year ${eventGroup.replace("year", "")}`}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Stats */}
@@ -216,6 +262,13 @@ const s = StyleSheet.create({
   backBtn: { padding: 4 },
   backText: { color: C.teal, fontSize: 15, fontWeight: "600" },
   eventName: { flex: 1, fontSize: 17, fontWeight: "700", color: C.black },
+  groupPill: {
+    backgroundColor: C.teal + "18",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  groupPillText: { color: C.teal, fontSize: 11, fontWeight: "700" },
   statsRow: {
     flexDirection: "row",
     paddingHorizontal: 16,
