@@ -68,13 +68,6 @@ export const events = [
   },
 ];
 
-export const students = [
-  { student_id: 1, full_name: "Rania Sh", group_id: 1, year: 1 },
-  { student_id: 2, full_name: "Ahmed K", group_id: 1, year: 1 },
-  { student_id: 3, full_name: "Noa L", group_id: 2, year: 2 },
-  { student_id: 4, full_name: "Omar M", group_id: 3, year: 3 },
-];
-
 export const eventStudents = [
   { event_id: 1, student_id: 1 },
   { event_id: 1, student_id: 2 },

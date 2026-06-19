@@ -5,6 +5,8 @@ import {
   collection,
   doc,
   getDocs,
+  onSnapshot,
+  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -103,11 +105,88 @@ export default function StudentsListScreen() {
   const [studentsList, setStudentsList] = useState<StudentWithVoice[]>([]);
   const [groupsList, setGroupsList] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dynamicYearFilters, setDynamicYearFilters] = useState<
+    { label: string; value: string | null }[]
+  >([{ label: "All", value: null }]);
 
   // ── Join Requests state ───────────────────────────────────────────────────
   const [joinRequestsVisible, setJoinRequestsVisible] = useState(false);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [joinRequestsLoading, setJoinRequestsLoading] = useState(false);
+
+  // ── Real-time groups listener → dynamic year filter chips ─────────────────
+  useEffect(() => {
+    const q = query(collection(db, "groups"), orderBy("year_id"));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const groups: Group[] = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<Group, "id">),
+        }));
+        setGroupsList(groups.length > 0 ? groups : mockGroups);
+        setDynamicYearFilters([
+          { label: "All", value: null },
+          ...groups.map((g) => ({ label: g.name, value: g.name })),
+        ]);
+      },
+      () => {
+        // On error fall back to mockGroups
+        setGroupsList(mockGroups);
+        setDynamicYearFilters([
+          { label: "All", value: null },
+          { label: "Year 1", value: "Year 1" },
+          { label: "Year 2", value: "Year 2" },
+          { label: "Year 3", value: "Year 3" },
+        ]);
+      },
+    );
+    return unsub;
+  }, []);
+
+  // ── Merge student year_ids into filter chips whenever students or groups change ──
+  useEffect(() => {
+    if (studentsList.length === 0) return;
+
+    // Collect every distinct year_id seen on actual students
+    const seenYears = new Set<number>();
+    studentsList.forEach((s) => {
+      if (s.year_id != null) seenYears.add(Number(s.year_id));
+    });
+
+    setDynamicYearFilters((prev) => {
+      // Years already covered by the groups-collection chips
+      const existingYearNums = new Set(
+        prev
+          .filter((f) => f.value !== null)
+          .map((f) => {
+            const m = f.value?.match(/\d+/);
+            return m ? parseInt(m[0], 10) : -1;
+          }),
+      );
+
+      // Build extra chips for any year_id not already in the list
+      const extras: { label: string; value: string }[] = [];
+      seenYears.forEach((y) => {
+        if (!existingYearNums.has(y)) {
+          extras.push({ label: `Year ${y}`, value: `Year ${y}` });
+        }
+      });
+
+      if (extras.length === 0) return prev; // nothing to add
+
+      // Insert extras in numeric order
+      const allChips = [
+        prev[0], // "All"
+        ...[...prev.slice(1), ...extras].sort((a, b) => {
+          const na = parseInt((a.value ?? "0").replace(/\D/g, ""), 10);
+          const nb = parseInt((b.value ?? "0").replace(/\D/g, ""), 10);
+          return na - nb;
+        }),
+      ];
+      return allChips;
+    });
+  }, [studentsList]);
 
   // ── Data fetching ────────────────────────────────────────────────────────
   useFocusEffect(

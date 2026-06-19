@@ -1,5 +1,4 @@
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
@@ -7,6 +6,7 @@ import {
   getDocs,
   orderBy,
   query,
+  setDoc,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -54,18 +54,23 @@ export const studentService = {
 
   // Fetch all groups (overridden to return exactly Year 1, Year 2, Year 3)
   async getGroups(): Promise<Group[]> {
-    const querySnapshot = await getDocs(collection(db, "groups"));
-    return querySnapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        ...data,
-        id: doc.id, // must come after spread so stored 'id' field never overwrites the real doc ID
-      } as Group;
-    });
+    try {
+      const snap = await getDocs(
+        query(collection(db, "groups"), orderBy("year_id")),
+      );
+      if (snap.size > 0) {
+        return snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<Group, "id">),
+        }));
+      }
+    } catch (e) {
+      console.warn("getGroups Firestore error:", e);
+    }
     return [
       { id: "Year 1", name: "Year 1", year_id: 1, program_id: 1 },
       { id: "Year 2", name: "Year 2", year_id: 2, program_id: 2 },
-      { id: "Year 3", name: "Year 3", year_id: 3, program_id: 1 },
+      { id: "Year 3", name: "Year 3", year_id: 3, program_id: 3 },
     ];
   },
 
@@ -73,10 +78,9 @@ export const studentService = {
   async updateStudentGroup(studentId: string, newGroupId: string) {
     const studentRef = doc(db, "users", studentId);
 
-    let newYearId: number | undefined;
-    if (newGroupId === "1" || newGroupId === "Year 1") newYearId = 1;
-    else if (newGroupId === "2" || newGroupId === "Year 2") newYearId = 2;
-    else if (newGroupId === "3" || newGroupId === "Year 3") newYearId = 3;
+    // Extract year number from group id like "Year 4" → 4
+    const match = newGroupId.match(/\d+/);
+    const newYearId = match ? parseInt(match[0], 10) : undefined;
 
     const updateData: { group_id: string; year_id?: number } = {
       group_id: newGroupId,
@@ -88,26 +92,16 @@ export const studentService = {
     return await updateDoc(studentRef, updateData);
   },
 
-  // Add a new student to Firestore
-  async addStudent(studentData: Omit<Student, "id">) {
-    return addDoc(collection(db, "users"), {
-      ...studentData,
-      role: "singer",
-    });
-  },
-
-  async createGroup(name: string, memberIds: string[]): Promise<string> {
-    const ref = await addDoc(collection(db, "groups"), {
+  // Add a new year group to Firestore
+  async addGroup(name: string, yearId: number): Promise<void> {
+    await setDoc(doc(db, "groups", name), {
       name,
-      member_ids: memberIds,
-      created_at: new Date().toISOString(),
+      year_id: yearId,
+      program_id: 1,
     });
-    return ref.id;
   },
 
-  async updateGroup(groupId: string, name: string, memberIds: string[]): Promise<void> {
-    await updateDoc(doc(db, "groups", groupId), { name, member_ids: memberIds });
-  },
+  // Delete a year group from Firestore
 
   async deleteGroup(groupId: string): Promise<void> {
     await deleteDoc(doc(db, "groups", groupId));
