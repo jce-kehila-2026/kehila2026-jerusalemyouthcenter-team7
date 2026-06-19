@@ -7,6 +7,9 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  onSnapshot,
+  orderBy,
+  query,
   serverTimestamp,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
@@ -40,11 +43,9 @@ const COLORS = {
   muted: "#999999",
 };
 
-const FILTERS = [
+// Fallback base filters used while loading or as defaults
+const BASE_FILTERS = [
   { key: "all", label: "All" },
-  { key: "year1", label: "Year 1" },
-  { key: "year2", label: "Year 2" },
-  { key: "year3", label: "Year 3" },
   { key: "all_groups", label: "All Groups" },
 ];
 
@@ -89,7 +90,6 @@ const formatDate = (ts) => {
   });
 };
 
-// Decorative music notes used as a subtle accent on the right edge of cards.
 function MusicTrace() {
   return (
     <View style={[s.traceCol, { pointerEvents: "none" }]}>
@@ -105,6 +105,7 @@ export default function LibraryScreen({ autoUpload = false }) {
   const isAdmin = user?.role === "admin";
 
   const [materials, setMaterials] = useState([]);
+  const [dynamicFilters, setDynamicFilters] = useState(BASE_FILTERS);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setProgress] = useState(0);
@@ -118,6 +119,34 @@ export default function LibraryScreen({ autoUpload = false }) {
   const [linkName, setLinkName] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [linkGroup, setLinkGroup] = useState("all_groups");
+
+  // ── Real-time listener for Years/Groups collection ─────────────────────
+  useEffect(() => {
+    const q = query(collection(db, "groups"), orderBy("year_id"));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const fetchedYears = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            key: `year${data.year_id}`,
+            label: data.name || `Year ${data.year_id}`,
+          };
+        });
+
+        // Reconstruct the full filters array seamlessly
+        setDynamicFilters([
+          { key: "all", label: "All" },
+          ...fetchedYears,
+          { key: "all_groups", label: "All Groups" },
+        ]);
+      },
+      (err) => {
+        console.error("Error watching groups collection:", err);
+      },
+    );
+    return unsub;
+  }, []);
 
   const loadMaterials = async () => {
     try {
@@ -169,7 +198,6 @@ export default function LibraryScreen({ autoUpload = false }) {
     }
   };
 
-  // Auto-trigger file picker when navigated here with ?action=upload
   useEffect(() => {
     if (autoUpload && isAdmin) {
       handlePickFile();
@@ -269,7 +297,7 @@ export default function LibraryScreen({ autoUpload = false }) {
   const renderItem = ({ item }) => {
     const { label, color } = getFileType(item);
     const groupLabel =
-      FILTERS.find((f) => f.key === item.group)?.label ?? "All Groups";
+      dynamicFilters.find((f) => f.key === item.group)?.label ?? "All Groups";
     const isLink = item.type === "link";
 
     const metaParts = isLink
@@ -279,7 +307,6 @@ export default function LibraryScreen({ autoUpload = false }) {
 
     return (
       <View style={s.card}>
-        {/* Side type block — full height, colored by file type */}
         <View style={[s.typeBlock, { backgroundColor: color }]}>
           <Text style={s.typeBlockText}>{label}</Text>
         </View>
@@ -339,7 +366,7 @@ export default function LibraryScreen({ autoUpload = false }) {
         marginBottom: 8,
       }}
     >
-      {FILTERS.slice(1).map((f) => (
+      {dynamicFilters.slice(1).map((f) => (
         <Pressable
           key={f.key}
           style={[s.filterBtn, value === f.key && s.filterBtnActive]}
@@ -367,7 +394,7 @@ export default function LibraryScreen({ autoUpload = false }) {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={s.filtersContent}
           >
-            {FILTERS.map((f) => (
+            {dynamicFilters.map((f) => (
               <Pressable
                 key={f.key}
                 style={[
@@ -392,7 +419,6 @@ export default function LibraryScreen({ autoUpload = false }) {
 
       {isAdmin && (
         <View style={s.uploadRow}>
-          {/* Upload File — teal fill (primary) */}
           <Pressable
             style={[s.uploadBtn, s.uploadBtnPrimary, { flex: 1 }]}
             onPress={handlePickFile}
@@ -407,7 +433,6 @@ export default function LibraryScreen({ autoUpload = false }) {
             )}
           </Pressable>
 
-          {/* Add Link — teal outline (secondary, replaces red) */}
           <Pressable
             style={[s.uploadBtn, s.uploadBtnSecondary, { flex: 1 }]}
             onPress={() => setLinkModal(true)}
@@ -566,9 +591,6 @@ const s = StyleSheet.create({
     marginBottom: 2,
   },
   pageTitle: { fontSize: 28, fontWeight: "800", color: "#ffffff" },
-
-  // Filters — explicit fixed-height wrapper + fixed margin so the gap to
-  // the upload row / list below never depends on which filter is active.
   filtersWrap: { height: 52, marginBottom: 12 },
   filtersContent: {
     paddingHorizontal: 16,
@@ -587,7 +609,6 @@ const s = StyleSheet.create({
   filterBtnActive: { backgroundColor: COLORS.teal, borderColor: COLORS.teal },
   filterText: { color: "#666", fontSize: 13 },
   filterTextActive: { color: "#fff", fontWeight: "700", fontSize: 13 },
-
   uploadRow: {
     flexDirection: "row",
     gap: 10,
@@ -601,7 +622,6 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   uploadBtnPrimary: { backgroundColor: COLORS.teal },
-  // Outline teal for secondary (Add Link) — replaces the red button
   uploadBtnSecondary: {
     backgroundColor: "transparent",
     borderWidth: 1.5,
@@ -609,7 +629,6 @@ const s = StyleSheet.create({
   },
   uploadBtnCancel: { backgroundColor: "#f0f0f0" },
   uploadBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-
   center: {
     flex: 1,
     alignItems: "center",
@@ -631,12 +650,7 @@ const s = StyleSheet.create({
     marginTop: 8,
     lineHeight: 20,
   },
-
-  // List (ScrollView content, replaces the old FlatList — avoids the same
-  // web layout/height inconsistency bug fixed in EventsScreen)
   listContent: { padding: 16, gap: 10, paddingBottom: 100 },
-
-  // Card — side type block + body + decorative trace
   card: {
     backgroundColor: COLORS.card,
     borderRadius: 16,
@@ -646,7 +660,6 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "stretch",
   },
-
   typeBlock: {
     width: 80,
     flexShrink: 0,
@@ -662,10 +675,6 @@ const s = StyleSheet.create({
     textAlign: "center",
     letterSpacing: 0.3,
   },
-
-  // minWidth: 0 is the key fix — without it, a long unbroken filename
-  // (e.g. Hebrew with no spaces) forces this flex child wider than the
-  // card, pushing the delete button and the trace column off-screen.
   cardBody: {
     flex: 1,
     minWidth: 0,
@@ -681,7 +690,6 @@ const s = StyleSheet.create({
   },
   fileMeta: { fontSize: 12, color: COLORS.muted, marginBottom: 10 },
   uploadedBy: { fontSize: 11, color: COLORS.teal, marginBottom: 10 },
-
   actionPill: {
     alignSelf: "flex-start",
     borderWidth: 1.5,
@@ -690,7 +698,6 @@ const s = StyleSheet.create({
     paddingVertical: 7,
   },
   actionPillText: { fontSize: 13, fontWeight: "700" },
-
   deleteSmall: {
     position: "absolute",
     top: 10,
@@ -703,8 +710,6 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   deleteSmallText: { color: COLORS.red, fontWeight: "700", fontSize: 13 },
-
-  // Decorative music-trace column (right edge of card)
   traceCol: {
     width: 60,
     flexShrink: 0,
@@ -729,7 +734,6 @@ const s = StyleSheet.create({
     fontSize: 15,
     transform: [{ rotate: "-4deg" }],
   },
-
   overlayBottom: {
     flex: 1,
     backgroundColor: "#0006",
@@ -749,7 +753,6 @@ const s = StyleSheet.create({
     marginBottom: 16,
   },
   modalClose: { position: "absolute", top: 24, right: 24 },
-
   label: { color: "#666", fontSize: 13, marginBottom: 4, marginTop: 12 },
   input: {
     backgroundColor: "#f5f5f5",
