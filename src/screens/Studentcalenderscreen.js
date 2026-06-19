@@ -1,14 +1,13 @@
 // src/screens/StudentCalendarScreen.js
-
 import { useState } from "react";
 import {
-    FlatList,
-    SafeAreaView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  FlatList,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { COLORS, events } from "../data/mockData";
@@ -20,30 +19,38 @@ export default function StudentCalendarScreen({
 }) {
   const [selectedDate, setSelectedDate] = useState(null);
 
-  // סטודנט רואה רק האירועים של השנה שלו + All Groups
   const myEvents = events.filter(
     (e) =>
-      e.group_name === "All Groups" || e.group_name === `Year ${studentYear}`,
+      e.group_name === "All Groups" ||
+      e.group === "all" ||
+      e.groupLabel === "All Groups" ||
+      e.group_name === `Year ${studentYear}` ||
+      e.group === `year${studentYear}` ||
+      e.groupLabel === `Year ${studentYear}`,
   );
 
   const getGroupColor = (groupName) => {
-    if (groupName === "All Groups") return COLORS.teal;
-    if (groupName === "Year 1") return COLORS.yellow;
-    if (groupName === "Year 2") return COLORS.red;
-    if (groupName === "Year 3") return "#8b5cf6";
+    if (groupName === "All Groups" || groupName === "all") return COLORS.teal;
+    if (groupName === "Year 1" || groupName === "year1") return COLORS.yellow;
+    if (groupName === "Year 2" || groupName === "year2") return COLORS.red;
+    if (groupName === "Year 3" || groupName === "year3") return "#8b5cf6";
+    if (groupName === "Year 4" || groupName === "year4") return "#a855f7";
     return COLORS.charcoal;
   };
 
-  // בנה את האירועים המסומנים לקלנדר
   const markedDates = {};
   myEvents.forEach((event) => {
-    const color = getGroupColor(event.group_name);
-    if (markedDates[event.date]) {
-      markedDates[event.date].dots.push({ color });
+    const currentGroup = event.groupLabel || event.group || event.group_name;
+    const color = getGroupColor(currentGroup);
+    const isoDate = (event.date || "").split("T")[0];
+    if (!isoDate) return;
+
+    if (markedDates[isoDate]) {
+      markedDates[isoDate].dots.push({ color });
     } else {
-      markedDates[event.date] = {
+      markedDates[isoDate] = {
         dots: [{ color }],
-        selected: selectedDate === event.date,
+        selected: selectedDate === isoDate,
         selectedColor: COLORS.teal,
       };
     }
@@ -58,7 +65,7 @@ export default function StudentCalendarScreen({
   }
 
   const selectedEvents = selectedDate
-    ? myEvents.filter((e) => e.date === selectedDate)
+    ? myEvents.filter((e) => (e.date || "").split("T")[0] === selectedDate)
     : myEvents;
 
   const formatDate = (dateStr) => {
@@ -79,7 +86,11 @@ export default function StudentCalendarScreen({
       <View
         style={[
           styles.cardAccent,
-          { backgroundColor: getGroupColor(item.group_name) },
+          {
+            backgroundColor: getGroupColor(
+              item.groupLabel || item.group || item.group_name,
+            ),
+          },
         ]}
       />
       <View style={styles.cardContent}>
@@ -87,10 +98,18 @@ export default function StudentCalendarScreen({
           <View
             style={[
               styles.groupBadge,
-              { backgroundColor: getGroupColor(item.group_name) },
+              {
+                backgroundColor: getGroupColor(
+                  item.groupLabel || item.group || item.group_name,
+                ),
+              },
             ]}
           >
-            <Text style={styles.groupBadgeText}>{item.group_name}</Text>
+            <Text style={styles.groupBadgeText}>
+              {item.groupLabel ||
+                item.group_name ||
+                (item.group === "all" ? "All Groups" : item.group)}
+            </Text>
           </View>
           <Text style={styles.cardTime}>{item.time}</Text>
         </View>
@@ -158,12 +177,7 @@ export default function StudentCalendarScreen({
             style={[
               styles.legendDot,
               {
-                backgroundColor:
-                  studentYear === 1
-                    ? COLORS.yellow
-                    : studentYear === 2
-                      ? COLORS.red
-                      : "#8b5cf6",
+                backgroundColor: getGroupColor(`Year ${studentYear}`),
               },
             ]}
           />
@@ -181,7 +195,7 @@ export default function StudentCalendarScreen({
       ) : (
         <FlatList
           data={selectedEvents}
-          keyExtractor={(item) => item.event_id.toString()}
+          keyExtractor={(item) => String(item.id ?? item.event_id)}
           renderItem={renderEvent}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
