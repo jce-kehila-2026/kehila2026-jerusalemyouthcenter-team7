@@ -1,8 +1,8 @@
 import { AppColors, Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/src/context/AuthContext";
-import { FirestoreMsg, messageService } from "@/src/data/messageService";
-import { COLORS, Group, Student } from "@/src/data/mockData";
+import { ChatGroup, FirestoreMsg, chatGroupService, messageService } from "@/src/data/messageService";
+import { COLORS, Student } from "@/src/data/mockData";
 import { notificationService } from "@/src/data/notificationService";
 import { studentService } from "@/src/data/studentService";
 import { uploadToStorage } from "@/src/data/storageService";
@@ -151,17 +151,18 @@ export default function MessagesScreen() {
 
   // Group management (admin only)
   const [showGroupsModal, setShowGroupsModal] = useState(false);
-  const [groupsData, setGroupsData] = useState<Group[]>([]);
+  const [groupsData, setGroupsData] = useState<ChatGroup[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<Group | null>(null); // null = list view
+  const [editingGroup, setEditingGroup] = useState<ChatGroup | null>(null); // null = list view
   const [groupDraftName, setGroupDraftName] = useState("");
   const [groupDraftMembers, setGroupDraftMembers] = useState<Set<string>>(new Set());
   const [groupSaving, setGroupSaving] = useState(false);
-  const [pendingDeleteGroup, setPendingDeleteGroup] = useState<Group | null>(null);
+  const [groupSaveError, setGroupSaveError] = useState("");
+  const [pendingDeleteGroup, setPendingDeleteGroup] = useState<ChatGroup | null>(null);
   const [deletingGroup, setDeletingGroup] = useState(false);
 
   // Group chat thread
-  const [activeGroupChat, setActiveGroupChat] = useState<Group | null>(null);
+  const [activeGroupChat, setActiveGroupChat] = useState<ChatGroup | null>(null);
   const [groupThreadMessages, setGroupThreadMessages] = useState<ThreadMsg[]>([]);
 
   // Playback
@@ -175,7 +176,7 @@ export default function MessagesScreen() {
   // Singers see only groups they belong to; admins see all groups
   const userGroups = isAdmin
     ? groupsData
-    : groupsData.filter((g) => g.member_ids?.includes(currentUid));
+    : groupsData.filter((g) => g.members?.includes(currentUid));
 
   // ── Fetch contacts directory (singers + admins) ───────────────────────────
   useEffect(() => {
@@ -663,7 +664,7 @@ export default function MessagesScreen() {
   async function loadGroups() {
     setGroupsLoading(true);
     try {
-      const data = await studentService.getGroups();
+      const data = await chatGroupService.getChatGroups();
       setGroupsData(data);
     } catch (e) {
       console.error("Load groups error:", e);
@@ -678,15 +679,23 @@ export default function MessagesScreen() {
   }
 
   function startCreateGroup() {
-    setEditingGroup({ id: "", name: "" });
+    setEditingGroup({
+      id: "",
+      name: "",
+      created_by: currentUid,
+      members: [],
+      created_at: "",
+    });
     setGroupDraftName("");
     setGroupDraftMembers(new Set());
+    setGroupSaveError("");
   }
 
-  function startEditGroup(group: Group) {
+  function startEditGroup(group: ChatGroup) {
     setEditingGroup(group);
     setGroupDraftName(group.name);
-    setGroupDraftMembers(new Set(group.member_ids ?? []));
+    setGroupDraftMembers(new Set(group.members ?? []));
+    setGroupSaveError("");
   }
 
   function toggleGroupMember(uid: string) {
@@ -700,23 +709,38 @@ export default function MessagesScreen() {
 
   async function saveGroup() {
     if (!groupDraftName.trim() || !editingGroup) return;
+    setGroupSaveError("");
     setGroupSaving(true);
     try {
       const memberIds = [...groupDraftMembers];
       if (editingGroup.id === "") {
-        await studentService.createGroup(groupDraftName.trim(), memberIds);
+        await chatGroupService.createChatGroup(
+          groupDraftName.trim(),
+          memberIds,
+          currentUid,
+        );
       } else {
-        await studentService.updateGroup(editingGroup.id, groupDraftName.trim(), memberIds);
+        await chatGroupService.updateChatGroup(
+          editingGroup.id,
+          groupDraftName.trim(),
+          memberIds,
+        );
       }
       await loadGroups();
       setEditingGroup(null);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Save group error:", e);
+      const msg: string = e?.message ?? "";
+      setGroupSaveError(
+        msg.toLowerCase().includes("permission")
+          ? "Permission denied — make sure your Firestore rules allow writes to the 'groups' collection."
+          : msg || "Failed to save. Please try again.",
+      );
     }
     setGroupSaving(false);
   }
 
-  function confirmDeleteGroup(group: Group) {
+  function confirmDeleteGroup(group: ChatGroup) {
     setPendingDeleteGroup(group);
   }
 
@@ -726,7 +750,7 @@ export default function MessagesScreen() {
     setPendingDeleteGroup(null);
     setDeletingGroup(true);
     try {
-      await studentService.deleteGroup(group.id);
+      await chatGroupService.deleteChatGroup(group.id);
       await loadGroups();
     } catch (e) {
       console.error("Delete group error:", e);
@@ -773,7 +797,7 @@ export default function MessagesScreen() {
 
   // ── Group chat thread ─────────────────────────────────────────────────────
   if (activeGroupChat) {
-    const memberCount = activeGroupChat.member_ids?.length ?? 0;
+    const memberCount = activeGroupChat.members?.length ?? 0;
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.background }]}
@@ -1853,7 +1877,7 @@ export default function MessagesScreen() {
                                 { color: theme.subtext },
                               ]}
                             >
-                              {item.member_ids?.length ?? 0} members
+                              {item.members?.length ?? 0} members
                             </Text>
                           </View>
                           <Pressable
@@ -1940,12 +1964,22 @@ export default function MessagesScreen() {
                   <TextInput
                     style={[styles.gmNameInput, { color: theme.text }]}
                     value={groupDraftName}
-                    onChangeText={setGroupDraftName}
+                    onChangeText={(t) => {
+                      setGroupDraftName(t);
+                      if (groupSaveError) setGroupSaveError("");
+                    }}
                     placeholder="Group name"
                     placeholderTextColor={theme.subtext}
                     autoFocus
                   />
                 </View>
+
+                {!!groupSaveError && (
+                  <View style={styles.gmErrorBanner}>
+                    <Ionicons name="warning-outline" size={16} color="#c56451" />
+                    <Text style={styles.gmErrorText}>{groupSaveError}</Text>
+                  </View>
+                )}
 
                 <Text
                   style={[styles.gmSectionLabel, { color: theme.subtext }]}
@@ -2139,7 +2173,7 @@ export default function MessagesScreen() {
                 <Text
                   style={[styles.convPreview, { color: theme.subtext }]}
                 >
-                  {group.member_ids?.length ?? 0} members
+                  {group.members?.length ?? 0} members
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.subtext} />
@@ -2706,6 +2740,19 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   gmCreateFirstText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  gmErrorBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "#faeae6",
+    borderLeftWidth: 3,
+    borderLeftColor: "#c56451",
+  },
+  gmErrorText: { flex: 1, fontSize: 13, color: "#c56451", lineHeight: 18 },
 
   // Group broadcast view
   gmBroadcastBanner: {
