@@ -4,6 +4,7 @@ import {
     deleteDoc,
     deleteField,
     doc,
+    getDocs,
     onSnapshot,
     orderBy,
     query,
@@ -87,5 +88,53 @@ export const messageService = {
 
   async deleteMessage(messageId: string): Promise<void> {
     await deleteDoc(doc(db, "messages", messageId));
+  },
+};
+
+// ── Chat Groups ────────────────────────────────────────────────────────────
+// Completely separate from chorus student groups ("groups" collection).
+// Chat group data lives only in the "chat_groups" Firestore collection.
+
+export type ChatGroup = {
+  id: string;
+  name: string;
+  created_by: string;
+  members: string[];  // array of participant UIDs
+  created_at: string;
+};
+
+export const chatGroupService = {
+  async getChatGroups(): Promise<ChatGroup[]> {
+    const snap = await getDocs(collection(db, "chat_groups"));
+    return snap.docs.map((d) => ({
+      ...(d.data() as Omit<ChatGroup, "id">),
+      id: d.id,
+    }));
+  },
+
+  async createChatGroup(
+    name: string,
+    members: string[],
+    createdBy: string,
+  ): Promise<string> {
+    const ref = await addDoc(collection(db, "chat_groups"), {
+      name,
+      members,
+      created_by: createdBy,
+      created_at: new Date().toISOString(),
+    });
+    return ref.id;
+  },
+
+  async updateChatGroup(
+    id: string,
+    name: string,
+    members: string[],
+  ): Promise<void> {
+    await updateDoc(doc(db, "chat_groups", id), { name, members });
+  },
+
+  async deleteChatGroup(id: string): Promise<void> {
+    await deleteDoc(doc(db, "chat_groups", id));
   },
 };
