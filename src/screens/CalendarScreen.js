@@ -17,19 +17,13 @@ const COLORS = {
   yellow: "#cfad5d",
   red: "#c56451",
   purple: "#8b5cf6",
+  purpleDark: "#a855f7",
   white: "#ffffff",
   bg: "#f5fafe",
   text: "#1a1a2e",
   textSub: "#5a6a7a",
   muted: "#9aa8b4",
   border: "#e8eef2",
-};
-
-const GROUP_COLORS = {
-  "All Groups": COLORS.teal,
-  "Year 1": COLORS.yellow,
-  "Year 2": COLORS.red,
-  "Year 3": "#8b5cf6",
 };
 
 export default function CalendarScreen({ onEventPress }) {
@@ -47,20 +41,43 @@ export default function CalendarScreen({ onEventPress }) {
   }, []);
 
   const getGroupColor = (groupName) => {
-    if (groupName === "All Groups") return COLORS.teal;
-    if (groupName === "Year 1") return COLORS.yellow;
-    if (groupName === "Year 2") return COLORS.red;
-    if (groupName === "Year 3") return "#8b5cf6";
+    if (groupName === "All Groups" || groupName === "all") return COLORS.teal;
+    if (groupName === "Year 1" || groupName === "year1") return COLORS.yellow;
+    if (groupName === "Year 2" || groupName === "year2") return COLORS.red;
+    if (groupName === "Year 3" || groupName === "year3") return COLORS.purple;
+    if (groupName === "Year 4" || groupName === "year4")
+      return COLORS.purpleDark;
     return "#888";
   };
 
   const eventsByDate = {};
   events.forEach((event) => {
-    const date = event.date.split("T")[0];
+    const date = (event.date || "").split("T")[0];
+    if (!date) return;
     if (!eventsByDate[date]) {
       eventsByDate[date] = [];
     }
     eventsByDate[date].push(event);
+  });
+
+  // Hybrid core groups + dynamic fallback
+  const baseGroups = ["All Groups", "Year 1", "Year 2", "Year 3", "Year 4"];
+  const eventGroups = events
+    .map((e) => {
+      return (
+        e.groupLabel ||
+        e.group_name ||
+        (e.group === "all" ? "All Groups" : e.group)
+      );
+    })
+    .filter(Boolean);
+
+  const finalLegendGroups = Array.from(
+    new Set([...baseGroups, ...eventGroups]),
+  ).sort((a, b) => {
+    if (a === "All Groups") return -1;
+    if (b === "All Groups") return 1;
+    return a.localeCompare(b, undefined, { numeric: true });
   });
 
   // Generate calendar grid
@@ -109,7 +126,7 @@ export default function CalendarScreen({ onEventPress }) {
   };
 
   const selectedEvents = selectedDate
-    ? events.filter((e) => e.date.split("T")[0] === selectedDate)
+    ? events.filter((e) => (e.date || "").split("T")[0] === selectedDate)
     : events;
 
   const renderEvent = ({ item }) => (
@@ -122,7 +139,9 @@ export default function CalendarScreen({ onEventPress }) {
         style={[
           styles.cardAccent,
           {
-            backgroundColor: getGroupColor(item.groupLabel || item.group_name),
+            backgroundColor: getGroupColor(
+              item.groupLabel || item.group || item.group_name,
+            ),
           },
         ]}
       />
@@ -133,17 +152,25 @@ export default function CalendarScreen({ onEventPress }) {
               styles.groupBadge,
               {
                 backgroundColor:
-                  getGroupColor(item.groupLabel || item.group_name) + "20",
+                  getGroupColor(
+                    item.groupLabel || item.group || item.group_name,
+                  ) + "20",
               },
             ]}
           >
             <Text
               style={[
                 styles.groupBadgeText,
-                { color: getGroupColor(item.groupLabel || item.group_name) },
+                {
+                  color: getGroupColor(
+                    item.groupLabel || item.group || item.group_name,
+                  ),
+                },
               ]}
             >
-              {item.groupLabel || item.group_name}
+              {item.groupLabel ||
+                item.group_name ||
+                (item.group === "all" ? "All Groups" : item.group)}
             </Text>
           </View>
           <Text style={styles.cardTime}>{item.time}</Text>
@@ -198,8 +225,11 @@ export default function CalendarScreen({ onEventPress }) {
                 : null;
               const hasEvent = dateStr && eventsByDate[dateStr];
               const eventColor = hasEvent
-                ? GROUP_COLORS[eventsByDate[dateStr][0]?.groupLabel] ||
-                  COLORS.teal
+                ? getGroupColor(
+                    eventsByDate[dateStr][0]?.groupLabel ||
+                      eventsByDate[dateStr][0]?.group ||
+                      eventsByDate[dateStr][0]?.group_name,
+                  )
                 : null;
               const isSelected = dateStr === selectedDate;
 
@@ -248,17 +278,15 @@ export default function CalendarScreen({ onEventPress }) {
 
         {/* Legend */}
         <View style={styles.legend}>
-          {[
-            { label: "All Groups", color: COLORS.teal },
-            { label: "Year 1", color: COLORS.yellow },
-            { label: "Year 2", color: COLORS.red },
-            { label: "Year 3", color: "#8b5cf6" },
-          ].map((item) => (
-            <View key={item.label} style={styles.legendItem}>
+          {finalLegendGroups.map((groupLabel) => (
+            <View key={groupLabel} style={styles.legendItem}>
               <View
-                style={[styles.legendDot, { backgroundColor: item.color }]}
+                style={[
+                  styles.legendDot,
+                  { backgroundColor: getGroupColor(groupLabel) },
+                ]}
               />
-              <Text style={styles.legendText}>{item.label}</Text>
+              <Text style={styles.legendText}>{groupLabel}</Text>
             </View>
           ))}
         </View>
