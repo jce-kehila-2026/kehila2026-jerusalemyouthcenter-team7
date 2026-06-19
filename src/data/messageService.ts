@@ -17,8 +17,9 @@ export type FirestoreMsg = {
   id: string;
   sender_id: string;
   sender_name: string;
-  receiver_id: string;
+  receiver_id?: string;   // absent for group messages
   receiver_name?: string;
+  group_id?: string;      // present only for group-chat messages
   content: string;
   type: MsgType;
   fileName?: string;
