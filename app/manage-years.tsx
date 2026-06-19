@@ -1,15 +1,18 @@
-import { Group } from "@/src/data/mockData";
-import { studentService } from "@/src/data/studentService";
 import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
-import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+} from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,7 +22,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// ── Design tokens (match app palette) ─────────────────────────────────────────
 const ds = {
   teal: "#039899",
   red: "#c56451",
@@ -32,7 +34,7 @@ const ds = {
   border: "#e8eef2",
 } as const;
 
-// Color accent per year number (cycles after 6)
+const SYSTEM_VOICES = ["Soprano", "Alto", "Tenor", "Bass"];
 const YEAR_ACCENTS = [
   ds.teal,
   "#c56451",
@@ -46,247 +48,180 @@ const yearAccent = (yearId: number) =>
 
 export default function ManageYearsScreen() {
   const router = useRouter();
+  const [groups, setGroups] = useState<any[]>([]);
+  const [voices, setVoices] = useState<any[]>([]);
+  const [newYear, setNewYear] = useState("");
+  const [newVoice, setNewVoice] = useState("");
+  const [adding, setAdding] = useState({ y: false, v: false });
 
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [newYearLabel, setNewYearLabel] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  // ── Real-time listener on groups collection ────────────────────────────────
   useEffect(() => {
-    const q = query(collection(db, "groups"), orderBy("year_id"));
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const data: Group[] = snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<Group, "id">),
-        }));
-        setGroups(data);
-        setLoading(false);
-      },
-      (err) => {
-        console.warn("groups snapshot error:", err);
-        // Fallback: one-time fetch
-        studentService.getGroups().then((g) => {
-          setGroups(g);
-          setLoading(false);
-        });
-      },
+    const unsubG = onSnapshot(
+      query(collection(db, "groups"), orderBy("year_id")),
+      (s) => setGroups(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
     );
-    return unsub;
+    const unsubV = onSnapshot(collection(db, "voice_types"), (s) =>
+      setVoices(s.docs.map((d) => ({ id: d.id, name: d.data().name }))),
+    );
+    return () => {
+      unsubG();
+      unsubV();
+    };
   }, []);
 
-  // ── Add year ───────────────────────────────────────────────────────────────
-  const handleAdd = async () => {
-    const trimmed = newYearLabel.trim();
-    if (!trimmed) return;
-
-    // Accept plain number ("4") or label ("Year 4")
-    const numStr = trimmed.replace(/^year\s*/i, "");
-    const yearNum = parseInt(numStr, 10);
-
-    if (isNaN(yearNum) || yearNum < 1 || yearNum > 99) {
-      Alert.alert(
-        "Invalid Year",
-        "Please enter a valid year number (e.g. 4 or Year 4).",
-      );
-      return;
-    }
-
-    const name = `Year ${yearNum}`;
-
-    if (groups.some((g) => g.year_id === yearNum)) {
-      Alert.alert("Already Exists", `${name} is already in the list.`);
-      return;
-    }
-
-    setAdding(true);
-    try {
-      await studentService.addGroup(name, yearNum);
-      setNewYearLabel("");
-    } catch (e: any) {
-      Alert.alert("Error", e.message || "Could not add year.");
-    } finally {
-      setAdding(false);
-    }
+  const handleAddYear = async () => {
+    const num = parseInt(newYear.replace(/\D/g, ""), 10);
+    if (!num || groups.some((g) => g.year_id === num)) return;
+    setAdding((p) => ({ ...p, y: true }));
+    await addDoc(collection(db, "groups"), {
+      name: `Year ${num}`,
+      year_id: num,
+    });
+    setNewYear("");
+    setAdding((p) => ({ ...p, y: false }));
   };
 
-  // ── Delete year ────────────────────────────────────────────────────────────
-  const handleDelete = async (group: Group) => {
-    const confirmed = window.confirm(
-      `Remove ${group.name}?\n\nStudents assigned to this year will keep their current year — they just won't appear in this filter. You can re-add the year at any time.`,
-    );
-    if (!confirmed) return;
-
-    setDeletingId(group.id);
-    try {
-      await studentService.deleteGroup(group.id);
-    } catch (e: any) {
-      Alert.alert("Error", e.message || "Could not remove year.");
-    } finally {
-      setDeletingId(null);
-    }
+  const handleAddVoice = async () => {
+    if (!newVoice.trim()) return;
+    setAdding((p) => ({ ...p, v: true }));
+    await addDoc(collection(db, "voice_types"), { name: newVoice.trim() });
+    setNewVoice("");
+    setAdding((p) => ({ ...p, v: false }));
   };
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       <Stack.Screen options={{ headerShown: false }} />
-
-      {/* ── Teal Header ─────────────────────────────────────────────────────── */}
       <View style={s.header}>
-        <Pressable onPress={() => router.back()} style={s.backBtn} hitSlop={10}>
+        <Pressable onPress={() => router.back()} style={s.backBtn}>
           <Ionicons name="chevron-back" size={26} color={ds.white} />
         </Pressable>
-        <View style={{ flex: 1 }}>
+        <View>
           <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
-          <Text style={s.pageTitle}>Manage Years</Text>
+          <Text style={s.pageTitle}>Manage Years & Voices</Text>
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={s.scroll}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* ── Add Year Card ────────────────────────────────────────────────── */}
-          <View style={s.addCard}>
-            <View style={s.addCardBar} />
-            <View style={s.addCardBody}>
-              <Text style={s.sectionTitle}>Add a New Year</Text>
-              <Text style={s.hint}>
-                Type a year number (e.g. 4) or label (e.g. Year 4) and press
-                Add.
-              </Text>
-              <View style={s.addRow}>
-                <TextInput
-                  style={s.addInput}
-                  placeholder="e.g.  4  or  Year 4"
-                  placeholderTextColor={ds.muted}
-                  value={newYearLabel}
-                  onChangeText={setNewYearLabel}
-                  keyboardType="default"
-                  returnKeyType="done"
-                  onSubmitEditing={handleAdd}
-                  autoCapitalize="words"
-                />
-                <Pressable
-                  style={[s.addBtn, adding && { opacity: 0.6 }]}
-                  onPress={handleAdd}
-                  disabled={adding}
-                >
-                  {adding ? (
-                    <ActivityIndicator color={ds.white} size="small" />
-                  ) : (
-                    <>
-                      <Ionicons name="add" size={18} color={ds.white} />
-                      <Text style={s.addBtnText}>Add</Text>
-                    </>
-                  )}
-                </Pressable>
-              </View>
+      <ScrollView contentContainerStyle={s.scroll}>
+        {/* Years */}
+        <View style={s.addCard}>
+          <View style={s.addCardBar} />
+          <View style={s.addCardBody}>
+            <Text style={s.sectionTitle}>Add a New Year</Text>
+            <View style={s.addRow}>
+              <TextInput
+                style={s.addInput}
+                placeholder="e.g. 4"
+                value={newYear}
+                onChangeText={setNewYear}
+              />
+              <Pressable style={s.addBtn} onPress={handleAddYear}>
+                {adding.y ? (
+                  <ActivityIndicator color={ds.white} />
+                ) : (
+                  <Text style={s.addBtnText}>Add</Text>
+                )}
+              </Pressable>
             </View>
           </View>
+        </View>
 
-          {/* ── Current Years ────────────────────────────────────────────────── */}
-          <Text style={s.listHeader}>Current Years</Text>
-
-          {loading ? (
-            <View style={s.center}>
-              <ActivityIndicator color={ds.teal} size="large" />
-            </View>
-          ) : groups.length === 0 ? (
-            <View style={s.empty}>
-              <Ionicons name="calendar-outline" size={48} color={ds.muted} />
-              <Text style={s.emptyText}>No years added yet</Text>
-              <Text style={s.emptyHint}>Use the form above to add Year 1</Text>
-            </View>
-          ) : (
-            groups.map((group) => {
-              const accent = yearAccent(group.year_id ?? 1);
-              const isDeleting = deletingId === group.id;
-              return (
-                <View key={group.id} style={s.yearCard}>
-                  {/* Left accent strip */}
-                  <View style={[s.yearStrip, { backgroundColor: accent }]} />
-
-                  <View style={s.yearCardBody}>
-                    {/* Year badge */}
-                    <View
-                      style={[s.yearBadge, { backgroundColor: accent + "18" }]}
-                    >
-                      <Text style={[s.yearNum, { color: accent }]}>
-                        {group.year_id}
-                      </Text>
-                    </View>
-
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.yearName}>{group.name}</Text>
-                      <Text style={s.yearSub}>
-                        Tap students in the Students tab to assign to this year
-                      </Text>
-                    </View>
-
-                    {/* Delete button */}
-                    <Pressable
-                      style={[s.deleteBtn, isDeleting && { opacity: 0.5 }]}
-                      onPress={() => handleDelete(group)}
-                      disabled={isDeleting}
-                      hitSlop={8}
-                    >
-                      {isDeleting ? (
-                        <ActivityIndicator color={ds.red} size="small" />
-                      ) : (
-                        <Ionicons
-                          name="trash-outline"
-                          size={18}
-                          color={ds.red}
-                        />
-                      )}
-                    </Pressable>
-                  </View>
-                </View>
-              );
-            })
-          )}
-
-          {/* ── Info note ────────────────────────────────────────────────────── */}
-          <View style={s.infoBox}>
-            <Ionicons
-              name="information-circle-outline"
-              size={18}
-              color={ds.teal}
+        {groups.map((g) => (
+          <View key={g.id} style={s.yearCard}>
+            <View
+              style={[s.yearStrip, { backgroundColor: yearAccent(g.year_id) }]}
             />
-            <Text style={s.infoText}>
-              Years added here appear automatically in the Students list filters
-              and in each student&apos;s &quot;Change Group&quot; modal.
-            </Text>
+            <View style={s.yearCardBody}>
+              <View
+                style={[
+                  s.yearBadge,
+                  { backgroundColor: yearAccent(g.year_id) + "18" },
+                ]}
+              >
+                <Text style={[s.yearNum, { color: yearAccent(g.year_id) }]}>
+                  {g.year_id}
+                </Text>
+              </View>
+              <Text style={s.yearName}>{g.name}</Text>
+            </View>
+            {g.year_id > 3 && (
+              <Pressable
+                style={s.deleteBtn}
+                onPress={() => deleteDoc(doc(db, "groups", g.id))}
+              >
+                <Ionicons name="trash-outline" size={18} color={ds.red} />
+              </Pressable>
+            )}
           </View>
+        ))}
 
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      </KeyboardAvoidingView>
+        {/* Voices */}
+        <View style={[s.addCard, { marginTop: 20 }]}>
+          <View style={[s.addCardBar, { backgroundColor: ds.yellow }]} />
+          <View style={s.addCardBody}>
+            <Text style={s.sectionTitle}>Add a Voice Type</Text>
+            <View style={s.addRow}>
+              <TextInput
+                style={s.addInput}
+                placeholder="e.g. Baritone"
+                value={newVoice}
+                onChangeText={setNewVoice}
+              />
+              <Pressable
+                style={[s.addBtn, { backgroundColor: ds.yellow }]}
+                onPress={handleAddVoice}
+              >
+                {adding.v ? (
+                  <ActivityIndicator color={ds.white} />
+                ) : (
+                  <Text style={s.addBtnText}>Add</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        {/* Filtered combined list to prevent duplicates */}
+        {[
+          ...SYSTEM_VOICES.map((n) => ({
+            id: `sys-${n}`,
+            name: n,
+            isSys: true,
+          })),
+          ...voices.filter((v) => !SYSTEM_VOICES.includes(v.name)),
+        ].map((v) => (
+          <View key={v.id} style={s.yearCard}>
+            <View style={[s.yearStrip, { backgroundColor: ds.yellow }]} />
+            <View style={s.yearCardBody}>
+              <View
+                style={[s.yearBadge, { backgroundColor: ds.yellow + "18" }]}
+              >
+                <Ionicons name="mic-outline" size={18} color={ds.yellow} />
+              </View>
+              <Text style={s.yearName}>{v.name}</Text>
+            </View>
+            {!v.isSys && (
+              <Pressable
+                style={s.deleteBtn}
+                onPress={() => deleteDoc(doc(db, "voice_types", v.id))}
+              >
+                <Ionicons name="trash-outline" size={18} color={ds.red} />
+              </Pressable>
+            )}
+          </View>
+        ))}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-// ── Styles ─────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: ds.teal },
-
-  // Header
   header: {
     backgroundColor: ds.teal,
     paddingHorizontal: 16,
-    paddingTop: 8,
     paddingBottom: 16,
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: 8,
   },
   backBtn: {
@@ -294,53 +229,26 @@ const s = StyleSheet.create({
     height: 40,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 2,
   },
   orgLabel: {
     fontSize: 12,
     fontWeight: "600",
     color: "rgba(255,255,255,0.85)",
-    marginBottom: 4,
   },
   pageTitle: { fontSize: 32, fontWeight: "900", color: ds.white },
-
-  // Scroll
-  scroll: { backgroundColor: ds.bg, padding: 16, paddingTop: 20 },
-  center: { paddingVertical: 40, alignItems: "center" },
-
-  // Add Card
+  scroll: { backgroundColor: ds.bg, padding: 16 },
   addCard: {
     backgroundColor: ds.white,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: ds.border,
     overflow: "hidden",
-    marginBottom: 20,
-    shadowColor: ds.teal,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
     elevation: 3,
   },
   addCardBar: { height: 4, backgroundColor: ds.teal },
   addCardBody: { padding: 16 },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: ds.text,
-    marginBottom: 4,
-  },
-  hint: {
-    fontSize: 13,
-    color: ds.subtext,
-    marginBottom: 14,
-    lineHeight: 18,
-  },
-  addRow: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-  },
+  sectionTitle: { fontSize: 15, fontWeight: "800", marginBottom: 10 },
+  addRow: { flexDirection: "row", gap: 10 },
   addInput: {
     flex: 1,
     borderWidth: 1.5,
@@ -348,37 +256,14 @@ const s = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 16,
-    color: ds.text,
-    backgroundColor: ds.bg,
   },
   addBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
     backgroundColor: ds.teal,
     borderRadius: 12,
     paddingHorizontal: 18,
-    paddingVertical: 12,
-    shadowColor: ds.teal,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
+    justifyContent: "center",
   },
-  addBtnText: { color: ds.white, fontSize: 15, fontWeight: "700" },
-
-  // List header
-  listHeader: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: ds.muted,
-    letterSpacing: 0.9,
-    textTransform: "uppercase",
-    marginBottom: 10,
-  },
-
-  // Year card
+  addBtnText: { color: ds.white, fontWeight: "700" },
   yearCard: {
     flexDirection: "row",
     backgroundColor: ds.white,
@@ -386,21 +271,16 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: ds.border,
     marginBottom: 10,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    alignItems: "center",
+    paddingRight: 14,
   },
-  yearStrip: { width: 4 },
+  yearStrip: { width: 4, height: 44, marginRight: 14 },
   yearCardBody: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 14,
     gap: 14,
+    paddingVertical: 14,
   },
   yearBadge: {
     width: 44,
@@ -411,7 +291,6 @@ const s = StyleSheet.create({
   },
   yearNum: { fontSize: 20, fontWeight: "900" },
   yearName: { fontSize: 15, fontWeight: "700", color: ds.text },
-  yearSub: { fontSize: 11, color: ds.muted, marginTop: 2 },
   deleteBtn: {
     width: 36,
     height: 36,
@@ -419,33 +298,5 @@ const s = StyleSheet.create({
     backgroundColor: ds.red + "15",
     alignItems: "center",
     justifyContent: "center",
-  },
-
-  // Empty state
-  empty: {
-    alignItems: "center",
-    paddingVertical: 40,
-    gap: 8,
-  },
-  emptyText: { fontSize: 15, fontWeight: "600", color: ds.subtext },
-  emptyHint: { fontSize: 13, color: ds.muted },
-
-  // Info box
-  infoBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    backgroundColor: ds.teal + "12",
-    borderRadius: 12,
-    padding: 14,
-    marginTop: 6,
-    borderWidth: 1,
-    borderColor: ds.teal + "30",
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    color: ds.subtext,
-    lineHeight: 18,
   },
 });
