@@ -122,6 +122,7 @@ export const chatGroupService = {
       members,
       created_by: createdBy,
       created_at: new Date().toISOString(),
+      is_chat_group: true,
     });
     return ref.id;
   },
