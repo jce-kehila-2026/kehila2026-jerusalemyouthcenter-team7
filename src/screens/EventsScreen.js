@@ -1,9 +1,10 @@
+import { db } from "@/src/firebase/firebase";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { deleteDoc, doc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -12,7 +13,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View,
+  View
 } from "react-native";
 import {
   addEvent,
@@ -20,8 +21,6 @@ import {
   getEvents,
   updateEvent,
 } from "../../backend/eventsService";
-import { db } from "@/src/firebase/firebase";
-import { doc, deleteDoc } from "firebase/firestore";
 
 // ─── Design System ─────────────────────────────────────────────────────────
 const T = {
@@ -42,16 +41,12 @@ const T = {
 };
 const sp = (n) => n * 8;
 
-const GOOGLE_CALENDAR_SUBSCRIBE_URL =
-  "https://calendar.google.com/calendar/r?cid=https://calendar.google.com/calendar/ical/6ee65334f0a4c98b5d09abd1f1f2e38c42a93f8ce246d56fb0e9041f0ed7fa4d%40group.calendar.google.com/private-956d897f3255c9d53850f11442e4b179/basic.ics";
-
-const openGoogleCalendarSubscribe = () => {
-  if (Platform.OS === "web") {
-    window.open(GOOGLE_CALENDAR_SUBSCRIBE_URL, "_blank");
-  } else {
-    Linking.openURL(GOOGLE_CALENDAR_SUBSCRIBE_URL).catch(() => {});
-  }
-};
+// The calendar's secret iCal (.ics) feed — meant to be pasted into a
+// calendar app's "Subscribe by URL" / "From URL" option, not opened
+// directly as a webpage (that requires the calendar to be public, which
+// we deliberately avoid for privacy).
+const GOOGLE_CALENDAR_ICS_URL =
+  "https://calendar.google.com/calendar/ical/6ee65334f0a4c98b5d09abd1f1f2e38c42a93f8ce246d56fb0e9041f0ed7fa4d%40group.calendar.google.com/private-956d897f3255c9d53850f11442e4b179/basic.ics";
 
 const BADGE_STYLES = {
   all: { bg: T.tealBg, text: T.teal },
@@ -367,6 +362,7 @@ export default function EventsScreen() {
   const [newForm, setNewForm] = useState(emptyForm);
   const [newErrors, setNewErrors] = useState(emptyErrors);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [calModalVisible, setCalModalVisible] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
@@ -811,6 +807,17 @@ export default function EventsScreen() {
             </ScrollView>
           </View>
 
+          <Pressable
+            style={s.calSyncBanner}
+            onPress={() => setCalModalVisible(true)}
+          >
+            <Text style={s.calSyncBannerIcon}>📅</Text>
+            <Text style={s.calSyncBannerText}>
+              Add our events to your Google Calendar
+            </Text>
+            <Text style={s.calSyncBannerArrow}>›</Text>
+          </Pressable>
+
           {loading ? (
             <View style={s.empty}>
               <ActivityIndicator color={T.teal} size="large" />
@@ -965,6 +972,54 @@ export default function EventsScreen() {
           +
         </Text>
       </Pressable>
+
+      {/* GOOGLE CALENDAR SUBSCRIBE INSTRUCTIONS */}
+      <Modal
+        visible={calModalVisible}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+      >
+        <View style={s.overlayBottom}>
+          <View style={s.modal}>
+            <Text style={s.modalTitle}>📅 Add to Your Calendar</Text>
+            <Pressable
+              style={s.modalClose}
+              onPress={() => setCalModalVisible(false)}
+            >
+              <Text style={{ color: T.muted, fontSize: 22 }}>✕</Text>
+            </Pressable>
+            <Text style={[s.label, { marginTop: 0 }]}>Link</Text>
+            <Text selectable style={s.icsLinkBox}>
+              {GOOGLE_CALENDAR_ICS_URL}
+            </Text>
+            <Text style={s.hintText}>
+              Long-press the link above to copy it.
+            </Text>
+            <Text style={[s.label, { marginTop: sp(2) }]}>
+              On Google Calendar (web)
+            </Text>
+            <Text style={s.icsStep}>
+              1. Next to "Other calendars", tap +{"\n"}
+              2. Choose "From URL"{"\n"}
+              3. Paste the link, then "Add calendar"
+            </Text>
+            <Text style={[s.label, { marginTop: sp(2) }]}>
+              On iPhone (Apple Calendar)
+            </Text>
+            <Text style={s.icsStep}>
+              Settings → Calendar → Accounts → Add Account → Other →{"\n"}
+              Add Subscribed Calendar → paste the link
+            </Text>
+            <Pressable
+              style={[s.btnPrimary, { marginTop: sp(2) }]}
+              onPress={() => setCalModalVisible(false)}
+            >
+              <Text style={s.btnLight}>Got it</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       {/* DELETE */}
       <Modal
@@ -1552,6 +1607,16 @@ const s = StyleSheet.create({
   inputError: { borderColor: T.red, borderWidth: 1.5 },
   errorText: { color: T.red, fontSize: 12, marginTop: 4 },
   hintText: { color: T.muted, fontSize: 11, marginTop: 4 },
+  icsLinkBox: {
+    backgroundColor: T.bg,
+    borderRadius: 10,
+    padding: 12,
+    color: T.teal,
+    fontSize: 12,
+    borderWidth: 1.5,
+    borderColor: T.border,
+  },
+  icsStep: { color: T.textSub, fontSize: 13, lineHeight: 20, marginTop: 4 },
   groupRow: {
     flexDirection: "row",
     flexWrap: "wrap",

@@ -185,3 +185,73 @@ exports.getGoogleCalendarEvents = onRequest(async (req, res) => {
     res.status(500).json({ error: "Failed to fetch Google Calendar events" });
   }
 });
+
+// Shares the calendar with one email address (read access), via the
+// calendar's ACL (Access Control List) API. Idempotent — if the email is
+// already shared, Google's "already exists" error is swallowed.
+async function shareCalendarWithEmail(email) {
+  if (!email || typeof email !== "string" || !email.includes("@")) {
+    return { email, ok: false, reason: "invalid email" };
+  }
+  try {
+    await calendar.acl.insert({
+      calendarId: CALENDAR_ID,
+      requestBody: {
+        role: "reader",
+        scope: { type: "user", value: email },
+      },
+    });
+    return { email, ok: true };
+  } catch (err) {
+    // Already shared with this address — not a real failure.
+    if (err.code === 409 || /already exists/i.test(err.message || "")) {
+      return { email, ok: true, reason: "already shared" };
+    }
+    console.error("shareCalendarWithEmail error:", email, err.message);
+    return { email, ok: false, reason: err.message };
+  }
+}
+
+// Runs automatically whenever a user document is created or updated —
+// grants that user's email read access to the calendar right away, no
+// manual step needed for anyone who signs up from here on.
+exports.shareCalendarOnUserWrite = onDocumentWritten(
+  "users/{uid}",
+  async (event) => {
+    const afterData = event.data.after?.data();
+    if (!afterData?.email) return;
+    await shareCalendarWithEmail(afterData.email);
+  },
+);
+
+// One-time (or occasionally re-run) HTTP endpoint to share the calendar
+// with every user already in Firestore — covers everyone who signed up
+// before this automation existed. Visit the URL once in a browser to run
+// it; it's safe to run more than once (skips already-shared emails).
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+exports.shareCalendarWithAllUsers = onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  try {
+    const usersSnap = await db.collection("users").get();
+    const results = [];
+    // Sequential with a short delay between each — calling all of these
+    // at once (Promise.all) was tripping Google's per-second rate limit
+    // on the Calendar API once there were more than a handful of users.
+    for (const doc of usersSnap.docs) {
+      results.push(await shareCalendarWithEmail(doc.data().email));
+      await sleep(150);
+    }
+    const shared = results.filter((r) => r.ok);
+    const failed = results.filter((r) => !r.ok);
+    res.json({
+      totalUsers: results.length,
+      sharedCount: shared.length,
+      failedCount: failed.length,
+      failed,
+    });
+  } catch (err) {
+    console.error("shareCalendarWithAllUsers error:", err);
+    res.status(500).json({ error: "Failed to share calendar with users" });
+  }
+});
