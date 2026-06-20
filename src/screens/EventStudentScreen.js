@@ -2,7 +2,7 @@
 import { useState } from "react";
 import {
   FlatList,
-  Linking,
+  Modal,
   Platform,
   Pressable,
   SafeAreaView,
@@ -30,16 +30,12 @@ const T = {
 
 const sp = (n) => n * 8;
 
-const GOOGLE_CALENDAR_SUBSCRIBE_URL =
-  "https://calendar.google.com/calendar/r?cid=https://calendar.google.com/calendar/ical/6ee65334f0a4c98b5d09abd1f1f2e38c42a93f8ce246d56fb0e9041f0ed7fa4d%40group.calendar.google.com/private-956d897f3255c9d53850f11442e4b179/basic.ics";
-
-const openGoogleCalendarSubscribe = () => {
-  if (Platform.OS === "web") {
-    window.open(GOOGLE_CALENDAR_SUBSCRIBE_URL, "_blank");
-  } else {
-    Linking.openURL(GOOGLE_CALENDAR_SUBSCRIBE_URL).catch(() => {});
-  }
-};
+// The calendar's secret iCal (.ics) feed — meant to be pasted into a
+// calendar app's "Subscribe by URL" / "From URL" option, not opened
+// directly as a webpage (that requires the calendar to be public, which
+// we deliberately avoid for privacy).
+const GOOGLE_CALENDAR_ICS_URL =
+  "https://calendar.google.com/calendar/ical/6ee65334f0a4c98b5d09abd1f1f2e38c42a93f8ce246d56fb0e9041f0ed7fa4d%40group.calendar.google.com/private-956d897f3255c9d53850f11442e4b179/basic.ics";
 
 const GROUP_COLORS = {
   "All Groups": T.teal,
@@ -112,6 +108,7 @@ export default function EventStudentScreen({
   const [selectedDate, setSelectedDate] = useState(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [calModalVisible, setCalModalVisible] = useState(false);
 
   const myEvents = events.filter((e) => {
     const yearMatch =
@@ -357,6 +354,17 @@ export default function EventStudentScreen({
         </Text>
       </View>
 
+      <Pressable
+        style={s.calSyncBanner}
+        onPress={() => setCalModalVisible(true)}
+      >
+        <Text style={s.calSyncBannerIcon}>📅</Text>
+        <Text style={s.calSyncBannerText}>
+          Add our events to your Google Calendar
+        </Text>
+        <Text style={s.calSyncBannerArrow}>›</Text>
+      </Pressable>
+
       {/* ── LIST VIEW ── */}
       {activeTab === "list" &&
         (myEvents.length === 0 ? (
@@ -498,6 +506,54 @@ export default function EventStudentScreen({
           )}
         </ScrollView>
       )}
+
+      {/* GOOGLE CALENDAR SUBSCRIBE INSTRUCTIONS */}
+      <Modal
+        visible={calModalVisible}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+      >
+        <View style={s.overlayBottom}>
+          <View style={s.modal}>
+            <Text style={s.modalTitle}>📅 Add to Your Calendar</Text>
+            <Pressable
+              style={s.modalClose}
+              onPress={() => setCalModalVisible(false)}
+            >
+              <Text style={{ color: T.muted, fontSize: 22 }}>✕</Text>
+            </Pressable>
+            <Text style={s.label}>Link</Text>
+            <Text selectable style={s.icsLinkBox}>
+              {GOOGLE_CALENDAR_ICS_URL}
+            </Text>
+            <Text style={s.hintText}>
+              Long-press the link above to copy it.
+            </Text>
+            <Text style={[s.label, { marginTop: sp(2) }]}>
+              On Google Calendar (web)
+            </Text>
+            <Text style={s.icsStep}>
+              1. Next to "Other calendars", tap +{"\n"}
+              2. Choose "From URL"{"\n"}
+              3. Paste the link, then "Add calendar"
+            </Text>
+            <Text style={[s.label, { marginTop: sp(2) }]}>
+              On iPhone (Apple Calendar)
+            </Text>
+            <Text style={s.icsStep}>
+              Settings → Calendar → Accounts → Add Account → Other →{"\n"}
+              Add Subscribed Calendar → paste the link
+            </Text>
+            <Pressable
+              style={[s.btnPrimary, { marginTop: sp(2) }]}
+              onPress={() => setCalModalVisible(false)}
+            >
+              <Text style={s.btnLight}>Got it</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -585,6 +641,53 @@ const s = StyleSheet.create({
     fontSize: 13,
   },
   calSyncBannerArrow: { color: T.teal, fontSize: 20, fontWeight: "700" },
+
+  // Modal (Google Calendar subscribe instructions)
+  overlayBottom: {
+    flex: 1,
+    backgroundColor: "#0008",
+    justifyContent: "flex-end",
+  },
+  modal: {
+    backgroundColor: T.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: sp(3),
+    maxHeight: "90%",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: T.text,
+    marginBottom: sp(2),
+  },
+  modalClose: { position: "absolute", top: sp(3), right: sp(3) },
+  label: {
+    color: T.textSub,
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  hintText: { color: T.muted, fontSize: 11, marginTop: 4 },
+  icsLinkBox: {
+    backgroundColor: T.bg,
+    borderRadius: 10,
+    padding: 12,
+    color: T.teal,
+    fontSize: 12,
+    borderWidth: 1.5,
+    borderColor: T.border,
+  },
+  icsStep: { color: T.textSub, fontSize: 13, lineHeight: 20, marginTop: 4 },
+  btnPrimary: {
+    backgroundColor: T.teal,
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  btnLight: { color: "#fff", fontWeight: "700", fontSize: 14 },
 
   empty: {
     flex: 1,

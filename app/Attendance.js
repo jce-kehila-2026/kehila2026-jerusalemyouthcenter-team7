@@ -68,8 +68,11 @@ export default function AttendancePage() {
           ? allStudents
           : allStudents.filter((s) => {
               const studentYear = String(s.year_id ?? s.year ?? "");
-              // group is like "year1" — compare against the trailing digit
-              const groupYear = group.replace("year", "");
+              // group keys can come in slightly different shapes
+              // depending on which screen created them — e.g. "year1" or
+              // "year_1". Pulling out just the digits makes this work no
+              // matter which separator (if any) was used.
+              const groupYear = (group.match(/\d+/) || [""])[0];
               return studentYear === groupYear;
             });
 
@@ -198,7 +201,7 @@ export default function AttendancePage() {
             <Text style={s.groupPillText}>
               {eventGroup === "all"
                 ? "All Groups"
-                : `Year ${eventGroup.replace("year", "")}`}
+                : `Year ${(eventGroup.match(/\d+/) || [""])[0]}`}
             </Text>
           </View>
         )}
