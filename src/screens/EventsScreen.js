@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -43,12 +44,34 @@ const T = {
 };
 const sp = (n) => n * 8;
 
+const CALENDAR_ID =
+  "6ee65334f0a4c98b5d09abd1f1f2e38c42a93f8ce246d56fb0e9041f0ed7fa4d@group.calendar.google.com";
+
 // The calendar's secret iCal (.ics) feed — meant to be pasted into a
 // calendar app's "Subscribe by URL" / "From URL" option, not opened
 // directly as a webpage (that requires the calendar to be public, which
 // we deliberately avoid for privacy).
 const GOOGLE_CALENDAR_ICS_URL =
   "https://calendar.google.com/calendar/ical/6ee65334f0a4c98b5d09abd1f1f2e38c42a93f8ce246d56fb0e9041f0ed7fa4d%40group.calendar.google.com/private-956d897f3255c9d53850f11442e4b179/basic.ics";
+
+// Opens a specific event's page directly on calendar.google.com, using
+// Google's eid-link format (base64 of "<eventId> <calendarId>"). Only
+// works for events that already have a googleCalendarEventId.
+const openEventInGoogleCalendar = (googleEventId) => {
+  if (!googleEventId) return;
+  let eid;
+  try {
+    eid = btoa(`${googleEventId} ${CALENDAR_ID}`);
+  } catch {
+    return;
+  }
+  const url = `https://calendar.google.com/calendar/event?eid=${eid}`;
+  if (Platform.OS === "web") {
+    window.open(url, "_blank");
+  } else {
+    Linking.openURL(url).catch(() => {});
+  }
+};
 
 // --- HARDCODED COLORS DICTIONARY ---
 const getFixedColor = (groupName) => {
@@ -383,7 +406,7 @@ export default function EventsScreen() {
   const [newForm, setNewForm] = useState(emptyForm);
   const [newErrors, setNewErrors] = useState(emptyErrors);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [calModalVisible, setCalModalVisible] = useState(false);
+  const [gcalMenuTarget, setGcalMenuTarget] = useState(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [voiceFilters, setVoiceFilters] = useState([
@@ -688,6 +711,7 @@ export default function EventsScreen() {
   const doDelete = async () => {
     if (!deleteTarget) return;
     const targetId = deleteTarget.id;
+    const googleEventId = deleteTarget.googleCalendarEventId;
     try {
       setEvents((prev) => prev.filter((e) => e.id !== targetId));
       setDeleteTarget(null);
@@ -697,6 +721,20 @@ export default function EventsScreen() {
         await deleteDoc(doc(db, "attendance", targetId));
       } catch (err) {
         console.error(err);
+      }
+
+      // If this event exists in Google Calendar (either it originated
+      // there, or it was an app event already synced to Google), delete
+      // it there too — otherwise the next Google Calendar sync would
+      // just re-import it and bring it right back.
+      if (googleEventId) {
+        try {
+          await fetch(
+            `https://us-central1-fullstack-team-7.cloudfunctions.net/deleteGoogleCalendarEvent?eventId=${encodeURIComponent(googleEventId)}`,
+          );
+        } catch (gErr) {
+          console.error("Failed to delete Google Calendar event:", gErr);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -770,12 +808,24 @@ export default function EventsScreen() {
                 </View>
               )}
             </View>
-            <Pressable
-              style={s.deleteSmall}
-              onPress={() => setDeleteTarget(item)}
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
             >
-              <Text style={s.deleteSmallText}>🗑</Text>
-            </Pressable>
+              {item.googleCalendarEventId && (
+                <Pressable
+                  style={s.gcalSyncedIcon}
+                  onPress={() => setGcalMenuTarget(item)}
+                >
+                  <Text style={s.gcalSyncedIconText}>📅</Text>
+                </Pressable>
+              )}
+              <Pressable
+                style={s.deleteSmall}
+                onPress={() => setDeleteTarget(item)}
+              >
+                <Text style={s.deleteSmallText}>🗑</Text>
+              </Pressable>
+            </View>
           </View>
           <Pressable onPress={() => goToDetail(item)}>
             <Text style={s.cardTitle} numberOfLines={1}>
@@ -974,17 +1024,6 @@ export default function EventsScreen() {
             </ScrollView>
           </View>
 
-          <Pressable
-            style={s.calSyncBanner}
-            onPress={() => setCalModalVisible(true)}
-          >
-            <Text style={s.calSyncBannerIcon}>📅</Text>
-            <Text style={s.calSyncBannerText}>
-              Add our events to your Google Calendar
-            </Text>
-            <Text style={s.calSyncBannerArrow}>›</Text>
-          </Pressable>
-
           {loading ? (
             <View style={s.empty}>
               <ActivityIndicator color={T.teal} size="large" />
@@ -1144,9 +1183,64 @@ export default function EventsScreen() {
         </Text>
       </Pressable>
 
-      {/* GOOGLE CALENDAR SUBSCRIBE INSTRUCTIONS — restored, was dropped in the merge */}
+      {/* GOOGLE CALENDAR ACTIONS — small menu opened from the 📅 icon */}
       <Modal
-        visible={calModalVisible}
+        visible={!!gcalMenuTarget && gcalMenuTarget !== "subscribe"}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+      >
+        <View style={s.overlayBottom}>
+          <View style={s.modal}>
+            <Text style={s.modalTitle}>📅 Google Calendar</Text>
+            <Pressable
+              style={s.modalClose}
+              onPress={() => setGcalMenuTarget(null)}
+            >
+              <Text style={{ color: T.muted, fontSize: 22 }}>✕</Text>
+            </Pressable>
+
+            <Pressable
+              style={s.gcalMenuOption}
+              onPress={() => {
+                openEventInGoogleCalendar(
+                  gcalMenuTarget?.googleCalendarEventId,
+                );
+                setGcalMenuTarget(null);
+              }}
+            >
+              <Text style={s.gcalMenuOptionIcon}>↗</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={s.gcalMenuOptionTitle}>
+                  Open this event in Google Calendar
+                </Text>
+                <Text style={s.gcalMenuOptionSub}>
+                  View or edit "{gcalMenuTarget?.title}" directly
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={s.gcalMenuOption}
+              onPress={() => setGcalMenuTarget("subscribe")}
+            >
+              <Text style={s.gcalMenuOptionIcon}>＋</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={s.gcalMenuOptionTitle}>
+                  Add our whole calendar to yours
+                </Text>
+                <Text style={s.gcalMenuOptionSub}>
+                  Subscribe to see all events going forward
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* GOOGLE CALENDAR SUBSCRIBE INSTRUCTIONS — opened from the menu above */}
+      <Modal
+        visible={gcalMenuTarget === "subscribe"}
         animationType="slide"
         transparent
         statusBarTranslucent
@@ -1156,7 +1250,7 @@ export default function EventsScreen() {
             <Text style={s.modalTitle}>📅 Add to Your Calendar</Text>
             <Pressable
               style={s.modalClose}
-              onPress={() => setCalModalVisible(false)}
+              onPress={() => setGcalMenuTarget(null)}
             >
               <Text style={{ color: T.muted, fontSize: 22 }}>✕</Text>
             </Pressable>
@@ -1184,7 +1278,7 @@ export default function EventsScreen() {
             </Text>
             <Pressable
               style={[s.btnPrimary, { marginTop: sp(2) }]}
-              onPress={() => setCalModalVisible(false)}
+              onPress={() => setGcalMenuTarget(null)}
             >
               <Text style={s.btnLight}>Got it</Text>
             </Pressable>
@@ -1397,27 +1491,6 @@ const s = StyleSheet.create({
   filterText: { color: T.textSub, fontSize: 13, fontWeight: "500" },
   filterTextActive: { color: "#fff", fontWeight: "700" },
 
-  // Google Calendar subscribe banner — restored, was dropped in the merge
-  calSyncBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: T.tealBg,
-    borderRadius: 12,
-    marginHorizontal: sp(2),
-    marginBottom: sp(1.5),
-    paddingVertical: sp(1.25),
-    paddingHorizontal: sp(1.5),
-    gap: sp(1),
-  },
-  calSyncBannerIcon: { fontSize: 18 },
-  calSyncBannerText: {
-    flex: 1,
-    color: T.teal,
-    fontWeight: "600",
-    fontSize: 13,
-  },
-  calSyncBannerArrow: { color: T.teal, fontSize: 20, fontWeight: "700" },
-
   eventsListContent: {
     paddingHorizontal: sp(2),
     paddingBottom: 100,
@@ -1480,6 +1553,32 @@ const s = StyleSheet.create({
     lineHeight: 20,
     marginBottom: sp(1.5),
   },
+  gcalSyncedIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: T.tealBg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gcalSyncedIconText: { fontSize: 13 },
+  gcalMenuOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sp(1.5),
+    backgroundColor: T.tealBg,
+    borderRadius: 14,
+    padding: sp(1.75),
+    marginBottom: sp(1.25),
+  },
+  gcalMenuOptionIcon: {
+    fontSize: 20,
+    color: T.teal,
+    width: 28,
+    textAlign: "center",
+  },
+  gcalMenuOptionTitle: { color: T.text, fontWeight: "700", fontSize: 14 },
+  gcalMenuOptionSub: { color: T.textSub, fontSize: 12, marginTop: 2 },
   deleteSmall: {
     width: 28,
     height: 28,

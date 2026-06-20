@@ -2,6 +2,7 @@
 import { useState } from "react";
 import {
   FlatList,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -36,6 +37,28 @@ const sp = (n) => n * 8;
 // we deliberately avoid for privacy).
 const GOOGLE_CALENDAR_ICS_URL =
   "https://calendar.google.com/calendar/ical/6ee65334f0a4c98b5d09abd1f1f2e38c42a93f8ce246d56fb0e9041f0ed7fa4d%40group.calendar.google.com/private-956d897f3255c9d53850f11442e4b179/basic.ics";
+
+const CALENDAR_ID =
+  "6ee65334f0a4c98b5d09abd1f1f2e38c42a93f8ce246d56fb0e9041f0ed7fa4d@group.calendar.google.com";
+
+// Opens a specific event's page directly on calendar.google.com, using
+// Google's eid-link format (base64 of "<eventId> <calendarId>"). Only
+// works for events that already have a googleCalendarEventId.
+const openEventInGoogleCalendar = (googleEventId) => {
+  if (!googleEventId) return;
+  let eid;
+  try {
+    eid = btoa(`${googleEventId} ${CALENDAR_ID}`);
+  } catch {
+    return;
+  }
+  const url = `https://calendar.google.com/calendar/event?eid=${eid}`;
+  if (Platform.OS === "web") {
+    window.open(url, "_blank");
+  } else {
+    Linking.openURL(url).catch(() => {});
+  }
+};
 
 const GROUP_COLORS = {
   "All Groups": T.teal,
@@ -108,7 +131,7 @@ export default function EventStudentScreen({
   const [selectedDate, setSelectedDate] = useState(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [calModalVisible, setCalModalVisible] = useState(false);
+  const [gcalMenuTarget, setGcalMenuTarget] = useState(null);
 
   const myEvents = events.filter((e) => {
     const yearMatch =
@@ -213,25 +236,34 @@ export default function EventStudentScreen({
           <Text style={s.dateBlockDay}>{day}</Text>
           <Text style={s.dateBlockMonth}>{month}</Text>
         </View>
-        <Pressable
-          style={s.cardInner}
-          onPress={() => onEventPress && onEventPress(item)}
-        >
-          <View style={[s.badge, s.badgeTop, { backgroundColor: badge.bg }]}>
-            <Text style={[s.badgeText, { color: badge.text }]}>
-              {item.groupLabel || item.group_name}
-            </Text>
+        <View style={s.cardInner}>
+          <View style={s.cardTopRow}>
+            <View style={[s.badge, s.badgeTop, { backgroundColor: badge.bg }]}>
+              <Text style={[s.badgeText, { color: badge.text }]}>
+                {item.groupLabel || item.group_name}
+              </Text>
+            </View>
+            {item.googleCalendarEventId && (
+              <Pressable
+                style={s.gcalSyncedIcon}
+                onPress={() => setGcalMenuTarget(item)}
+              >
+                <Text style={s.gcalSyncedIconText}>📅</Text>
+              </Pressable>
+            )}
           </View>
-          <Text style={s.cardTitle} numberOfLines={1}>
-            {item.title}
-          </Text>
-          <Text style={s.cardMeta} numberOfLines={1}>
-            {item.time} · {item.location}
-          </Text>
-          <Text style={s.cardDesc} numberOfLines={2}>
-            {item.description}
-          </Text>
-        </Pressable>
+          <Pressable onPress={() => onEventPress && onEventPress(item)}>
+            <Text style={s.cardTitle} numberOfLines={1}>
+              {item.title}
+            </Text>
+            <Text style={s.cardMeta} numberOfLines={1}>
+              {item.time} · {item.location}
+            </Text>
+            <Text style={s.cardDesc} numberOfLines={2}>
+              {item.description}
+            </Text>
+          </Pressable>
+        </View>
         <MusicTrace />
       </View>
     );
@@ -353,17 +385,6 @@ export default function EventStudentScreen({
           {myEvents.length !== 1 ? "s" : ""}.
         </Text>
       </View>
-
-      <Pressable
-        style={s.calSyncBanner}
-        onPress={() => setCalModalVisible(true)}
-      >
-        <Text style={s.calSyncBannerIcon}>📅</Text>
-        <Text style={s.calSyncBannerText}>
-          Add our events to your Google Calendar
-        </Text>
-        <Text style={s.calSyncBannerArrow}>›</Text>
-      </Pressable>
 
       {/* ── LIST VIEW ── */}
       {activeTab === "list" &&
@@ -507,9 +528,64 @@ export default function EventStudentScreen({
         </ScrollView>
       )}
 
-      {/* GOOGLE CALENDAR SUBSCRIBE INSTRUCTIONS */}
+      {/* GOOGLE CALENDAR ACTIONS — small menu opened from the 📅 icon */}
       <Modal
-        visible={calModalVisible}
+        visible={!!gcalMenuTarget && gcalMenuTarget !== "subscribe"}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+      >
+        <View style={s.overlayBottom}>
+          <View style={s.modal}>
+            <Text style={s.modalTitle}>📅 Google Calendar</Text>
+            <Pressable
+              style={s.modalClose}
+              onPress={() => setGcalMenuTarget(null)}
+            >
+              <Text style={{ color: T.muted, fontSize: 22 }}>✕</Text>
+            </Pressable>
+
+            <Pressable
+              style={s.gcalMenuOption}
+              onPress={() => {
+                openEventInGoogleCalendar(
+                  gcalMenuTarget?.googleCalendarEventId,
+                );
+                setGcalMenuTarget(null);
+              }}
+            >
+              <Text style={s.gcalMenuOptionIcon}>↗</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={s.gcalMenuOptionTitle}>
+                  Open this event in Google Calendar
+                </Text>
+                <Text style={s.gcalMenuOptionSub}>
+                  View "{gcalMenuTarget?.title}" directly
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={s.gcalMenuOption}
+              onPress={() => setGcalMenuTarget("subscribe")}
+            >
+              <Text style={s.gcalMenuOptionIcon}>＋</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={s.gcalMenuOptionTitle}>
+                  Add our whole calendar to yours
+                </Text>
+                <Text style={s.gcalMenuOptionSub}>
+                  Subscribe to see all events going forward
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* GOOGLE CALENDAR SUBSCRIBE INSTRUCTIONS — opened from the menu above */}
+      <Modal
+        visible={gcalMenuTarget === "subscribe"}
         animationType="slide"
         transparent
         statusBarTranslucent
@@ -519,7 +595,7 @@ export default function EventStudentScreen({
             <Text style={s.modalTitle}>📅 Add to Your Calendar</Text>
             <Pressable
               style={s.modalClose}
-              onPress={() => setCalModalVisible(false)}
+              onPress={() => setGcalMenuTarget(null)}
             >
               <Text style={{ color: T.muted, fontSize: 22 }}>✕</Text>
             </Pressable>
@@ -547,7 +623,7 @@ export default function EventStudentScreen({
             </Text>
             <Pressable
               style={[s.btnPrimary, { marginTop: sp(2) }]}
-              onPress={() => setCalModalVisible(false)}
+              onPress={() => setGcalMenuTarget(null)}
             >
               <Text style={s.btnLight}>Got it</Text>
             </Pressable>
@@ -622,25 +698,32 @@ const s = StyleSheet.create({
   },
   welcomeText: { color: "#333", fontSize: 14, lineHeight: 20 },
 
-  calSyncBanner: {
+  gcalSyncedIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: T.tealBg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gcalSyncedIconText: { fontSize: 13 },
+  gcalMenuOption: {
     flexDirection: "row",
     alignItems: "center",
+    gap: sp(1.5),
     backgroundColor: T.tealBg,
-    borderRadius: 12,
-    marginHorizontal: sp(2),
-    marginBottom: sp(2),
-    paddingVertical: sp(1.25),
-    paddingHorizontal: sp(1.5),
-    gap: sp(1),
+    borderRadius: 14,
+    padding: sp(1.75),
+    marginBottom: sp(1.25),
   },
-  calSyncBannerIcon: { fontSize: 18 },
-  calSyncBannerText: {
-    flex: 1,
+  gcalMenuOptionIcon: {
+    fontSize: 20,
     color: T.teal,
-    fontWeight: "600",
-    fontSize: 13,
+    width: 28,
+    textAlign: "center",
   },
-  calSyncBannerArrow: { color: T.teal, fontSize: 20, fontWeight: "700" },
+  gcalMenuOptionTitle: { color: T.text, fontWeight: "700", fontSize: 14 },
+  gcalMenuOptionSub: { color: T.textSub, fontSize: 12, marginTop: 2 },
 
   // Modal (Google Calendar subscribe instructions)
   overlayBottom: {
@@ -743,7 +826,13 @@ const s = StyleSheet.create({
 
   cardInner: { flex: 1, minWidth: 0, padding: sp(1.75), zIndex: 1 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  badgeTop: { alignSelf: "flex-start", marginBottom: sp(0.75) },
+  cardTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: sp(0.75),
+  },
+  badgeTop: { alignSelf: "flex-start" },
   badgeText: { fontSize: 11, fontWeight: "700" },
   cardTitle: {
     fontSize: 17,

@@ -255,3 +255,32 @@ exports.shareCalendarWithAllUsers = onRequest(async (req, res) => {
     res.status(500).json({ error: "Failed to share calendar with users" });
   }
 });
+
+// HTTP endpoint the app calls when deleting an event that has a
+// googleCalendarEventId (i.e. it's either Google-origin, or an app event
+// that was already synced to Google). Deletes the actual Google Calendar
+// event — without this, the next getGoogleCalendarEvents sync would just
+// re-import the still-existing Google event and "resurrect" it.
+exports.deleteGoogleCalendarEvent = onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  const googleEventId = req.query.eventId;
+  if (!googleEventId) {
+    res.status(400).json({ error: "Missing eventId query param" });
+    return;
+  }
+  try {
+    await calendar.events.delete({
+      calendarId: CALENDAR_ID,
+      eventId: googleEventId,
+    });
+    res.json({ success: true });
+  } catch (err) {
+    // 404/410 = already gone — that's fine, the end result is the same.
+    if (err.code === 404 || err.code === 410) {
+      res.json({ success: true, reason: "already deleted" });
+      return;
+    }
+    console.error("deleteGoogleCalendarEvent error:", err);
+    res.status(500).json({ error: "Failed to delete Google Calendar event" });
+  }
+});

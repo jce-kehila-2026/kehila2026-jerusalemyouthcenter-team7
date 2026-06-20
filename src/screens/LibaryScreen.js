@@ -19,13 +19,13 @@ import {
   Linking,
   Modal,
   Platform,
-  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
 
@@ -43,13 +43,11 @@ const COLORS = {
   muted: "#999999",
 };
 
-// Fallback base filters used while loading or as defaults
 const BASE_FILTERS = [
   { key: "all", label: "All" },
   { key: "all_groups", label: "All Groups" },
 ];
 
-// File type → label + accent color shown on the side block of each card
 const FILE_TYPE_MAP = {
   pdf: { label: "PDF", color: COLORS.red },
   mp3: { label: "MP3", color: COLORS.teal },
@@ -90,9 +88,13 @@ const formatDate = (ts) => {
   });
 };
 
+// ── MusicTrace: purely decorative, must never intercept touches ──────────
 function MusicTrace() {
   return (
-    <View style={[s.traceCol, { pointerEvents: "none" }]}>
+    <View
+      style={[s.traceCol]}
+      pointerEvents="none" // React Native prop (not CSS)
+    >
       <Text style={[s.traceNote, s.traceNoteTop]}>🎵</Text>
       <Text style={[s.traceNote, s.traceNoteMid]}>🎶</Text>
       <Text style={[s.traceNote, s.traceNoteBottom]}>🎵</Text>
@@ -120,7 +122,9 @@ export default function LibraryScreen({ autoUpload = false }) {
   const [linkUrl, setLinkUrl] = useState("");
   const [linkGroup, setLinkGroup] = useState("all_groups");
 
-  // ── Real-time listener for Years/Groups collection ─────────────────────
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  // ── Real-time listener for Years/Groups ──────────────────────────────
   useEffect(() => {
     const q = query(collection(db, "groups"), orderBy("year_id"));
     const unsub = onSnapshot(
@@ -133,8 +137,6 @@ export default function LibraryScreen({ autoUpload = false }) {
             label: data.name || `Year ${data.year_id}`,
           };
         });
-
-        // Reconstruct the full filters array seamlessly
         setDynamicFilters([
           { key: "all", label: "All" },
           ...fetchedYears,
@@ -276,13 +278,16 @@ export default function LibraryScreen({ autoUpload = false }) {
     }
   };
 
-  const handleDelete = async (id) => {
+  const doDelete = async () => {
+    if (!deleteTarget) return;
+    const targetId = deleteTarget.id;
     try {
-      await deleteDoc(doc(db, "library", id));
-      setMaterials((p) => p.filter((m) => m.id !== id));
+      await deleteDoc(doc(db, "library", targetId));
+      setMaterials((p) => p.filter((m) => m.id !== targetId));
     } catch (e) {
       console.error("Delete error:", e);
     }
+    setDeleteTarget(null);
   };
 
   const handleOpen = (item) => {
@@ -294,7 +299,13 @@ export default function LibraryScreen({ autoUpload = false }) {
     }
   };
 
-  const renderItem = ({ item }) => {
+  // ── Card item ─────────────────────────────────────────────────────────
+  // FIX 1: Removed the extra wrapping <View> that was blocking touches.
+  // FIX 2: Using TouchableOpacity instead of Pressable for the action
+  //         buttons — more reliable on both Android and iOS.
+  // FIX 3: Added hitSlop to all tappable elements so small touch targets
+  //         register correctly on first tap.
+  const renderItem = (item) => {
     const { label, color } = getFileType(item);
     const groupLabel =
       dynamicFilters.find((f) => f.key === item.group)?.label ?? "All Groups";
@@ -306,23 +317,28 @@ export default function LibraryScreen({ autoUpload = false }) {
     const metaText = metaParts.filter(Boolean).join("  ·  ");
 
     return (
-      <View style={s.card}>
+      <View key={item.id} style={s.card}>
+        {/* Left colored type block — no touches needed */}
         <View style={[s.typeBlock, { backgroundColor: color }]}>
           <Text style={s.typeBlockText}>{label}</Text>
         </View>
 
+        {/* Card body — sits on top of the decorative trace */}
         <View style={s.cardBody}>
           {isAdmin && (
-            <Pressable
+            // FIX: TouchableOpacity + hitSlop for reliable first-tap
+            <TouchableOpacity
               style={s.deleteSmall}
-              onPress={() => handleDelete(item.id)}
+              onPress={() => setDeleteTarget(item)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              activeOpacity={0.7}
             >
               <Text style={s.deleteSmallText}>✕</Text>
-            </Pressable>
+            </TouchableOpacity>
           )}
 
           <Text
-            style={[s.fileName, isAdmin && { paddingRight: 32 }]}
+            style={[s.fileName, isAdmin && { paddingRight: 36 }]}
             numberOfLines={1}
             ellipsizeMode="tail"
           >
@@ -337,25 +353,29 @@ export default function LibraryScreen({ autoUpload = false }) {
             </Text>
           ) : null}
 
-          <Pressable
+          {/* FIX: TouchableOpacity for Download/Play — reliable on first tap */}
+          <TouchableOpacity
             style={[
               s.actionPill,
               { backgroundColor: color + "18", borderColor: color },
             ]}
             onPress={() => handleOpen(item)}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            activeOpacity={0.7}
           >
             <Text style={[s.actionPillText, { color }]}>
               {isLink ? "Play" : "Download"}
             </Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
 
+        {/* Decorative music notes — pointerEvents="none" so touches pass through */}
         <MusicTrace />
       </View>
     );
   };
 
-  // Shared group picker used in both modals
+  // ── Shared group picker used in both modals ───────────────────────────
   const GroupPicker = ({ value, onChange }) => (
     <View
       style={{
@@ -367,15 +387,16 @@ export default function LibraryScreen({ autoUpload = false }) {
       }}
     >
       {dynamicFilters.slice(1).map((f) => (
-        <Pressable
+        <TouchableOpacity
           key={f.key}
           style={[s.filterBtn, value === f.key && s.filterBtnActive]}
           onPress={() => onChange(f.key)}
+          activeOpacity={0.7}
         >
           <Text style={[s.filterText, value === f.key && s.filterTextActive]}>
             {f.label}
           </Text>
-        </Pressable>
+        </TouchableOpacity>
       ))}
     </View>
   );
@@ -387,21 +408,25 @@ export default function LibraryScreen({ autoUpload = false }) {
         <Text style={s.pageTitle}>Music Library</Text>
       </View>
 
+      {/* Filter chips — admin only */}
       {isAdmin && (
         <View style={s.filtersWrap}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={s.filtersContent}
+            // FIX: prevent scroll gesture from swallowing filter taps
+            keyboardShouldPersistTaps="handled"
           >
             {dynamicFilters.map((f) => (
-              <Pressable
+              <TouchableOpacity
                 key={f.key}
                 style={[
                   s.filterBtn,
                   activeFilter === f.key && s.filterBtnActive,
                 ]}
                 onPress={() => setFilter(f.key)}
+                activeOpacity={0.7}
               >
                 <Text
                   style={[
@@ -411,18 +436,20 @@ export default function LibraryScreen({ autoUpload = false }) {
                 >
                   {f.label}
                 </Text>
-              </Pressable>
+              </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
       )}
 
+      {/* Upload / Add link row — admin only */}
       {isAdmin && (
         <View style={s.uploadRow}>
-          <Pressable
+          <TouchableOpacity
             style={[s.uploadBtn, s.uploadBtnPrimary, { flex: 1 }]}
             onPress={handlePickFile}
             disabled={uploading}
+            activeOpacity={0.8}
           >
             {uploading && uploadProgress > 0 ? (
               <Text style={s.uploadBtnText}>↑ {uploadProgress}%</Text>
@@ -431,19 +458,21 @@ export default function LibraryScreen({ autoUpload = false }) {
             ) : (
               <Text style={s.uploadBtnText}>Upload File</Text>
             )}
-          </Pressable>
+          </TouchableOpacity>
 
-          <Pressable
+          <TouchableOpacity
             style={[s.uploadBtn, s.uploadBtnSecondary, { flex: 1 }]}
             onPress={() => setLinkModal(true)}
+            activeOpacity={0.8}
           >
             <Text style={[s.uploadBtnText, { color: COLORS.teal }]}>
               Add Link
             </Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
       )}
 
+      {/* Content */}
       {loading ? (
         <View style={s.center}>
           <ActivityIndicator color={COLORS.teal} size="large" />
@@ -463,14 +492,57 @@ export default function LibraryScreen({ autoUpload = false }) {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={s.listContent}
+          // FIX: ensures taps inside the scroll view are not swallowed
+          keyboardShouldPersistTaps="handled"
         >
-          {filtered.map((item) => (
-            <View key={item.id}>{renderItem({ item })}</View>
-          ))}
+          {/* FIX: removed the wrapping <View> around each card —
+               it was creating an extra touch-blocking layer */}
+          {filtered.map((item) => renderItem(item))}
         </ScrollView>
       )}
 
-      {/* File Group Modal */}
+      {/* ── DELETE CONFIRMATION MODAL ────────────────────────────────── */}
+      <Modal
+        visible={!!deleteTarget}
+        animationType="fade"
+        transparent
+        statusBarTranslucent
+      >
+        <View style={s.overlayCenter}>
+          <View style={s.confirmBox}>
+            <Text
+              style={{ fontSize: 32, textAlign: "center", marginBottom: 8 }}
+            >
+              🗑️
+            </Text>
+            <Text style={s.confirmTitle}>Delete File?</Text>
+            <Text style={s.confirmMsg}>
+              This will permanently remove{"\n"}
+              <Text style={{ color: COLORS.text, fontWeight: "700" }}>
+                "{deleteTarget?.name}"
+              </Text>
+            </Text>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity
+                style={s.btnCancel}
+                onPress={() => setDeleteTarget(null)}
+                activeOpacity={0.7}
+              >
+                <Text style={s.btnCancelText}>Keep it</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.btnDeleteConfirm}
+                onPress={doDelete}
+                activeOpacity={0.7}
+              >
+                <Text style={s.btnLight}>Yes, delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── FILE GROUP MODAL ─────────────────────────────────────────── */}
       <Modal
         visible={fileModal}
         animationType="slide"
@@ -480,9 +552,13 @@ export default function LibraryScreen({ autoUpload = false }) {
         <View style={s.overlayBottom}>
           <View style={s.modal}>
             <Text style={s.modalTitle}>Upload File</Text>
-            <Pressable style={s.modalClose} onPress={() => setFileModal(false)}>
+            <TouchableOpacity
+              style={s.modalClose}
+              onPress={() => setFileModal(false)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Text style={{ color: "#aaa", fontSize: 22 }}>✕</Text>
-            </Pressable>
+            </TouchableOpacity>
             {pendingFile && (
               <View style={[s.card, { marginBottom: 16 }]}>
                 <View style={[s.typeBlock, { backgroundColor: COLORS.teal }]}>
@@ -499,24 +575,26 @@ export default function LibraryScreen({ autoUpload = false }) {
             <Text style={s.label}>Group</Text>
             <GroupPicker value={fileGroup} onChange={setFileGroup} />
             <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-              <Pressable
+              <TouchableOpacity
                 style={[s.uploadBtn, s.uploadBtnPrimary, { flex: 1 }]}
                 onPress={handleUploadFile}
+                activeOpacity={0.8}
               >
                 <Text style={s.uploadBtnText}>↑ Upload</Text>
-              </Pressable>
-              <Pressable
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={[s.uploadBtn, s.uploadBtnCancel, { flex: 1 }]}
                 onPress={() => setFileModal(false)}
+                activeOpacity={0.8}
               >
                 <Text style={[s.uploadBtnText, { color: "#555" }]}>Cancel</Text>
-              </Pressable>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Link Modal */}
+      {/* ── LINK MODAL ───────────────────────────────────────────────── */}
       <Modal
         visible={linkModal}
         animationType="slide"
@@ -526,9 +604,13 @@ export default function LibraryScreen({ autoUpload = false }) {
         <View style={s.overlayBottom}>
           <View style={s.modal}>
             <Text style={s.modalTitle}>Add YouTube Link</Text>
-            <Pressable style={s.modalClose} onPress={() => setLinkModal(false)}>
+            <TouchableOpacity
+              style={s.modalClose}
+              onPress={() => setLinkModal(false)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Text style={{ color: "#aaa", fontSize: 22 }}>✕</Text>
-            </Pressable>
+            </TouchableOpacity>
             <Text style={s.label}>Name</Text>
             <TextInput
               style={s.input}
@@ -549,23 +631,25 @@ export default function LibraryScreen({ autoUpload = false }) {
             <Text style={s.label}>Group</Text>
             <GroupPicker value={linkGroup} onChange={setLinkGroup} />
             <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-              <Pressable
+              <TouchableOpacity
                 style={[s.uploadBtn, s.uploadBtnPrimary, { flex: 1 }]}
                 onPress={handleAddLink}
                 disabled={uploading}
+                activeOpacity={0.8}
               >
                 {uploading ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
                   <Text style={s.uploadBtnText}>Add Link</Text>
                 )}
-              </Pressable>
-              <Pressable
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={[s.uploadBtn, s.uploadBtnCancel, { flex: 1 }]}
                 onPress={() => setLinkModal(false)}
+                activeOpacity={0.8}
               >
                 <Text style={[s.uploadBtnText, { color: "#555" }]}>Cancel</Text>
-              </Pressable>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -651,14 +735,17 @@ const s = StyleSheet.create({
     lineHeight: 20,
   },
   listContent: { padding: 16, gap: 10, paddingBottom: 100 },
+
+  // ── Card ──────────────────────────────────────────────────────────────
   card: {
     backgroundColor: COLORS.card,
     borderRadius: 16,
-    overflow: "hidden",
     borderWidth: 1,
     borderColor: COLORS.border,
     flexDirection: "row",
     alignItems: "stretch",
+    // overflow hidden מוסר — הוא חתך את הקו הלבן
+    // הפינות מעוגלות נשמרות ע"י borderRadius על typeBlock ו-traceCol
   },
   typeBlock: {
     width: 80,
@@ -667,20 +754,28 @@ const s = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 16,
     paddingHorizontal: 6,
+    zIndex: 0,
+    borderRightWidth: 3,
+    borderRightColor: "#ffffff",
+    // פינות שמאל מעוגלות כמו הכרטיס
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
   },
+  typeBlockDivider: {},
   typeBlockText: {
-    color: "#fff",
-    fontSize: 14,
+    color: "#ffffff",
+    fontSize: 13,
     fontWeight: "800",
     textAlign: "center",
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
   },
   cardBody: {
     flex: 1,
     minWidth: 0,
     padding: 14,
     position: "relative",
-    zIndex: 1,
+    // FIX: raised to 2 (was 1) so it's above traceCol (zIndex 0)
+    zIndex: 2,
   },
   fileName: {
     fontSize: 16,
@@ -702,18 +797,24 @@ const s = StyleSheet.create({
     position: "absolute",
     top: 10,
     right: 10,
-    width: 26,
-    height: 26,
+    width: 28,
+    height: 28,
     borderRadius: 8,
     backgroundColor: COLORS.redLight,
     alignItems: "center",
     justifyContent: "center",
+    // FIX: must sit above cardBody's own children
+    zIndex: 3,
   },
   deleteSmallText: { color: COLORS.red, fontWeight: "700", fontSize: 13 },
+
+  // ── Decorative music trace ────────────────────────────────────────────
   traceCol: {
     width: 60,
     flexShrink: 0,
     position: "relative",
+    // FIX: explicit zIndex 0 — sits below cardBody (zIndex 2)
+    zIndex: 0,
   },
   traceNote: { position: "absolute", opacity: 0.32 },
   traceNoteTop: {
@@ -734,6 +835,54 @@ const s = StyleSheet.create({
     fontSize: 15,
     transform: [{ rotate: "-4deg" }],
   },
+
+  // ── Delete confirmation modal ─────────────────────────────────────────
+  overlayCenter: {
+    flex: 1,
+    backgroundColor: "#0008",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  confirmBox: {
+    backgroundColor: COLORS.card,
+    borderRadius: 20,
+    padding: 24,
+    width: "100%",
+    maxWidth: 340,
+  },
+  confirmTitle: {
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  confirmMsg: {
+    color: COLORS.muted,
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  btnCancel: {
+    flex: 1,
+    backgroundColor: "#f0f0f0",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  btnCancelText: { color: COLORS.muted, fontWeight: "700" },
+  btnDeleteConfirm: {
+    flex: 1,
+    backgroundColor: COLORS.red,
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  btnLight: { color: "#fff", fontWeight: "700", fontSize: 14 },
+
+  // ── Bottom-sheet modals ───────────────────────────────────────────────
   overlayBottom: {
     flex: 1,
     backgroundColor: "#0006",
