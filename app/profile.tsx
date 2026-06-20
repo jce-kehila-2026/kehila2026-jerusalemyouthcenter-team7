@@ -170,8 +170,12 @@ export default function ProfileScreen() {
     setChangingPassword(true);
     try {
       const currentUser = auth.currentUser;
-      if (!currentUser || !currentUser.email) throw new Error("Not authenticated.");
-      const credential = EmailAuthProvider.credential(currentUser.email, curPassword);
+      if (!currentUser || !currentUser.email)
+        throw new Error("Not authenticated.");
+      const credential = EmailAuthProvider.credential(
+        currentUser.email,
+        curPassword,
+      );
       await reauthenticateWithCredential(currentUser, credential);
       await updatePassword(currentUser, newPassword);
       setPasswordSuccess("Password updated successfully.");
@@ -242,7 +246,11 @@ export default function ProfileScreen() {
         <View
           style={[
             s.roleBadge,
-            { backgroundColor: isAdmin ? ds.red + "33" : "rgba(255,255,255,0.2)" },
+            {
+              backgroundColor: isAdmin
+                ? ds.red + "33"
+                : "rgba(255,255,255,0.2)",
+            },
           ]}
         >
           <Text style={s.roleBadgeText}>{profileRole}</Text>
@@ -264,11 +272,31 @@ export default function ProfileScreen() {
                 label="Age"
                 value={age !== "N/A" ? `${age} years` : "N/A"}
               />
-              <InfoRow icon="calendar-outline" label="Date of Birth" value={dob} />
-              <InfoRow icon="male-female-outline" label="Gender" value={gender} />
-              <InfoRow icon="school-outline" label="School" value={schoolName} />
-              <InfoRow icon="mic-outline" label="Voice Type" value={voiceType} />
-              <InfoRow icon="shirt-outline" label="Shirt Size" value={shirtSize} />
+              <InfoRow
+                icon="calendar-outline"
+                label="Date of Birth"
+                value={dob}
+              />
+              <InfoRow
+                icon="male-female-outline"
+                label="Gender"
+                value={gender}
+              />
+              <InfoRow
+                icon="school-outline"
+                label="School"
+                value={schoolName}
+              />
+              <InfoRow
+                icon="mic-outline"
+                label="Voice Type"
+                value={voiceType}
+              />
+              <InfoRow
+                icon="shirt-outline"
+                label="Shirt Size"
+                value={shirtSize}
+              />
               <InfoRow
                 icon="star-outline"
                 label="Year Joined"
@@ -309,8 +337,16 @@ export default function ProfileScreen() {
           <InfoCard title="Staff Information">
             <InfoRow icon="mail-outline" label="Email" value={profileEmail} />
             <InfoRow icon="call-outline" label="Phone" value={profilePhone} />
-            <InfoRow icon="ribbon-outline" label="Job Position" value={jobPosition} />
-            <InfoRow icon="calendar-outline" label="Date of Birth" value={dob} />
+            <InfoRow
+              icon="ribbon-outline"
+              label="Job Position"
+              value={jobPosition}
+            />
+            <InfoRow
+              icon="calendar-outline"
+              label="Date of Birth"
+              value={dob}
+            />
             <InfoRow
               icon="business-outline"
               label="Staff Type"
@@ -345,7 +381,11 @@ export default function ProfileScreen() {
               activeOpacity={0.7}
             >
               <View style={s.rowIcon}>
-                <Ionicons name="lock-closed-outline" size={20} color={ds.teal} />
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={20}
+                  color={ds.teal}
+                />
               </View>
               <View style={s.rowText}>
                 <Text style={s.rowLabel}>Security</Text>
@@ -367,6 +407,24 @@ export default function ProfileScreen() {
                 <View style={s.rowText}>
                   <Text style={s.rowLabel}>Singers</Text>
                   <Text style={s.rowValue}>Edit Singer Information</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={ds.subtext} />
+              </TouchableOpacity>
+            )}
+
+            {/* Manage Years & Voice Types (admin only) */}
+            {isAdmin && (
+              <TouchableOpacity
+                style={s.settingRow}
+                onPress={() => router.push("/manage-years" as any)}
+                activeOpacity={0.7}
+              >
+                <View style={s.rowIcon}>
+                  <Ionicons name="layers-outline" size={20} color={ds.teal} />
+                </View>
+                <View style={s.rowText}>
+                  <Text style={s.rowLabel}>Groups</Text>
+                  <Text style={s.rowValue}>Manage Years & Voice Types</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={ds.subtext} />
               </TouchableOpacity>
@@ -410,13 +468,26 @@ export default function ProfileScreen() {
             {passwordError ? (
               <View style={s.msgBox}>
                 <Ionicons name="warning-outline" size={16} color={ds.red} />
-                <Text style={[s.msgText, { color: ds.red }]}>{passwordError}</Text>
+                <Text style={[s.msgText, { color: ds.red }]}>
+                  {passwordError}
+                </Text>
               </View>
             ) : null}
             {passwordSuccess ? (
-              <View style={[s.msgBox, { backgroundColor: "#e6f7f0", borderLeftColor: "#34a853" }]}>
-                <Ionicons name="checkmark-circle-outline" size={16} color="#34a853" />
-                <Text style={[s.msgText, { color: "#34a853" }]}>{passwordSuccess}</Text>
+              <View
+                style={[
+                  s.msgBox,
+                  { backgroundColor: "#e6f7f0", borderLeftColor: "#34a853" },
+                ]}
+              >
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={16}
+                  color="#34a853"
+                />
+                <Text style={[s.msgText, { color: "#34a853" }]}>
+                  {passwordSuccess}
+                </Text>
               </View>
             ) : null}
 

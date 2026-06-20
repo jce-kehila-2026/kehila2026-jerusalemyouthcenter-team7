@@ -1,17 +1,19 @@
 import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   collection,
   doc,
   getDocs,
+  onSnapshot,
+  orderBy,
   query,
   serverTimestamp,
   setDoc,
   updateDoc,
   where,
 } from "firebase/firestore";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -28,13 +30,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, UserType } from "../../src/context/AuthContext";
-import {
-  Group,
-  groups as mockGroups,
-  students as mockStudents,
-  Student,
-} from "../../src/data/mockData";
-import { studentService } from "../../src/data/studentService";
+import { Group, Student } from "../../src/data/mockData";
 
 // ── Design System ─────────────────────────────────────────────────────────────
 const ds = {
@@ -71,21 +67,23 @@ type JoinRequest = {
   status: string;
 };
 
-// ── Filter data ───────────────────────────────────────────────────────────────
-const YEAR_FILTERS = [
-  { label: "All", value: null },
-  { label: "Year 1", value: "Year 1" },
-  { label: "Year 2", value: "Year 2" },
-  { label: "Year 3", value: "Year 3" },
-];
-
-const VOICE_FILTERS = [
-  { label: "All", value: null },
-  { label: "Bass", value: "bass" },
-  { label: "Tenor", value: "tenor" },
-  { label: "Alto", value: "alto" },
-  { label: "Soprano", value: "soprano" },
-];
+// Helper inside service mapped locally for snapshot cleanups
+const mapToStudent = (id: string, data: any): Student => {
+  return {
+    ...data,
+    id,
+    year_id:
+      data.year_id !== undefined
+        ? Number(data.year_id)
+        : data.year !== undefined
+          ? Number(data.year)
+          : null,
+    voice_type: data.voice_type
+      ? String(data.voice_type).trim().toLowerCase()
+      : null,
+    year_joined: data.year_joined || null,
+  } as Student;
+};
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 export default function StudentsListScreen() {
@@ -103,34 +101,136 @@ export default function StudentsListScreen() {
   const [studentsList, setStudentsList] = useState<StudentWithVoice[]>([]);
   const [groupsList, setGroupsList] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dynamicYearFilters, setDynamicYearFilters] = useState<
+    { label: string; value: string | null }[]
+  >([{ label: "All", value: null }]);
+  const [dynamicVoiceFilters, setDynamicVoiceFilters] = useState<
+    { label: string; value: string | null }[]
+  >([{ label: "All", value: null }]);
 
   // ── Join Requests state ───────────────────────────────────────────────────
   const [joinRequestsVisible, setJoinRequestsVisible] = useState(false);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [joinRequestsLoading, setJoinRequestsLoading] = useState(false);
 
-  // ── Data fetching ────────────────────────────────────────────────────────
-  useFocusEffect(
-    useCallback(() => {
-      const fetchData = async () => {
-        try {
-          const [s, g] = await Promise.all([
-            studentService.getAllStudents(),
-            studentService.getGroups(),
-          ]);
-          setStudentsList(s.length > 0 ? s : mockStudents);
-          setGroupsList(g.length > 0 ? g : mockGroups);
-        } catch (error) {
-          console.error("Firebase fetch error:", error);
-          setStudentsList(mockStudents);
-          setGroupsList(mockGroups);
-        } finally {
-          setLoading(false);
+  // ── Real-time groups listener → dynamic year filter chips ─────────────────
+  useEffect(() => {
+    const q = query(collection(db, "groups"), orderBy("year_id"));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const groups: Group[] = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<Group, "id">),
+        }));
+        setGroupsList(groups);
+        setDynamicYearFilters([
+          { label: "All", value: null },
+          ...groups.map((g) => ({ label: g.name, value: g.name })),
+        ]);
+      },
+      () => {
+        setGroupsList([]);
+        setDynamicYearFilters([
+          { label: "All", value: null },
+          { label: "Year 1", value: "Year 1" },
+          { label: "Year 2", value: "Year 2" },
+          { label: "Year 3", value: "Year 3" },
+        ]);
+      },
+    );
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "voice_types"), (snap) => {
+      const customVoices = snap.docs
+        .map((d) => String(d.data().name || "").trim())
+        .filter((name) => !["Bass", "Tenor", "Alto", "Soprano"].includes(name))
+        .map((name) => ({
+          label: name,
+          value: name.toLowerCase(),
+        }));
+
+      setDynamicVoiceFilters([
+        { label: "All", value: null },
+
+        { label: "Bass", value: "bass" },
+        { label: "Tenor", value: "tenor" },
+        { label: "Alto", value: "alto" },
+        { label: "Soprano", value: "soprano" },
+
+        ...customVoices,
+      ]);
+    });
+
+    return unsub;
+  }, []);
+  // ── Real-time active active students listener ──────────────────────────────
+  useEffect(() => {
+    const q = query(
+      collection(db, "users"),
+      where("role", "==", "singer"),
+      orderBy("full_name"),
+    );
+
+    const unsubStudents = onSnapshot(
+      q,
+      (snapshot) => {
+        const studentsData = snapshot.docs.map((docSnap) =>
+          mapToStudent(docSnap.id, docSnap.data()),
+        );
+        setStudentsList(studentsData);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Real-time students pipeline issue:", error);
+        setLoading(false);
+      },
+    );
+
+    return unsubStudents;
+  }, []);
+
+  // ── Merge student year_ids into filter chips whenever students or groups change ──
+  useEffect(() => {
+    if (studentsList.length === 0) return;
+
+    const seenYears = new Set<number>();
+    studentsList.forEach((s) => {
+      if (s.year_id != null) seenYears.add(Number(s.year_id));
+    });
+
+    setDynamicYearFilters((prev) => {
+      const existingYearNums = new Set(
+        prev
+          .filter((f) => f.value !== null)
+          .map((f) => {
+            const m = f.value?.match(/\d+/);
+            return m ? parseInt(m[0], 10) : -1;
+          }),
+      );
+
+      const extras: { label: string; value: string }[] = [];
+      seenYears.forEach((y) => {
+        if (!existingYearNums.has(y)) {
+          extras.push({ label: `Year ${y}`, value: `Year ${y}` });
         }
-      };
-      fetchData();
-    }, []),
-  );
+      });
+
+      if (extras.length === 0) return prev;
+
+      const allChips = [
+        prev[0],
+        ...[...prev.slice(1), ...extras].sort((a, b) => {
+          const na = parseInt((a.value ?? "0").replace(/\D/g, ""), 10);
+          const nb = parseInt((b.value ?? "0").replace(/\D/g, ""), 10);
+          return na - nb;
+        }),
+      ];
+      return allChips;
+    });
+  }, [studentsList]);
 
   // ── Fetch pending join requests ───────────────────────────────────────────
   const fetchJoinRequests = async () => {
@@ -184,9 +284,6 @@ export default function StudentsListScreen() {
         "Approved",
         `${request.full_name} has been approved and can now log in.`,
       );
-      // Refresh student list
-      const fresh = await studentService.getAllStudents();
-      if (fresh.length > 0) setStudentsList(fresh);
     } catch (e: any) {
       console.error("APPROVE ERROR:", e.message);
       Alert.alert("Error", "Could not approve the request. Please try again.");
@@ -300,10 +397,6 @@ export default function StudentsListScreen() {
     user,
   ]);
 
-  useEffect(() => {
-    console.log("Filtered Students Count (final):", filteredStudents.length);
-  }, [filteredStudents]);
-
   // ── Helpers ───────────────────────────────────────────────────────────────
   const getGroupColor = (groupName: string): string => {
     switch (groupName) {
@@ -389,12 +482,11 @@ export default function StudentsListScreen() {
     );
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       <StatusBar barStyle="light-content" backgroundColor={ds.teal} />
 
-      {/* ── Teal Header ───────────────────────────────────────────────── */}
+      {/* Header */}
       <View style={s.headerBg}>
         <Text style={s.orgLabel}>
           <Text style={{ opacity: 0.85 }}>🎵 Jerusalem Youth Chorus</Text>
@@ -403,7 +495,7 @@ export default function StudentsListScreen() {
       </View>
 
       <View style={s.content}>
-        {/* ── Search ────────────────────────────────────────────────── */}
+        {/* Search */}
         <View style={s.searchSection}>
           <View style={s.searchWrap}>
             <Ionicons name="search-outline" size={18} color={ds.subtext} />
@@ -418,12 +510,12 @@ export default function StudentsListScreen() {
           </View>
         </View>
 
-        {/* ── Admin Filters ─────────────────────────────────────────── */}
+        {/* Filters */}
         {user?.role === "admin" && (
           <View style={s.filterSection}>
             <Text style={s.filterLabel}>Year</Text>
             <View style={s.filterRow}>
-              {YEAR_FILTERS.map((f) => (
+              {dynamicYearFilters.map((f) => (
                 <Pressable
                   key={f.label}
                   onPress={() => setSelectedYearFilter(f.value)}
@@ -456,7 +548,7 @@ export default function StudentsListScreen() {
 
             <Text style={[s.filterLabel, { marginTop: 8 }]}>Voice Section</Text>
             <View style={s.filterRow}>
-              {VOICE_FILTERS.map((f) => (
+              {dynamicVoiceFilters.map((f) => (
                 <Pressable
                   key={f.label}
                   onPress={() => setSelectedVoiceFilter(f.value)}
@@ -479,7 +571,7 @@ export default function StudentsListScreen() {
           </View>
         )}
 
-        {/* ── List / Empty / Loading ─────────────────────────────────── */}
+        {/* List Content */}
         {loading ? (
           <View style={s.empty}>
             <Text style={s.emptyText}>Loading...</Text>
@@ -504,7 +596,7 @@ export default function StudentsListScreen() {
         )}
       </View>
 
-      {/* ── FAB — Join Requests (admin only) ─────────────────────────── */}
+      {/* FAB */}
       {user?.role === "admin" && (
         <Pressable
           style={s.fab}
@@ -517,7 +609,7 @@ export default function StudentsListScreen() {
         </Pressable>
       )}
 
-      {/* ── Join Requests Modal ────────────────────────────────────────── */}
+      {/* Modal */}
       <Modal
         visible={joinRequestsVisible}
         transparent
@@ -527,7 +619,6 @@ export default function StudentsListScreen() {
         <View style={s.modalOverlay}>
           <View style={s.modalSheet}>
             <View style={s.modalHandle} />
-
             <View style={s.modalTitleRow}>
               <Text style={s.modalTitle}>Join Requests</Text>
               <Pressable
@@ -569,19 +660,19 @@ export default function StudentsListScreen() {
                   <View key={req.uid} style={s.requestCard}>
                     <Text style={s.requestName}>{req.full_name}</Text>
                     <Text style={s.requestDetail}>📞 {req.phone}</Text>
-                    {req.email ? (
+                    {req.email && (
                       <Text style={s.requestDetail}>✉️ {req.email}</Text>
-                    ) : null}
-                    {req.voice_type ? (
+                    )}
+                    {req.voice_type && (
                       <Text style={s.requestDetail}>
                         🎵{" "}
                         {req.voice_type.charAt(0).toUpperCase() +
                           req.voice_type.slice(1)}
                       </Text>
-                    ) : null}
-                    {req.school_name ? (
+                    )}
+                    {req.school_name && (
                       <Text style={s.requestDetail}>🏫 {req.school_name}</Text>
-                    ) : null}
+                    )}
                     <View style={s.requestActions}>
                       <Pressable
                         style={[s.actionBtn, { backgroundColor: ds.teal }]}
@@ -652,8 +743,6 @@ const s = StyleSheet.create({
   empty: { flex: 1, justifyContent: "center", alignItems: "center" },
   emptyText: { color: ds.muted, marginTop: 8 },
   list: { paddingBottom: 120 },
-
-  // ── FAB
   fab: {
     position: "absolute",
     bottom: 24,
@@ -670,8 +759,6 @@ const s = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-
-  // ── Modal shell
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
@@ -699,16 +786,12 @@ const s = StyleSheet.create({
     marginBottom: 20,
   },
   modalTitle: { fontSize: 20, fontWeight: "800", color: ds.text },
-
-  // ── Empty state inside modal
   emptyRequests: {
     alignItems: "center",
     paddingVertical: 32,
     gap: 8,
   },
   emptyRequestsText: { color: ds.muted, fontSize: 14 },
-
-  // ── Request cards
   requestCard: {
     backgroundColor: ds.bg,
     borderRadius: 12,
@@ -739,8 +822,6 @@ const s = StyleSheet.create({
     gap: 4,
   },
   actionBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
-
-  // ── Close button
   closeBtn: {
     marginTop: 16,
     borderWidth: 1.5,
@@ -750,8 +831,6 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   closeBtnText: { fontSize: 14, fontWeight: "700", color: ds.subtext },
-
-  // ── Student cards (unchanged)
   card: {
     backgroundColor: ds.white,
     borderRadius: 8,
