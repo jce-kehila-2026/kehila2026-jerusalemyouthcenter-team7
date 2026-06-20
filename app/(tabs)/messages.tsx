@@ -733,7 +733,7 @@ export default function MessagesScreen() {
       const msg: string = e?.message ?? "";
       setGroupSaveError(
         msg.toLowerCase().includes("permission")
-          ? "Permission denied — make sure your Firestore rules allow writes to the 'groups' collection."
+          ? "Permission denied — add this rule in Firebase Console → Firestore → Rules:\n  match /chat_groups/{id} { allow read, write: if request.auth != null; }"
           : msg || "Failed to save. Please try again.",
       );
     }
