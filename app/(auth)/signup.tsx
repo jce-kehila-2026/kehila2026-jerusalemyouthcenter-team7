@@ -1,7 +1,9 @@
+import { db } from "@/backend/firebase";
 import { StudentSignupPayload, useAuth } from "@/src/context/AuthContext";
 import { COLORS } from "@/src/data/mockData";
 import { Link, useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import { collection, getDocs } from "firebase/firestore";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -159,7 +161,7 @@ type FormState = {
   age: string;
   school_name: string;
   shirt_size: "S" | "M" | "L" | "XL" | "";
-  voice_type: "bass" | "tenor" | "alto" | "soprano" | "";
+  voice_type: string;
   year_joined: string;
   food_notes: "vegetarian" | "vegan" | "halal" | "kosher" | string;
   parent_relation: "father" | "mother" | "";
@@ -204,6 +206,32 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
+  const [voiceTypes, setVoiceTypes] = useState<
+    { label: string; value: string }[]
+  >([]);
+
+  useEffect(() => {
+    const loadVoiceTypes = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, "voice_types"));
+
+        const types = snapshot.docs.map((doc) => {
+          const data = doc.data();
+
+          return {
+            label: `🎵 ${data.name}`,
+            value: data.name.toLowerCase(),
+          };
+        });
+
+        setVoiceTypes(types);
+      } catch (error) {
+        console.error("Failed to load voice types:", error);
+      }
+    };
+
+    loadVoiceTypes();
+  }, []);
 
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -300,7 +328,7 @@ export default function SignupScreen() {
       age: parseInt(form.age, 10),
       school_name: form.school_name.trim(),
       shirt_size: form.shirt_size as "S" | "M" | "L" | "XL",
-      voice_type: form.voice_type as "bass" | "tenor" | "alto" | "soprano",
+      voice_type: form.voice_type,
       year_joined: parseInt(form.year_joined, 10),
       food_notes: form.food_notes as
         | "vegetarian"
@@ -467,12 +495,7 @@ export default function SignupScreen() {
 
           <FL text="Voice Type" req />
           <Pills
-            options={[
-              { label: "🎵 Bass", value: "bass" },
-              { label: "🎵 Tenor", value: "tenor" },
-              { label: "🎵 Alto", value: "alto" },
-              { label: "🎵 Soprano", value: "soprano" },
-            ]}
+            options={voiceTypes}
             value={form.voice_type}
             onChange={(v) => setForm((p) => ({ ...p, voice_type: v }))}
           />
