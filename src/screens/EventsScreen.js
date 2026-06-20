@@ -1,9 +1,10 @@
+import { db } from "@/src/firebase/firebase";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { collection, deleteDoc, doc, onSnapshot } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -20,8 +21,6 @@ import {
   getEvents,
   updateEvent,
 } from "../../backend/eventsService";
-import { db } from "@/src/firebase/firebase";
-import { doc, deleteDoc } from "firebase/firestore";
 
 // ─── Design System ─────────────────────────────────────────────────────────
 const T = {
@@ -32,6 +31,8 @@ const T = {
   redBg: "#fff1ee",
   yellow: "#cfad5d",
   yellowBg: "#fffbf0",
+  purple: "#8b5cf6", // Year 3 Color
+  purpleDark: "#6d28d9",
   white: "#ffffff",
   bg: "#f5fafe",
   card: "#ffffff",
@@ -42,38 +43,18 @@ const T = {
 };
 const sp = (n) => n * 8;
 
-const GOOGLE_CALENDAR_SUBSCRIBE_URL =
-  "https://calendar.google.com/calendar/r?cid=https://calendar.google.com/calendar/ical/6ee65334f0a4c98b5d09abd1f1f2e38c42a93f8ce246d56fb0e9041f0ed7fa4d%40group.calendar.google.com/private-956d897f3255c9d53850f11442e4b179/basic.ics";
+// --- HARDCODED COLORS DICTIONARY ---
+const getFixedColor = (groupName) => {
+  if (!groupName) return T.teal;
+  const standard = groupName.trim().toLowerCase();
 
-const openGoogleCalendarSubscribe = () => {
-  if (Platform.OS === "web") {
-    window.open(GOOGLE_CALENDAR_SUBSCRIBE_URL, "_blank");
-  } else {
-    Linking.openURL(GOOGLE_CALENDAR_SUBSCRIBE_URL).catch(() => {});
-  }
+  if (standard === "all groups" || standard === "all") return T.teal;
+  if (standard === "year 1") return T.yellow;
+  if (standard === "year 2") return T.red;
+  if (standard === "year 3") return T.purple;
+
+  return T.teal;
 };
-
-const BADGE_STYLES = {
-  all: { bg: T.tealBg, text: T.teal },
-  year1: { bg: T.yellowBg, text: "#9a7b20" },
-  year2: { bg: T.redBg, text: T.red },
-  year3: { bg: "#f3f0ff", text: "#6b5ce7" },
-};
-
-const GROUP_COLORS = {
-  "All Groups": T.teal,
-  "Year 1": T.yellow,
-  "Year 2": T.red,
-  "Year 3": "#8b5cf6",
-};
-
-const FILTERS = [
-  { key: "all_events", label: "All" },
-  { key: "year1", label: "Year 1" },
-  { key: "year2", label: "Year 2" },
-  { key: "year3", label: "Year 3" },
-  { key: "all", label: "All Groups" },
-];
 
 const VOICE_FILTERS = [
   { key: "all_voices", label: "All" },
@@ -104,14 +85,12 @@ const getDateParts = (dateStr) => {
   const segments = isoPart.includes("-") ? isoPart.split("-") : null;
   if (!segments || segments.length < 3) return { day: "--", month: "" };
   const [, month, day] = segments;
-  const monthIndex = parseInt(month, 10) - 1;
   return {
     day: String(parseInt(day, 10)),
-    month: MONTH_ABBR[monthIndex] || "",
+    month: MONTH_ABBR[parseInt(month, 10) - 1] || "",
   };
 };
 
-// Decorative music notes used as a subtle accent on the right edge of cards.
 function MusicTrace() {
   return (
     <View style={[s.traceCol, { pointerEvents: "none" }]}>
@@ -246,7 +225,8 @@ const validateForm = (values) => {
   return { errors, valid };
 };
 
-function FormFields({ values, setValues, errors }) {
+// ─── LOCAL FORM FIELDS COMPONENT ───────────────────────────────────────────
+function LocalFormFields({ values, setValues, errors, groups }) {
   return (
     <ScrollView keyboardShouldPersistTaps="handled">
       {[
@@ -297,27 +277,40 @@ function FormFields({ values, setValues, errors }) {
           multiline
         />
       </View>
+
       <Text style={s.label}>Group</Text>
       <View style={s.groupRow}>
-        {FILTERS.slice(1).map((f) => (
-          <Pressable
-            key={f.key}
-            style={[s.groupPill, values.group === f.key && s.groupPillActive]}
-            onPress={() =>
-              setValues((p) => ({ ...p, group: f.key, groupLabel: f.label }))
-            }
-          >
-            <Text
+        {groups.map((g) => {
+          const groupName = g.name || g.label || g.id;
+          const groupKey = groupName.toLowerCase().replace(/[\s_]+/g, "_");
+          return (
+            <Pressable
+              key={g.id}
               style={[
-                s.groupPillText,
-                values.group === f.key && { color: "#fff" },
+                s.groupPill,
+                values.group === groupKey && s.groupPillActive,
               ]}
+              onPress={() =>
+                setValues((p) => ({
+                  ...p,
+                  group: groupKey,
+                  groupLabel: groupName,
+                }))
+              }
             >
-              {f.label}
-            </Text>
-          </Pressable>
-        ))}
+              <Text
+                style={[
+                  s.groupPillText,
+                  values.group === groupKey && { color: "#fff" },
+                ]}
+              >
+                {groupName}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
+
       <Text style={s.label}>Voice Section</Text>
       <View style={s.groupRow}>
         {VOICE_FILTERS.map((f) => (
@@ -350,10 +343,12 @@ function FormFields({ values, setValues, errors }) {
   );
 }
 
+// ─── MAIN SCREEN COMPONENT ─────────────────────────────────────────────────
 export default function EventsScreen() {
   const router = useRouter();
   const { action } = useLocalSearchParams();
   const [events, setEvents] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("list");
   const [activeFilter, setFilter] = useState("all_events");
@@ -377,12 +372,10 @@ export default function EventsScreen() {
     }
   }, [action]);
 
+  // Combined Sync and Real-time listener setup
   useEffect(() => {
     const loadEvents = async () => {
       try {
-        // Trigger the Google Calendar → Firestore sync first (best-effort —
-        // if this is slow or fails, the events list below still loads
-        // normally from whatever was already in Firestore).
         try {
           await fetch(
             "https://us-central1-fullstack-team-7.cloudfunctions.net/getGoogleCalendarEvents",
@@ -390,24 +383,93 @@ export default function EventsScreen() {
         } catch (syncErr) {
           console.error("Google Calendar sync error:", syncErr);
         }
-
         const data = await getEvents();
         setEvents(data);
       } catch (e) {
-        console.error(e);
+        console.error("Error loading initial events:", e);
       } finally {
         setLoading(false);
       }
     };
     loadEvents();
+
+    // REAL-TIME FIRESTORE LISTENER FOR THE GROUPS MODAL PILLS
+    const unsubscribeGroups = onSnapshot(
+      collection(db, "groups"),
+      (snapshot) => {
+        const groupsList = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
+        // Ensure standard sorted representation
+        groupsList.sort((a, b) => {
+          const nameA = a.name || a.label || a.id;
+          const nameB = b.name || b.label || b.id;
+          return nameA.localeCompare(nameB, undefined, { numeric: true });
+        });
+
+        setGroups(groupsList);
+      },
+      (error) => {
+        console.error("Groups subscription listener failed:", error);
+      },
+    );
+
+    return () => unsubscribeGroups();
   }, []);
 
-  const matchesYearFilter = (e) =>
-    activeFilter === "all_events"
-      ? true
-      : activeFilter === "all"
-        ? e.group === "all"
-        : e.group === activeFilter || e.group === "all";
+  // Filter normalization processing logic
+  const uniqueGroupLabels = Array.from(
+    new Set(
+      events.map(
+        (e) => e.groupLabel || (e.group === "all" ? "All Groups" : e.group),
+      ),
+    ),
+  ).filter(Boolean);
+
+  const baseLabels = ["All Groups", "Year 1", "Year 2", "Year 3"];
+
+  const finalGroupLabels = Array.from(
+    new Set([...baseLabels, ...uniqueGroupLabels]),
+  )
+    .filter((label) => {
+      if (label === "All Groups") return true;
+      if (label === "Year 1" || label === "Year 2" || label === "Year 3")
+        return true;
+
+      const normalizedLabel = label.toLowerCase().replace(/[\s_]+/g, "");
+      return events.some((e) => {
+        const eventLabel = (e.groupLabel || e.group || "")
+          .toLowerCase()
+          .replace(/[\s_]+/g, "");
+        return eventLabel === normalizedLabel;
+      });
+    })
+    .sort((a, b) => {
+      if (a === "All Groups") return -1;
+      if (b === "All Groups") return 1;
+      return a.localeCompare(b, undefined, { numeric: true });
+    });
+
+  const dynamicFilters = [
+    { key: "all_events", label: "All" },
+    ...finalGroupLabels.map((label) => {
+      let key = label.toLowerCase().replace(/[\s_]+/g, "");
+      if (label === "All Groups") key = "all";
+      return { key, label };
+    }),
+  ];
+
+  const matchesYearFilter = (e) => {
+    if (activeFilter === "all_events") return true;
+    const itemKey = (e.groupLabel || e.group || "")
+      .toLowerCase()
+      .replace(/[\s_]+/g, "");
+    if (activeFilter === "all" || itemKey === "allgroups")
+      return e.group === "all" || itemKey === "allgroups";
+    return itemKey === activeFilter || e.group === "all";
+  };
 
   const matchesVoiceFilter = (e) =>
     activeVoiceFilter === "all_voices"
@@ -427,9 +489,7 @@ export default function EventsScreen() {
   events.forEach((event) => {
     const date = (event.date || "").split("T")[0];
     if (!date) return;
-    if (!eventsByDate[date]) {
-      eventsByDate[date] = [];
-    }
+    if (!eventsByDate[date]) eventsByDate[date] = [];
     eventsByDate[date].push(event);
   });
 
@@ -444,12 +504,8 @@ export default function EventsScreen() {
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
-  for (let i = 0; i < firstDay; i++) {
-    calendarDays.push(null);
-  }
-  for (let i = 1; i <= daysInMonth; i++) {
-    calendarDays.push(i);
-  }
+  for (let i = 0; i < firstDay; i++) calendarDays.push(null);
+  for (let i = 1; i <= daysInMonth; i++) calendarDays.push(i);
 
   const monthNames = [
     "January",
@@ -484,21 +540,101 @@ export default function EventsScreen() {
     }
   };
 
-  const doDelete = async () => {
+  // State Action Controllers
+  const saveNew = async () => {
+    const { errors, valid } = validateForm(newForm);
+    setNewErrors(errors);
+    if (!valid) return;
     try {
-      await deleteEvent(deleteTarget.id);
-      // Attendance is stored as its own document keyed by the event id —
-      // delete it too so it doesn't linger as an orphaned record.
-      try {
-        await deleteDoc(doc(db, "attendance", deleteTarget.id));
-      } catch (attendanceErr) {
-        console.error("Failed to delete attendance record:", attendanceErr);
+      const [day, month, year] = newForm.date.split("/");
+      const isoDate = `${year}-${month}-${day}`;
+
+      const matchingGroupObj = groups.find((g) => {
+        const normDb = (g.name || g.label || g.id)
+          .toLowerCase()
+          .replace(/[\s_]+/g, "");
+        const normForm = newForm.group.toLowerCase().replace(/[\s_]+/g, "");
+        return normDb === normForm;
+      });
+      const computedLabel = matchingGroupObj
+        ? matchingGroupObj.name || matchingGroupObj.label
+        : "Year 4";
+
+      const eventPayload = {
+        ...newForm,
+        date: isoDate,
+        groupLabel: computedLabel,
+      };
+
+      const clientSideEvent = {
+        ...eventPayload,
+        id: "temp-" + Date.now().toString(),
+      };
+      setEvents((p) => [clientSideEvent, ...p]);
+
+      const newEvent = await addEvent(eventPayload);
+      if (newEvent?.id) {
+        setEvents((p) =>
+          p.map((e) =>
+            e.id === clientSideEvent.id ? { ...e, id: newEvent.id } : e,
+          ),
+        );
       }
-      setEvents((p) => p.filter((e) => e.id !== deleteTarget.id));
     } catch (e) {
       console.error(e);
     }
-    setDeleteTarget(null);
+    setAddVisible(false);
+    setNewForm(emptyForm);
+    setNewErrors(emptyErrors);
+  };
+
+  const saveEdit = async () => {
+    const { errors, valid } = validateForm(form);
+    setFormErrors(errors);
+    if (!valid) return;
+    try {
+      const [day, month, year] = form.date.split("/");
+      const isoDate = `${year}-${month}-${day}`;
+
+      const matchingGroupObj = groups.find((g) => {
+        const normDb = (g.name || g.label || g.id)
+          .toLowerCase()
+          .replace(/[\s_]+/g, "");
+        const normForm = form.group.toLowerCase().replace(/[\s_]+/g, "");
+        return normDb === normForm;
+      });
+      const computedLabel = matchingGroupObj
+        ? matchingGroupObj.name || matchingGroupObj.label
+        : form.groupLabel;
+
+      const formWithIso = { ...form, date: isoDate, groupLabel: computedLabel };
+
+      setEvents((p) =>
+        p.map((e) => (e.id === editTarget.id ? { ...e, ...formWithIso } : e)),
+      );
+      await updateEvent(editTarget.id, formWithIso);
+    } catch (e) {
+      console.error(e);
+    }
+    setEditVisible(false);
+  };
+
+  const doDelete = async () => {
+    if (!deleteTarget) return;
+    const targetId = deleteTarget.id;
+    try {
+      setEvents((prev) => prev.filter((e) => e.id !== targetId));
+      setDeleteTarget(null);
+
+      await deleteEvent(targetId);
+      try {
+        await deleteDoc(doc(db, "attendance", targetId));
+      } catch (err) {
+        console.error(err);
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const openEdit = (item) => {
@@ -514,52 +650,12 @@ export default function EventsScreen() {
       time: item.time || "",
       location: item.location,
       group: item.group,
-      groupLabel: item.groupLabel,
+      groupLabel: item.groupLabel || "All Groups",
       voiceSection: item.voiceSection || "all_voices",
       voiceSectionLabel: item.voiceSectionLabel || "All",
     });
     setFormErrors(emptyErrors);
     setEditVisible(true);
-  };
-
-  const saveEdit = async () => {
-    const { errors, valid } = validateForm(form);
-    setFormErrors(errors);
-    if (!valid) return;
-    try {
-      const [day, month, year] = form.date.split("/");
-      const isoDate = `${year}-${month}-${day}`;
-      const formWithIso = { ...form, date: isoDate };
-      await updateEvent(editTarget.id, formWithIso);
-      setEvents((p) =>
-        p.map((e) => (e.id === editTarget.id ? { ...e, ...formWithIso } : e)),
-      );
-    } catch (e) {
-      console.error(e);
-    }
-    setEditVisible(false);
-  };
-
-  const saveNew = async () => {
-    const { errors, valid } = validateForm(newForm);
-    setNewErrors(errors);
-    if (!valid) return;
-    try {
-      const [day, month, year] = newForm.date.split("/");
-      const isoDate = `${year}-${month}-${day}`;
-      const newEvent = await addEvent({
-        ...newForm,
-        date: isoDate,
-        groupLabel:
-          FILTERS.find((f) => f.key === newForm.group)?.label || "All Groups",
-      });
-      if (newEvent) setEvents((p) => [newEvent, ...p]);
-    } catch (e) {
-      console.error(e);
-    }
-    setAddVisible(false);
-    setNewForm(emptyForm);
-    setNewErrors(emptyErrors);
   };
 
   const goToDetail = (item) =>
@@ -583,20 +679,21 @@ export default function EventsScreen() {
     });
 
   const renderEventCard = ({ item }) => {
-    const badge = BADGE_STYLES[item.group] || BADGE_STYLES.all;
+    const groupDisplay = item.groupLabel || "All Groups";
+    const groupColor = getFixedColor(groupDisplay);
     const { day, month } = getDateParts(item.date);
     return (
       <View style={s.card}>
-        <View style={[s.dateBlock, { backgroundColor: badge.text }]}>
+        <View style={[s.dateBlock, { backgroundColor: groupColor }]}>
           <Text style={s.dateBlockDay}>{day}</Text>
           <Text style={s.dateBlockMonth}>{month}</Text>
         </View>
         <View style={s.cardInner}>
           <View style={s.cardTop}>
             <View style={{ flexDirection: "row", gap: 6, flexShrink: 1 }}>
-              <View style={[s.badge, { backgroundColor: badge.bg }]}>
-                <Text style={[s.badgeText, { color: badge.text }]}>
-                  {item.groupLabel}
+              <View style={[s.badge, { backgroundColor: groupColor + "15" }]}>
+                <Text style={[s.badgeText, { color: groupColor }]}>
+                  {groupDisplay}
                 </Text>
               </View>
               {item.voiceSectionLabel && item.voiceSection !== "all_voices" && (
@@ -629,14 +726,14 @@ export default function EventsScreen() {
             <Pressable
               style={[
                 s.btnEdit,
-                { borderColor: badge.text, backgroundColor: badge.bg },
+                { borderColor: groupColor, backgroundColor: groupColor + "08" },
               ]}
               onPress={() => openEdit(item)}
             >
-              <Text style={[s.btnEditText, { color: badge.text }]}>Edit</Text>
+              <Text style={[s.btnEditText, { color: groupColor }]}>Edit</Text>
             </Pressable>
             <Pressable
-              style={[s.btnAttendance, { backgroundColor: badge.text }]}
+              style={[s.btnAttendance, { backgroundColor: groupColor }]}
               onPress={() => goToAttendance(item)}
             >
               <Text style={s.btnAttendanceText}>Attendance</Text>
@@ -649,7 +746,7 @@ export default function EventsScreen() {
   };
 
   const renderCalendarEvent = ({ item }) => {
-    const color = GROUP_COLORS[item.groupLabel] || T.teal;
+    const color = getFixedColor(item.groupLabel);
     return (
       <Pressable style={s.calCard} onPress={() => goToDetail(item)}>
         <View style={[s.calCardBar, { backgroundColor: color }]} />
@@ -678,7 +775,9 @@ export default function EventsScreen() {
               </Text>
             </View>
             <View style={[s.badge, { backgroundColor: color + "18" }]}>
-              <Text style={[s.badgeText, { color }]}>{item.groupLabel}</Text>
+              <Text style={[s.badgeText, { color }]}>
+                {item.groupLabel || "All Groups"}
+              </Text>
             </View>
           </View>
           <Text style={s.calCardTitle}>{item.title}</Text>
@@ -696,12 +795,11 @@ export default function EventsScreen() {
     <View style={s.safe}>
       <StatusBar barStyle="light-content" backgroundColor={T.teal} />
 
-      {/* ── Header ── */}
+      {/* Layout Header */}
       <View style={s.header}>
         <View
           style={{ flexDirection: "row", alignItems: "flex-end", gap: sp(1) }}
         >
-          {/* Back button - only visible in Calendar tab */}
           {activeTab === "calendar" && (
             <Pressable onPress={() => setActiveTab("list")} style={s.backBtn}>
               <Text style={s.backBtnText}>←</Text>
@@ -715,7 +813,6 @@ export default function EventsScreen() {
           </View>
         </View>
 
-        {/* Tab toggle - always visible, so List can be tapped from Calendar mode */}
         <View style={s.tabToggle}>
           <Pressable
             style={[
@@ -752,7 +849,7 @@ export default function EventsScreen() {
         </View>
       </View>
 
-      {/* ── LIST VIEW ── */}
+      {/* Main Tab Routing Layout */}
       {activeTab === "list" && (
         <View style={{ flex: 1 }}>
           <View style={s.filtersWrap}>
@@ -762,7 +859,7 @@ export default function EventsScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={s.filtersContent}
             >
-              {FILTERS.map((f) => (
+              {dynamicFilters.map((f) => (
                 <Pressable
                   key={f.key}
                   style={[
@@ -833,7 +930,6 @@ export default function EventsScreen() {
         </View>
       )}
 
-      {/* ── CALENDAR VIEW ── */}
       {activeTab === "calendar" && (
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -867,7 +963,7 @@ export default function EventsScreen() {
                   : null;
                 const hasEvent = dateStr && eventsByDate[dateStr];
                 const eventColor = hasEvent
-                  ? GROUP_COLORS[eventsByDate[dateStr][0]?.groupLabel] || T.teal
+                  ? getFixedColor(eventsByDate[dateStr][0]?.groupLabel)
                   : null;
                 const isSelected = dateStr === selectedDate;
                 const isToday = dateStr === todayStr;
@@ -913,9 +1009,14 @@ export default function EventsScreen() {
           </View>
 
           <View style={s.legend}>
-            {Object.entries(GROUP_COLORS).map(([label, color]) => (
+            {finalGroupLabels.map((label) => (
               <View key={label} style={s.legendItem}>
-                <View style={[s.legendDot, { backgroundColor: color }]} />
+                <View
+                  style={[
+                    s.legendDot,
+                    { backgroundColor: getFixedColor(label) },
+                  ]}
+                />
                 <Text style={s.legendText}>{label}</Text>
               </View>
             ))}
@@ -945,7 +1046,7 @@ export default function EventsScreen() {
         </ScrollView>
       )}
 
-      {/* FAB */}
+      {/* Floating Action Button */}
       <Pressable
         style={s.fab}
         onPress={() => {
@@ -966,7 +1067,7 @@ export default function EventsScreen() {
         </Text>
       </Pressable>
 
-      {/* DELETE */}
+      {/* Confirm Deletion Overlay */}
       <Modal
         visible={!!deleteTarget}
         animationType="fade"
@@ -1002,7 +1103,7 @@ export default function EventsScreen() {
         </View>
       </Modal>
 
-      {/* EDIT */}
+      {/* Action Target Sheets */}
       <Modal
         visible={editVisible}
         animationType="slide"
@@ -1018,7 +1119,12 @@ export default function EventsScreen() {
             >
               <Text style={{ color: T.muted, fontSize: 22 }}>✕</Text>
             </Pressable>
-            <FormFields values={form} setValues={setForm} errors={formErrors} />
+            <LocalFormFields
+              values={form}
+              setValues={setForm}
+              errors={formErrors}
+              groups={groups}
+            />
             <View style={[s.btnRow, { marginTop: sp(2) }]}>
               <Pressable style={s.btnPrimary} onPress={saveEdit}>
                 <Text style={s.btnLight}>Save Changes</Text>
@@ -1034,7 +1140,6 @@ export default function EventsScreen() {
         </View>
       </Modal>
 
-      {/* ADD */}
       <Modal
         visible={addVisible}
         animationType="slide"
@@ -1050,11 +1155,15 @@ export default function EventsScreen() {
             >
               <Text style={{ color: T.muted, fontSize: 22 }}>✕</Text>
             </Pressable>
-            <FormFields
+
+            {/* COMPONENT VALUE INJECTION PROP CORRECTION */}
+            <LocalFormFields
               values={newForm}
               setValues={setNewForm}
               errors={newErrors}
+              groups={groups}
             />
+
             <View style={[s.btnRow, { marginTop: sp(2) }]}>
               <Pressable style={s.btnPrimary} onPress={saveNew}>
                 <Text style={s.btnLight}>Create Event</Text>
@@ -1073,6 +1182,7 @@ export default function EventsScreen() {
   );
 }
 
+// ─── Stylesheet Layout ─────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: T.bg },
   header: {
@@ -1097,8 +1207,6 @@ const s = StyleSheet.create({
     marginTop: 4,
     letterSpacing: -0.5,
   },
-
-  // Back button
   backBtn: {
     backgroundColor: "rgba(255,255,255,0.25)",
     borderRadius: 8,
@@ -1108,13 +1216,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 4,
   },
-  backBtnText: {
-    color: "#fff",
-    fontSize: 20,
-    fontWeight: "700",
-  },
-
-  // Tab toggle
+  backBtnText: { color: "#fff", fontSize: 20, fontWeight: "700" },
   tabToggle: {
     backgroundColor: "rgba(255,255,255,0.2)",
     borderRadius: 10,
@@ -1129,8 +1231,6 @@ const s = StyleSheet.create({
     fontSize: 13,
   },
   tabToggleTextActive: { color: T.teal, fontWeight: "700" },
-
-  // Filters
   filtersWrap: {
     marginTop: sp(1),
     marginBottom: sp(2.5),
@@ -1167,34 +1267,11 @@ const s = StyleSheet.create({
   filterBtnActive: { backgroundColor: T.teal, borderColor: T.teal },
   filterText: { color: T.textSub, fontSize: 13, fontWeight: "500" },
   filterTextActive: { color: "#fff", fontWeight: "700" },
-
-  // Events list (ScrollView content)
-  calSyncBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: T.tealBg,
-    borderRadius: 12,
-    marginHorizontal: sp(2),
-    marginBottom: sp(1.5),
-    paddingVertical: sp(1.25),
-    paddingHorizontal: sp(1.5),
-    gap: sp(1),
-  },
-  calSyncBannerIcon: { fontSize: 18 },
-  calSyncBannerText: {
-    flex: 1,
-    color: T.teal,
-    fontWeight: "600",
-    fontSize: 13,
-  },
-  calSyncBannerArrow: { color: T.teal, fontSize: 20, fontWeight: "700" },
   eventsListContent: {
     paddingHorizontal: sp(2),
     paddingBottom: 100,
     gap: sp(1.25),
   },
-
-  // Event card
   card: {
     backgroundColor: T.card,
     borderRadius: 16,
@@ -1208,8 +1285,6 @@ const s = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
-
-  // Side date block
   dateBlock: {
     width: 76,
     flexShrink: 0,
@@ -1230,7 +1305,6 @@ const s = StyleSheet.create({
     letterSpacing: 1,
     marginTop: 2,
   },
-
   cardInner: { flex: 1, minWidth: 0, padding: sp(1.75), zIndex: 1 },
   cardTop: {
     flexDirection: "row",
@@ -1248,11 +1322,7 @@ const s = StyleSheet.create({
     color: T.text,
     marginBottom: 4,
   },
-  cardMeta: {
-    fontSize: 13,
-    color: T.textSub,
-    marginBottom: sp(0.75),
-  },
+  cardMeta: { fontSize: 13, color: T.textSub, marginBottom: sp(0.75) },
   cardDesc: {
     fontSize: 13,
     color: T.textSub,
@@ -1271,29 +1341,20 @@ const s = StyleSheet.create({
   btnRow: { flexDirection: "row", gap: sp(1) },
   btnEdit: {
     flex: 1,
-    backgroundColor: T.tealBg,
     borderWidth: 1.5,
-    borderColor: T.teal,
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: "center",
   },
-  btnEditText: { color: T.teal, fontWeight: "700", fontSize: 13 },
+  btnEditText: { fontWeight: "700", fontSize: 13 },
   btnAttendance: {
     flex: 1,
-    backgroundColor: T.teal,
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: "center",
   },
   btnAttendanceText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-
-  // Decorative music-trace column (right edge of card)
-  traceCol: {
-    width: 60,
-    flexShrink: 0,
-    position: "relative",
-  },
+  traceCol: { width: 60, flexShrink: 0, position: "relative" },
   traceNote: { position: "absolute", opacity: 0.32 },
   traceNoteTop: {
     top: "14%",
@@ -1313,8 +1374,6 @@ const s = StyleSheet.create({
     fontSize: 15,
     transform: [{ rotate: "-4deg" }],
   },
-
-  // Calendar view
   calendarScroll: { backgroundColor: T.white },
   calendarContainer: { padding: sp(2), backgroundColor: T.white },
   monthNavigation: {
@@ -1352,14 +1411,6 @@ const s = StyleSheet.create({
     fontWeight: "600",
   },
   calendarGrid: { flexDirection: "row", flexWrap: "wrap", marginBottom: sp(2) },
-  weekDay: {
-    width: "14.28%",
-    textAlign: "center",
-    color: T.textSub,
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: sp(1),
-  },
   calendarDay: {
     width: "14%",
     aspectRatio: 1,
@@ -1384,7 +1435,6 @@ const s = StyleSheet.create({
     fontWeight: "700",
     marginTop: 2,
     textAlign: "center",
-    color: T.teal,
   },
   legend: {
     flexDirection: "row",
@@ -1430,9 +1480,6 @@ const s = StyleSheet.create({
     marginTop: 6,
     marginBottom: 4,
   },
-  calCardLoc: { color: T.textSub, fontSize: 12 },
-
-  // Empty
   empty: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyText: {
     color: T.text,
@@ -1440,8 +1487,6 @@ const s = StyleSheet.create({
     fontWeight: "700",
     marginTop: sp(1),
   },
-
-  // FAB
   fab: {
     position: "absolute",
     bottom: 24,
@@ -1458,8 +1503,6 @@ const s = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 8,
   },
-
-  // Modals
   overlayCenter: {
     flex: 1,
     backgroundColor: "#0008",
@@ -1530,8 +1573,6 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   btnLight: { color: "#fff", fontWeight: "700", fontSize: 14 },
-
-  // Form
   label: {
     color: T.textSub,
     fontSize: 12,

@@ -95,6 +95,8 @@ export const studentService = {
       name,
       member_ids: memberIds,
       created_at: new Date().toISOString(),
+      year_id: yearId,
+      program_id: yearId, // Assuming program_id is the same as year_id for simplicity
     });
     return ref.id;
   },
