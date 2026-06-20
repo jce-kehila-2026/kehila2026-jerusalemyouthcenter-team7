@@ -14,6 +14,7 @@ export default function EventsTab() {
   return (
     <EventStudentScreen
       studentYear={user?.current_year_id ?? 1}
+      studentVoiceType={user?.voice_type ?? "all_voices"}
       studentName={user?.full_name ?? "Student"}
       onEventPress={(event: any) =>
         router.push({

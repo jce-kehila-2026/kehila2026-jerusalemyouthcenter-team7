@@ -63,14 +63,6 @@ const getFixedColor = (groupName) => {
   return T.teal;
 };
 
-const VOICE_FILTERS = [
-  { key: "all_voices", label: "All" },
-  { key: "bass", label: "Bass" },
-  { key: "tenor", label: "Tenor" },
-  { key: "alto", label: "Alto" },
-  { key: "soprano", label: "Soprano" },
-];
-
 const MONTH_ABBR = [
   "JAN",
   "FEB",
@@ -233,7 +225,7 @@ const validateForm = (values) => {
 };
 
 // ─── LOCAL FORM FIELDS COMPONENT ───────────────────────────────────────────
-function LocalFormFields({ values, setValues, errors, groups }) {
+function LocalFormFields({ values, setValues, errors, groups, voiceFilters }) {
   return (
     <ScrollView keyboardShouldPersistTaps="handled">
       {[
@@ -287,9 +279,31 @@ function LocalFormFields({ values, setValues, errors, groups }) {
 
       <Text style={s.label}>Group</Text>
       <View style={s.groupRow}>
+        {/* All Groups option */}
+        <Pressable
+          style={[s.groupPill, values.group === "all" && s.groupPillActive]}
+          onPress={() =>
+            setValues((p) => ({
+              ...p,
+              group: "all",
+              groupLabel: "All Groups",
+            }))
+          }
+        >
+          <Text
+            style={[
+              s.groupPillText,
+              values.group === "all" && { color: "#fff" },
+            ]}
+          >
+            All Groups
+          </Text>
+        </Pressable>
+
         {groups.map((g) => {
           const groupName = g.name || g.label || g.id;
           const groupKey = groupName.toLowerCase().replace(/[\s_]+/g, "_");
+
           return (
             <Pressable
               key={g.id}
@@ -320,7 +334,7 @@ function LocalFormFields({ values, setValues, errors, groups }) {
 
       <Text style={s.label}>Voice Section</Text>
       <View style={s.groupRow}>
-        {VOICE_FILTERS.map((f) => (
+        {voiceFilters.map((f) => (
           <Pressable
             key={f.key}
             style={[
@@ -372,6 +386,9 @@ export default function EventsScreen() {
   const [calModalVisible, setCalModalVisible] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [voiceFilters, setVoiceFilters] = useState([
+    { key: "all_voices", label: "All" },
+  ]);
 
   useEffect(() => {
     if (action === "add") {
@@ -401,6 +418,44 @@ export default function EventsScreen() {
     };
     loadEvents();
 
+    const unsubscribeVoices = onSnapshot(
+      collection(db, "voice_types"),
+      (snapshot) => {
+        const standardOrder = ["bass", "tenor", "alto", "soprano"];
+
+        const voices = snapshot.docs.map((d) => ({
+          key: d.data().name.toLowerCase(),
+          label: d.data().name,
+        }));
+
+        const standardVoices = [];
+        const customVoices = [];
+
+        voices.forEach((voice) => {
+          if (standardOrder.includes(voice.key)) {
+            standardVoices.push(voice);
+          } else {
+            customVoices.push(voice);
+          }
+        });
+
+        standardVoices.sort(
+          (a, b) => standardOrder.indexOf(a.key) - standardOrder.indexOf(b.key),
+        );
+
+        customVoices.sort((a, b) => a.label.localeCompare(b.label));
+
+        setVoiceFilters([
+          { key: "all_voices", label: "All" },
+          ...standardVoices,
+          ...customVoices,
+        ]);
+      },
+      (error) => {
+        console.error("Voice types listener failed:", error);
+      },
+    );
+
     // REAL-TIME FIRESTORE LISTENER FOR THE GROUPS MODAL PILLS
     const unsubscribeGroups = onSnapshot(
       collection(db, "groups"),
@@ -424,7 +479,10 @@ export default function EventsScreen() {
       },
     );
 
-    return () => unsubscribeGroups();
+    return () => {
+      unsubscribeGroups();
+      unsubscribeVoices();
+    };
   }, []);
 
   // Filter normalization processing logic
@@ -894,7 +952,7 @@ export default function EventsScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={s.filtersContent}
             >
-              {VOICE_FILTERS.map((f) => (
+              {voiceFilters.map((f) => (
                 <Pressable
                   key={f.key}
                   style={[
@@ -1152,7 +1210,9 @@ export default function EventsScreen() {
             <Text style={s.confirmMsg}>
               This will permanently remove{"\n"}
               <Text style={{ color: T.text, fontWeight: "700" }}>
-                "{deleteTarget?.title}"
+                {'"'}
+                {deleteTarget?.title}
+                {'"'}
               </Text>
             </Text>
             <View style={s.btnRow}>
@@ -1191,6 +1251,7 @@ export default function EventsScreen() {
               setValues={setForm}
               errors={formErrors}
               groups={groups}
+              voiceFilters={voiceFilters}
             />
             <View style={[s.btnRow, { marginTop: sp(2) }]}>
               <Pressable style={s.btnPrimary} onPress={saveEdit}>
@@ -1229,6 +1290,7 @@ export default function EventsScreen() {
               setValues={setNewForm}
               errors={newErrors}
               groups={groups}
+              voiceFilters={voiceFilters}
             />
 
             <View style={[s.btnRow, { marginTop: sp(2) }]}>

@@ -99,6 +99,7 @@ function MusicTrace() {
 
 export default function EventStudentScreen({
   studentYear = 1,
+  studentVoiceType = "",
   studentName = "Student",
   onEventPress,
 }) {
@@ -109,15 +110,22 @@ export default function EventStudentScreen({
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [calModalVisible, setCalModalVisible] = useState(false);
 
-  const myEvents = events.filter(
-    (e) =>
+  const myEvents = events.filter((e) => {
+    const yearMatch =
       e.group === "all" ||
       e.group_name === "All Groups" ||
+      e.groupLabel === "All Groups" ||
       e.group === `year${studentYear}` ||
       e.group_name === `Year ${studentYear}` ||
-      e.groupLabel === "All Groups" ||
-      e.groupLabel === `Year ${studentYear}`,
-  );
+      e.groupLabel === `Year ${studentYear}`;
+
+    const voiceMatch =
+      !e.voiceSection ||
+      e.voiceSection === "all_voices" ||
+      e.voiceSection === studentVoiceType;
+
+    return yearMatch && voiceMatch;
+  });
 
   const getGroupColor = (item) =>
     GROUP_COLORS[item.groupLabel] || GROUP_COLORS[item.group_name] || T.teal;
