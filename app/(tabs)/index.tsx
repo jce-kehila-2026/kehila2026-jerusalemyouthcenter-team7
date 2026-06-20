@@ -1266,8 +1266,19 @@ export default function DashboardScreen() {
   // ══════════════════════════════════════════════════════════════════════════
   //  SINGER VIEW
   // ══════════════════════════════════════════════════════════════════════════
-  // Singer computed values
-  const nextSingerEvent = upcomingEvents[0] ?? null;
+  // Filter events to only those relevant to the singer's year/group
+  const studentYear = user?.current_year_id ?? 1;
+  const singerUpcomingEvents = upcomingEvents.filter(
+    (e) =>
+      (e as any).group === "all" ||
+      (e as any).group_name === "All Groups" ||
+      (e as any).group === `year${studentYear}` ||
+      (e as any).group_name === `Year ${studentYear}` ||
+      (e as any).groupLabel === "All Groups" ||
+      (e as any).groupLabel === `Year ${studentYear}`,
+  );
+
+  const nextSingerEvent = singerUpcomingEvents[0] ?? null;
   const nextEventDaysAway = nextSingerEvent
     ? Math.max(
         0,
@@ -1278,9 +1289,9 @@ export default function DashboardScreen() {
       )
     : null;
   const firstPendingForm = singerForms.find((f) => f.status === "pending") ?? null;
-  const nextUnregisteredEvent = upcomingEvents.find((e) => !myEventIds.includes(e.id)) ?? null;
+  const nextUnregisteredEvent = singerUpcomingEvents.find((e) => !myEventIds.includes(e.id)) ?? null;
   const latestNotifItem = notifList[0] ?? null;
-  const myUpcomingEvents = upcomingEvents.filter((e) => myEventIds.includes(e.id));
+  const myUpcomingEvents = singerUpcomingEvents.filter((e) => myEventIds.includes(e.id));
 
   return (
     <View style={st.screen}>
