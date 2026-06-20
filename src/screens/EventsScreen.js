@@ -916,11 +916,7 @@ export default function EventsScreen() {
         <View
           style={{ flexDirection: "row", alignItems: "flex-end", gap: sp(1) }}
         >
-          {activeTab === "calendar" && (
-            <Pressable onPress={() => setActiveTab("list")} style={s.backBtn}>
-              <Text style={s.backBtnText}>←</Text>
-            </Pressable>
-          )}
+          {activeTab === "calendar"}
           <View>
             <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
             <Text style={s.pageTitle}>
@@ -1215,7 +1211,7 @@ export default function EventsScreen() {
                   Open this event in Google Calendar
                 </Text>
                 <Text style={s.gcalMenuOptionSub}>
-                  View or edit "{gcalMenuTarget?.title}" directly
+                  View or edit &quot;{gcalMenuTarget?.title}&quot; directly
                 </Text>
               </View>
             </Pressable>
@@ -1265,9 +1261,10 @@ export default function EventsScreen() {
               On Google Calendar (web)
             </Text>
             <Text style={s.icsStep}>
-              1. Next to "Other calendars", tap +{"\n"}
-              2. Choose "From URL"{"\n"}
-              3. Paste the link, then "Add calendar"
+              1. Next to {'"Other calendars"'}, tap +{"\n"}
+              2. Choose {'"From URL"'}
+              {"\n"}
+              3. Paste the link, then {'"Add calendar"'}
             </Text>
             <Text style={[s.label, { marginTop: sp(2) }]}>
               On iPhone (Apple Calendar)
