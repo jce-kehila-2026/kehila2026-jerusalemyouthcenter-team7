@@ -1,6 +1,14 @@
 import { db } from "@/src/firebase/firebase";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { collection, deleteDoc, doc, onSnapshot } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  onSnapshot,
+  updateDoc,
+} from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,12 +24,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import {
-  addEvent,
-  deleteEvent,
-  getEvents,
-  updateEvent,
-} from "../../backend/eventsService";
 
 // ─── Design System ─────────────────────────────────────────────────────────
 const T = {
@@ -32,7 +34,7 @@ const T = {
   redBg: "#fff1ee",
   yellow: "#cfad5d",
   yellowBg: "#fffbf0",
-  purple: "#8b5cf6", // Year 3 Color
+  purple: "#8b5cf6",
   purpleDark: "#6d28d9",
   white: "#ffffff",
   bg: "#f5fafe",
@@ -47,16 +49,9 @@ const sp = (n) => n * 8;
 const CALENDAR_ID =
   "6ee65334f0a4c98b5d09abd1f1f2e38c42a93f8ce246d56fb0e9041f0ed7fa4d@group.calendar.google.com";
 
-// The calendar's secret iCal (.ics) feed — meant to be pasted into a
-// calendar app's "Subscribe by URL" / "From URL" option, not opened
-// directly as a webpage (that requires the calendar to be public, which
-// we deliberately avoid for privacy).
 const GOOGLE_CALENDAR_ICS_URL =
   "https://calendar.google.com/calendar/ical/6ee65334f0a4c98b5d09abd1f1f2e38c42a93f8ce246d56fb0e9041f0ed7fa4d%40group.calendar.google.com/private-956d897f3255c9d53850f11442e4b179/basic.ics";
 
-// Opens a specific event's page directly on calendar.google.com, using
-// Google's eid-link format (base64 of "<eventId> <calendarId>"). Only
-// works for events that already have a googleCalendarEventId.
 const openEventInGoogleCalendar = (googleEventId) => {
   if (!googleEventId) return;
   let eid;
@@ -73,16 +68,13 @@ const openEventInGoogleCalendar = (googleEventId) => {
   }
 };
 
-// --- HARDCODED COLORS DICTIONARY ---
 const getFixedColor = (groupName) => {
   if (!groupName) return T.teal;
   const standard = groupName.trim().toLowerCase();
-
   if (standard === "all groups" || standard === "all") return T.teal;
   if (standard === "year 1") return T.yellow;
   if (standard === "year 2") return T.red;
   if (standard === "year 3") return T.purple;
-
   return T.teal;
 };
 
@@ -247,7 +239,6 @@ const validateForm = (values) => {
   return { errors, valid };
 };
 
-// ─── LOCAL FORM FIELDS COMPONENT ───────────────────────────────────────────
 function LocalFormFields({ values, setValues, errors, groups, voiceFilters }) {
   return (
     <ScrollView keyboardShouldPersistTaps="handled">
@@ -302,15 +293,10 @@ function LocalFormFields({ values, setValues, errors, groups, voiceFilters }) {
 
       <Text style={s.label}>Group</Text>
       <View style={s.groupRow}>
-        {/* All Groups option */}
         <Pressable
           style={[s.groupPill, values.group === "all" && s.groupPillActive]}
           onPress={() =>
-            setValues((p) => ({
-              ...p,
-              group: "all",
-              groupLabel: "All Groups",
-            }))
+            setValues((p) => ({ ...p, group: "all", groupLabel: "All Groups" }))
           }
         >
           <Text
@@ -326,7 +312,6 @@ function LocalFormFields({ values, setValues, errors, groups, voiceFilters }) {
         {groups.map((g) => {
           const groupName = g.name || g.label || g.id;
           const groupKey = groupName.toLowerCase().replace(/[\s_]+/g, "_");
-
           return (
             <Pressable
               key={g.id}
@@ -420,21 +405,23 @@ export default function EventsScreen() {
     }
   }, [action]);
 
-  // Combined Sync and Real-time listener setup
+  // ── Data loading — direct Firestore, no backend service ────────────────
   useEffect(() => {
     const loadEvents = async () => {
       try {
-        try {
-          await fetch(
-            "https://us-central1-fullstack-team-7.cloudfunctions.net/getGoogleCalendarEvents",
-          );
-        } catch (syncErr) {
-          console.error("Google Calendar sync error:", syncErr);
-        }
-        const data = await getEvents();
+        // Google Calendar sync runs in background — does NOT block loading
+        fetch(
+          "https://us-central1-fullstack-team-7.cloudfunctions.net/getGoogleCalendarEvents",
+        ).catch((syncErr) =>
+          console.error("Google Calendar sync error:", syncErr),
+        );
+
+        // Direct Firestore query using the shared db instance
+        const snapshot = await getDocs(collection(db, "events"));
+        const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
         setEvents(data);
       } catch (e) {
-        console.error("Error loading initial events:", e);
+        console.error("Error loading events:", e);
       } finally {
         setLoading(false);
       }
@@ -445,41 +432,29 @@ export default function EventsScreen() {
       collection(db, "voice_types"),
       (snapshot) => {
         const standardOrder = ["bass", "tenor", "alto", "soprano"];
-
         const voices = snapshot.docs.map((d) => ({
           key: d.data().name.toLowerCase(),
           label: d.data().name,
         }));
-
         const standardVoices = [];
         const customVoices = [];
-
         voices.forEach((voice) => {
-          if (standardOrder.includes(voice.key)) {
-            standardVoices.push(voice);
-          } else {
-            customVoices.push(voice);
-          }
+          if (standardOrder.includes(voice.key)) standardVoices.push(voice);
+          else customVoices.push(voice);
         });
-
         standardVoices.sort(
           (a, b) => standardOrder.indexOf(a.key) - standardOrder.indexOf(b.key),
         );
-
         customVoices.sort((a, b) => a.label.localeCompare(b.label));
-
         setVoiceFilters([
           { key: "all_voices", label: "All" },
           ...standardVoices,
           ...customVoices,
         ]);
       },
-      (error) => {
-        console.error("Voice types listener failed:", error);
-      },
+      (error) => console.error("Voice types listener failed:", error),
     );
 
-    // REAL-TIME FIRESTORE LISTENER FOR THE GROUPS MODAL PILLS
     const unsubscribeGroups = onSnapshot(
       collection(db, "groups"),
       (snapshot) => {
@@ -487,19 +462,14 @@ export default function EventsScreen() {
           id: doc.id,
           ...doc.data(),
         }));
-
-        // Ensure standard sorted representation
         groupsList.sort((a, b) => {
           const nameA = a.name || a.label || a.id;
           const nameB = b.name || b.label || b.id;
           return nameA.localeCompare(nameB, undefined, { numeric: true });
         });
-
         setGroups(groupsList);
       },
-      (error) => {
-        console.error("Groups subscription listener failed:", error);
-      },
+      (error) => console.error("Groups subscription listener failed:", error),
     );
 
     return () => {
@@ -508,7 +478,6 @@ export default function EventsScreen() {
     };
   }, []);
 
-  // Filter normalization processing logic
   const uniqueGroupLabels = Array.from(
     new Set(
       events.map(
@@ -518,15 +487,12 @@ export default function EventsScreen() {
   ).filter(Boolean);
 
   const baseLabels = ["All Groups", "Year 1", "Year 2", "Year 3"];
-
   const finalGroupLabels = Array.from(
     new Set([...baseLabels, ...uniqueGroupLabels]),
   )
     .filter((label) => {
       if (label === "All Groups") return true;
-      if (label === "Year 1" || label === "Year 2" || label === "Year 3")
-        return true;
-
+      if (["Year 1", "Year 2", "Year 3"].includes(label)) return true;
       const normalizedLabel = label.toLowerCase().replace(/[\s_]+/g, "");
       return events.some((e) => {
         const eventLabel = (e.groupLabel || e.group || "")
@@ -592,7 +558,6 @@ export default function EventsScreen() {
   const calendarDays = [];
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-
   for (let i = 0; i < firstDay; i++) calendarDays.push(null);
   for (let i = 1; i <= daysInMonth; i++) calendarDays.push(i);
 
@@ -615,21 +580,16 @@ export default function EventsScreen() {
     if (currentMonth === 0) {
       setCurrentMonth(11);
       setCurrentYear(currentYear - 1);
-    } else {
-      setCurrentMonth(currentMonth - 1);
-    }
+    } else setCurrentMonth(currentMonth - 1);
   };
-
   const goToNextMonth = () => {
     if (currentMonth === 11) {
       setCurrentMonth(0);
       setCurrentYear(currentYear + 1);
-    } else {
-      setCurrentMonth(currentMonth + 1);
-    }
+    } else setCurrentMonth(currentMonth + 1);
   };
 
-  // State Action Controllers
+  // ── CRUD — direct Firestore calls ──────────────────────────────────────
   const saveNew = async () => {
     const { errors, valid } = validateForm(newForm);
     setNewErrors(errors);
@@ -637,7 +597,6 @@ export default function EventsScreen() {
     try {
       const [day, month, year] = newForm.date.split("/");
       const isoDate = `${year}-${month}-${day}`;
-
       const matchingGroupObj = groups.find((g) => {
         const normDb = (g.name || g.label || g.id)
           .toLowerCase()
@@ -648,27 +607,24 @@ export default function EventsScreen() {
       const computedLabel = matchingGroupObj
         ? matchingGroupObj.name || matchingGroupObj.label
         : "Year 4";
-
       const eventPayload = {
         ...newForm,
         date: isoDate,
         groupLabel: computedLabel,
       };
-
       const clientSideEvent = {
         ...eventPayload,
         id: "temp-" + Date.now().toString(),
       };
       setEvents((p) => [clientSideEvent, ...p]);
 
-      const newEvent = await addEvent(eventPayload);
-      if (newEvent?.id) {
-        setEvents((p) =>
-          p.map((e) =>
-            e.id === clientSideEvent.id ? { ...e, id: newEvent.id } : e,
-          ),
-        );
-      }
+      // Direct Firestore addDoc
+      const docRef = await addDoc(collection(db, "events"), eventPayload);
+      setEvents((p) =>
+        p.map((e) =>
+          e.id === clientSideEvent.id ? { ...e, id: docRef.id } : e,
+        ),
+      );
     } catch (e) {
       console.error(e);
     }
@@ -684,7 +640,6 @@ export default function EventsScreen() {
     try {
       const [day, month, year] = form.date.split("/");
       const isoDate = `${year}-${month}-${day}`;
-
       const matchingGroupObj = groups.find((g) => {
         const normDb = (g.name || g.label || g.id)
           .toLowerCase()
@@ -695,13 +650,13 @@ export default function EventsScreen() {
       const computedLabel = matchingGroupObj
         ? matchingGroupObj.name || matchingGroupObj.label
         : form.groupLabel;
-
       const formWithIso = { ...form, date: isoDate, groupLabel: computedLabel };
-
       setEvents((p) =>
         p.map((e) => (e.id === editTarget.id ? { ...e, ...formWithIso } : e)),
       );
-      await updateEvent(editTarget.id, formWithIso);
+
+      // Direct Firestore updateDoc
+      await updateDoc(doc(db, "events", editTarget.id), formWithIso);
     } catch (e) {
       console.error(e);
     }
@@ -716,17 +671,14 @@ export default function EventsScreen() {
       setEvents((prev) => prev.filter((e) => e.id !== targetId));
       setDeleteTarget(null);
 
-      await deleteEvent(targetId);
+      // Direct Firestore deleteDoc
+      await deleteDoc(doc(db, "events", targetId));
       try {
         await deleteDoc(doc(db, "attendance", targetId));
       } catch (err) {
         console.error(err);
       }
 
-      // If this event exists in Google Calendar (either it originated
-      // there, or it was an app event already synced to Google), delete
-      // it there too — otherwise the next Google Calendar sync would
-      // just re-import it and bring it right back.
       if (googleEventId) {
         try {
           await fetch(
@@ -911,7 +863,6 @@ export default function EventsScreen() {
     <View style={s.safe}>
       <StatusBar barStyle="light-content" backgroundColor={T.teal} />
 
-      {/* Layout Header */}
       <View style={s.header}>
         <View
           style={{ flexDirection: "row", alignItems: "flex-end", gap: sp(1) }}
@@ -928,7 +879,6 @@ export default function EventsScreen() {
             </Text>
           </View>
         </View>
-
         <View style={s.tabToggle}>
           <Pressable
             style={[
@@ -965,7 +915,6 @@ export default function EventsScreen() {
         </View>
       </View>
 
-      {/* Main Tab Routing Layout */}
       {activeTab === "list" && (
         <View style={{ flex: 1 }}>
           <View style={s.filtersWrap}>
@@ -995,7 +944,6 @@ export default function EventsScreen() {
                 </Pressable>
               ))}
             </ScrollView>
-
             <Text style={s.filterSectionLabel}>Voice Section</Text>
             <ScrollView
               horizontal
@@ -1063,7 +1011,6 @@ export default function EventsScreen() {
                 <Text style={s.monthNavBtnText}>→</Text>
               </Pressable>
             </View>
-
             <View style={s.weekHeaderRow}>
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
                 <Text key={`header-${day}`} style={s.weekDayHeader}>
@@ -1071,7 +1018,6 @@ export default function EventsScreen() {
                 </Text>
               ))}
             </View>
-
             <View style={s.calendarGrid}>
               {calendarDays.map((day, idx) => {
                 const dateStr = day
@@ -1083,7 +1029,6 @@ export default function EventsScreen() {
                   : null;
                 const isSelected = dateStr === selectedDate;
                 const isToday = dateStr === todayStr;
-
                 return (
                   <Pressable
                     key={idx}
@@ -1162,7 +1107,6 @@ export default function EventsScreen() {
         </ScrollView>
       )}
 
-      {/* Floating Action Button */}
       <Pressable
         style={s.fab}
         onPress={() => {
@@ -1183,7 +1127,7 @@ export default function EventsScreen() {
         </Text>
       </Pressable>
 
-      {/* GOOGLE CALENDAR ACTIONS — small menu opened from the 📅 icon */}
+      {/* Google Calendar Menu */}
       <Modal
         visible={!!gcalMenuTarget && gcalMenuTarget !== "subscribe"}
         animationType="slide"
@@ -1199,7 +1143,6 @@ export default function EventsScreen() {
             >
               <Text style={{ color: T.muted, fontSize: 22 }}>✕</Text>
             </Pressable>
-
             <Pressable
               style={s.gcalMenuOption}
               onPress={() => {
@@ -1219,7 +1162,6 @@ export default function EventsScreen() {
                 </Text>
               </View>
             </Pressable>
-
             <Pressable
               style={s.gcalMenuOption}
               onPress={() => setGcalMenuTarget("subscribe")}
@@ -1238,7 +1180,7 @@ export default function EventsScreen() {
         </View>
       </Modal>
 
-      {/* GOOGLE CALENDAR SUBSCRIBE INSTRUCTIONS — opened from the menu above */}
+      {/* Google Calendar Subscribe */}
       <Modal
         visible={gcalMenuTarget === "subscribe"}
         animationType="slide"
@@ -1265,16 +1207,15 @@ export default function EventsScreen() {
               On Google Calendar (web)
             </Text>
             <Text style={s.icsStep}>
-              1. Next to "Other calendars", tap +{"\n"}
-              2. Choose "From URL"{"\n"}
-              3. Paste the link, then "Add calendar"
+              1. Next to "Other calendars", tap +{"\n"}2. Choose "From URL"
+              {"\n"}3. Paste the link, then "Add calendar"
             </Text>
             <Text style={[s.label, { marginTop: sp(2) }]}>
               On iPhone (Apple Calendar)
             </Text>
             <Text style={s.icsStep}>
-              Settings → Calendar → Accounts → Add Account → Other →{"\n"}
-              Add Subscribed Calendar → paste the link
+              Settings → Calendar → Accounts → Add Account → Other →{"\n"}Add
+              Subscribed Calendar → paste the link
             </Text>
             <Pressable
               style={[s.btnPrimary, { marginTop: sp(2) }]}
@@ -1286,7 +1227,7 @@ export default function EventsScreen() {
         </View>
       </Modal>
 
-      {/* Confirm Deletion Overlay */}
+      {/* Confirm Delete */}
       <Modal
         visible={!!deleteTarget}
         animationType="fade"
@@ -1304,9 +1245,7 @@ export default function EventsScreen() {
             <Text style={s.confirmMsg}>
               This will permanently remove{"\n"}
               <Text style={{ color: T.text, fontWeight: "700" }}>
-                {'"'}
-                {deleteTarget?.title}
-                {'"'}
+                "{deleteTarget?.title}"
               </Text>
             </Text>
             <View style={s.btnRow}>
@@ -1324,7 +1263,7 @@ export default function EventsScreen() {
         </View>
       </Modal>
 
-      {/* Action Target Sheets */}
+      {/* Edit Modal */}
       <Modal
         visible={editVisible}
         animationType="slide"
@@ -1362,6 +1301,7 @@ export default function EventsScreen() {
         </View>
       </Modal>
 
+      {/* Add Modal */}
       <Modal
         visible={addVisible}
         animationType="slide"
@@ -1377,8 +1317,6 @@ export default function EventsScreen() {
             >
               <Text style={{ color: T.muted, fontSize: 22 }}>✕</Text>
             </Pressable>
-
-            {/* COMPONENT VALUE INJECTION PROP CORRECTION */}
             <LocalFormFields
               values={newForm}
               setValues={setNewForm}
@@ -1386,7 +1324,6 @@ export default function EventsScreen() {
               groups={groups}
               voiceFilters={voiceFilters}
             />
-
             <View style={[s.btnRow, { marginTop: sp(2) }]}>
               <Pressable style={s.btnPrimary} onPress={saveNew}>
                 <Text style={s.btnLight}>Create Event</Text>
@@ -1405,7 +1342,7 @@ export default function EventsScreen() {
   );
 }
 
-// ─── Stylesheet Layout ─────────────────────────────────────────────────────
+// ─── Stylesheet ────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: T.bg },
   header: {
@@ -1490,7 +1427,6 @@ const s = StyleSheet.create({
   filterBtnActive: { backgroundColor: T.teal, borderColor: T.teal },
   filterText: { color: T.textSub, fontSize: 13, fontWeight: "500" },
   filterTextActive: { color: "#fff", fontWeight: "700" },
-
   eventsListContent: {
     paddingHorizontal: sp(2),
     paddingBottom: 100,
