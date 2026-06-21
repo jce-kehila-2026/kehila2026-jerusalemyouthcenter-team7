@@ -1,9 +1,9 @@
 import { JoinRequestsModal } from "@/src/components/JoinRequestsModal";
-import { ManageAdminsModal } from "@/src/components/ManageAdminsModal";
 import {
   CustomAchievement,
   ManageAchievementsModal,
 } from "@/src/components/ManageAchievementsModal";
+import { ManageAdminsModal } from "@/src/components/ManageAdminsModal";
 import { NotificationBell } from "@/src/components/NotificationBell";
 import { useAuth } from "@/src/context/AuthContext";
 import { FirestoreMsg, messageService } from "@/src/data/messageService";
@@ -11,7 +11,17 @@ import { notificationService } from "@/src/data/notificationService";
 import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { collection, doc, getDoc, getDocs, limit, orderBy, query, where } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  where,
+} from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -72,7 +82,6 @@ function daysUntil(dateStr: string) {
   );
 }
 
-
 function todayString() {
   return new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -112,7 +121,6 @@ function SectionHeader({
     </View>
   );
 }
-
 
 function WeeklyChart() {
   const low = Math.min(...WEEKLY.map((d) => d.pct));
@@ -233,8 +241,7 @@ function AdminActionItems({
           style={[
             st.adminActionIconCircle,
             {
-              backgroundColor:
-                pendingRequests > 0 ? RED + "18" : TEAL + "15",
+              backgroundColor: pendingRequests > 0 ? RED + "18" : TEAL + "15",
             },
           ]}
         >
@@ -273,10 +280,7 @@ function AdminActionItems({
       {/* Row 2 — This Week's Events */}
       <Pressable style={st.adminActionRow} onPress={onGoToEvents}>
         <View
-          style={[
-            st.adminActionIconCircle,
-            { backgroundColor: AMBER + "20" },
-          ]}
+          style={[st.adminActionIconCircle, { backgroundColor: AMBER + "20" }]}
         >
           <Ionicons name="calendar-outline" size={18} color={AMBER} />
         </View>
@@ -444,8 +448,7 @@ function SingerHeroCard({
   let nextText = "No upcoming events";
   if (nextEventTitle !== null && nextEventDaysAway !== null) {
     if (nextEventDaysAway === 0) nextText = `Today: ${nextEventTitle}`;
-    else if (nextEventDaysAway === 1)
-      nextText = `Tomorrow: ${nextEventTitle}`;
+    else if (nextEventDaysAway === 1) nextText = `Tomorrow: ${nextEventTitle}`;
     else nextText = `In ${nextEventDaysAway} days: ${nextEventTitle}`;
   }
 
@@ -586,11 +589,17 @@ function SingerBadgesRow({
               key={ach.id}
               style={[
                 st.singerBadgeCard,
-                { backgroundColor: ach.color + "18", borderWidth: 2, borderColor: ach.color },
+                {
+                  backgroundColor: ach.color + "18",
+                  borderWidth: 2,
+                  borderColor: ach.color,
+                },
               ]}
             >
               <Text style={st.singerBadgeEmoji}>{ach.emoji}</Text>
-              <Text style={[st.singerBadgeLabel, { color: ach.color }]}>{ach.label}</Text>
+              <Text style={[st.singerBadgeLabel, { color: ach.color }]}>
+                {ach.label}
+              </Text>
               <Text style={st.singerBadgeSub}>{ach.sublabel}</Text>
             </View>
           ))}
@@ -638,12 +647,14 @@ function SingerShortcuts({
       bgColor: TEAL + "15",
       borderColor: TEAL,
       iconColor: TEAL,
-      badge: firstPendingForm ? "!" : null as string | null,
+      badge: firstPendingForm ? "!" : (null as string | null),
       disabled: !firstPendingForm,
     },
     {
       icon: "calendar-outline" as const,
-      label: nextUnregisteredEvent ? nextUnregisteredEvent.title : "No New Events",
+      label: nextUnregisteredEvent
+        ? nextUnregisteredEvent.title
+        : "No New Events",
       sublabel: nextUnregisteredEvent ? "Tap to register" : "Check back soon",
       onPress: onNextEvent,
       bgColor: AMBER + "20",
@@ -655,12 +666,14 @@ function SingerShortcuts({
     {
       icon: "musical-notes-outline" as const,
       label: latestLibraryFile ? latestLibraryFile.name : "No Uploads Yet",
-      sublabel: latestLibraryFile ? `Latest · ${latestLibraryFile.ext}` : "Nothing yet",
+      sublabel: latestLibraryFile
+        ? `Latest · ${latestLibraryFile.ext}`
+        : "Nothing yet",
       onPress: onLatestFile,
       bgColor: RED + "15",
       borderColor: RED,
       iconColor: RED,
-      badge: latestLibraryFile ? "NEW" : null as string | null,
+      badge: latestLibraryFile ? "NEW" : (null as string | null),
       disabled: !latestLibraryFile,
     },
     {
@@ -671,12 +684,15 @@ function SingerShortcuts({
       bgColor: TEAL + "15",
       borderColor: TEAL,
       iconColor: TEAL,
-      badge: unreadMessages > 0 ? String(unreadMessages) : null as string | null,
+      badge:
+        unreadMessages > 0 ? String(unreadMessages) : (null as string | null),
       disabled: false,
     },
     {
       icon: "people-outline" as const,
-      label: voiceType ? `${voiceType.charAt(0).toUpperCase() + voiceType.slice(1)} Group` : "My Voice Group",
+      label: voiceType
+        ? `${voiceType.charAt(0).toUpperCase() + voiceType.slice(1)} Group`
+        : "My Voice Group",
       sublabel: "See your section",
       onPress: onVoiceGroup,
       bgColor: AMBER + "20",
@@ -689,7 +705,8 @@ function SingerShortcuts({
       icon: "notifications-outline" as const,
       label: latestNotif ? latestNotif.title : "Announcements",
       sublabel: latestNotif
-        ? latestNotif.body.slice(0, 35) + (latestNotif.body.length > 35 ? "…" : "")
+        ? latestNotif.body.slice(0, 35) +
+          (latestNotif.body.length > 35 ? "…" : "")
         : "Nothing new",
       onPress: onLatestNotif,
       bgColor: RED + "15",
@@ -718,18 +735,29 @@ function SingerShortcuts({
             onPress={s.disabled ? undefined : s.onPress}
           >
             <View style={st.shortcutTop}>
-              <View style={[st.shortcutIconCircle, { backgroundColor: s.iconColor + "20" }]}>
+              <View
+                style={[
+                  st.shortcutIconCircle,
+                  { backgroundColor: s.iconColor + "20" },
+                ]}
+              >
                 <Ionicons name={s.icon} size={22} color={s.iconColor} />
               </View>
               {s.badge && (
-                <View style={[st.shortcutBadge, { backgroundColor: s.borderColor }]}>
+                <View
+                  style={[st.shortcutBadge, { backgroundColor: s.borderColor }]}
+                >
                   <Text style={st.shortcutBadgeText}>{s.badge}</Text>
                 </View>
               )}
             </View>
             <View>
-              <Text style={st.shortcutLabel} numberOfLines={1}>{s.label}</Text>
-              <Text style={st.shortcutSub} numberOfLines={1}>{s.sublabel}</Text>
+              <Text style={st.shortcutLabel} numberOfLines={1}>
+                {s.label}
+              </Text>
+              <Text style={st.shortcutSub} numberOfLines={1}>
+                {s.sublabel}
+              </Text>
             </View>
           </Pressable>
         ))}
@@ -746,13 +774,23 @@ function SingerLeaderboard({
   myPoints,
   myRank,
 }: {
-  leaderboard: { uid: string; name: string; voice_type: string; points: number }[];
+  leaderboard: {
+    uid: string;
+    name: string;
+    voice_type: string;
+    points: number;
+  }[];
   myUid: string;
   myPoints: number;
   myRank: number | null;
 }) {
   const podiumEmojis = ["🥇", "🥈", "🥉"];
-  const voiceEmoji: Record<string, string> = { soprano: "🎤", alto: "🎶", tenor: "🎺", bass: "🥁" };
+  const voiceEmoji: Record<string, string> = {
+    soprano: "🎤",
+    alto: "🎶",
+    tenor: "🎺",
+    bass: "🥁",
+  };
   const top3 = leaderboard.slice(0, 3);
   const isInTop3 = myRank !== null && myRank <= 3;
 
@@ -768,7 +806,9 @@ function SingerLeaderboard({
 
         {top3.length === 0 ? (
           <View style={st.lbEmpty}>
-            <Text style={st.lbEmptyText}>🎵 No rankings yet — be the first!</Text>
+            <Text style={st.lbEmptyText}>
+              🎵 No rankings yet — be the first!
+            </Text>
           </View>
         ) : (
           top3.map((entry, i) => (
@@ -791,7 +831,8 @@ function SingerLeaderboard({
                   {entry.uid === myUid ? "You 🌟" : entry.name}
                 </Text>
                 <Text style={st.lbVoice}>
-                  {voiceEmoji[entry.voice_type?.toLowerCase()] ?? "🎵"} {entry.voice_type ?? ""}
+                  {voiceEmoji[entry.voice_type?.toLowerCase()] ?? "🎵"}{" "}
+                  {entry.voice_type ?? ""}
                 </Text>
               </View>
               <View style={st.lbPointsBadge}>
@@ -807,15 +848,27 @@ function SingerLeaderboard({
             <View style={st.lbDivider} />
             <View style={[st.lbRow, st.lbRowHighlight]}>
               <Text style={st.lbPodium}>#{myRank ?? "?"}</Text>
-              <View style={[st.lbAvatar, { backgroundColor: TEAL + "30", borderColor: TEAL }]}>
+              <View
+                style={[
+                  st.lbAvatar,
+                  { backgroundColor: TEAL + "30", borderColor: TEAL },
+                ]}
+              >
                 <Text style={[st.lbAvatarText, { color: TEAL }]}>You</Text>
               </View>
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={st.lbName}>Your Ranking</Text>
                 <Text style={st.lbVoice}>Keep going! 💪</Text>
               </View>
-              <View style={[st.lbPointsBadge, { backgroundColor: TEAL + "18", borderColor: TEAL }]}>
-                <Text style={[st.lbPointsText, { color: TEAL }]}>{myPoints}</Text>
+              <View
+                style={[
+                  st.lbPointsBadge,
+                  { backgroundColor: TEAL + "18", borderColor: TEAL },
+                ]}
+              >
+                <Text style={[st.lbPointsText, { color: TEAL }]}>
+                  {myPoints}
+                </Text>
                 <Text style={[st.lbPointsLabel, { color: TEAL }]}>pts</Text>
               </View>
             </View>
@@ -824,10 +877,10 @@ function SingerLeaderboard({
 
         <View style={st.lbHowTo}>
           <Text style={st.lbHowToTitle}>How to earn points:</Text>
-          <Text style={st.lbHowToRow}>✅ Register for event  +10 pts</Text>
-          <Text style={st.lbHowToRow}>📝 Submit a form  +5 pts</Text>
-          <Text style={st.lbHowToRow}>🎵 Open library file  +5 pts</Text>
-          <Text style={st.lbHowToRow}>🔥 Attendance streak  +15 pts</Text>
+          <Text style={st.lbHowToRow}>✅ Register for event +10 pts</Text>
+          <Text style={st.lbHowToRow}>📝 Submit a form +5 pts</Text>
+          <Text style={st.lbHowToRow}>🎵 Open library file +5 pts</Text>
+          <Text style={st.lbHowToRow}>🔥 Attendance streak +15 pts</Text>
         </View>
       </View>
     </>
@@ -856,10 +909,20 @@ export default function DashboardScreen() {
   const [formCount, setFormCount] = useState(0);
   const [hasOpenedLibrary, setHasOpenedLibrary] = useState(false);
   const [singerStreak, setSingerStreak] = useState(0);
-  const [customAchievements, setCustomAchievements] = useState<CustomAchievement[]>([]);
-  const [singerForms, setSingerForms] = useState<{id:string; title:string; status:string}[]>([]);
-  const [latestLibraryFile, setLatestLibraryFile] = useState<{id:string; name:string; ext:string} | null>(null);
-  const [leaderboard, setLeaderboard] = useState<{uid:string; name:string; voice_type:string; points:number}[]>([]);
+  const [customAchievements, setCustomAchievements] = useState<
+    CustomAchievement[]
+  >([]);
+  const [singerForms, setSingerForms] = useState<
+    { id: string; title: string; status: string }[]
+  >([]);
+  const [latestLibraryFile, setLatestLibraryFile] = useState<{
+    id: string;
+    name: string;
+    ext: string;
+  } | null>(null);
+  const [leaderboard, setLeaderboard] = useState<
+    { uid: string; name: string; voice_type: string; points: number }[]
+  >([]);
   const [myPoints, setMyPoints] = useState(0);
   const [myRank, setMyRank] = useState<number | null>(null);
 
@@ -930,19 +993,32 @@ export default function DashboardScreen() {
 
         // ── Singer-specific achievement data ────────────────────────
         if (!isAdmin) {
-          const [formSubs, userDoc, attDocs, formsSnap, libSnap, lbSnap] = await Promise.allSettled([
-            getDocs(
-              query(
-                collection(db, "form_submissions"),
-                where("student_id", "==", user.uid),
+          const [formSubs, userDoc, attDocs, formsSnap, libSnap, lbSnap] =
+            await Promise.allSettled([
+              getDocs(
+                query(
+                  collection(db, "form_submissions"),
+                  where("student_id", "==", user.uid),
+                ),
               ),
-            ),
-            getDoc(doc(db, "users", user.uid)),
-            getDocs(collection(db, "attendance")),
-            getDocs(collection(db, "forms")),
-            getDocs(query(collection(db, "library"), orderBy("uploadedAt", "desc"), limit(1))),
-            getDocs(query(collection(db, "leaderboard"), orderBy("points", "desc"), limit(10))),
-          ]);
+              getDoc(doc(db, "users", user.uid)),
+              getDocs(collection(db, "attendance")),
+              getDocs(collection(db, "forms")),
+              getDocs(
+                query(
+                  collection(db, "library"),
+                  orderBy("uploadedAt", "desc"),
+                  limit(1),
+                ),
+              ),
+              getDocs(
+                query(
+                  collection(db, "leaderboard"),
+                  orderBy("points", "desc"),
+                  limit(10),
+                ),
+              ),
+            ]);
 
           if (formSubs.status === "fulfilled") {
             setFormCount(formSubs.value.size);
@@ -960,7 +1036,9 @@ export default function DashboardScreen() {
                 id: d.id,
                 ...(d.data() as Omit<CustomAchievement, "id">),
               }));
-              setCustomAchievements(allAch.filter((a) => awardedIds.includes(a.id)));
+              setCustomAchievements(
+                allAch.filter((a) => awardedIds.includes(a.id)),
+              );
             }
           }
 
@@ -990,8 +1068,13 @@ export default function DashboardScreen() {
           }
 
           // ── Singer forms (pending vs submitted) ──────────────────
-          if (formSubs.status === "fulfilled" && formsSnap.status === "fulfilled") {
-            const submittedIds = new Set(formSubs.value.docs.map((d) => d.data().form_id as string));
+          if (
+            formSubs.status === "fulfilled" &&
+            formsSnap.status === "fulfilled"
+          ) {
+            const submittedIds = new Set(
+              formSubs.value.docs.map((d) => d.data().form_id as string),
+            );
             const forms = formsSnap.value.docs.map((d) => ({
               id: d.id,
               title: (d.data() as any).title ?? "Form",
@@ -1016,7 +1099,12 @@ export default function DashboardScreen() {
             const entries = lbSnap.value.docs.map((d) => ({
               uid: d.id,
               ...(d.data() as any),
-            })) as {uid:string; name:string; voice_type:string; points:number}[];
+            })) as {
+              uid: string;
+              name: string;
+              voice_type: string;
+              points: number;
+            }[];
             setLeaderboard(entries);
             const myEntry = entries.find((e) => e.uid === user?.uid);
             if (myEntry) setMyPoints(myEntry.points ?? 0);
@@ -1050,6 +1138,35 @@ export default function DashboardScreen() {
       unsubMsg();
     };
   }, [user?.uid]);
+
+  // ── Live sync: singer's awarded achievements update in real time ──────────
+  useEffect(() => {
+    if (!user || isAdmin) return;
+
+    const unsubUser = onSnapshot(doc(db, "users", user.uid), async (snap) => {
+      if (!snap.exists()) return;
+      const udata = snap.data() as any;
+      setHasOpenedLibrary(!!udata?.has_opened_library);
+
+      const awardedIds: string[] = udata?.awarded_achievements ?? [];
+      if (awardedIds.length === 0) {
+        setCustomAchievements([]);
+        return;
+      }
+      try {
+        const achSnap = await getDocs(collection(db, "achievements"));
+        const allAch: CustomAchievement[] = achSnap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<CustomAchievement, "id">),
+        }));
+        setCustomAchievements(allAch.filter((a) => awardedIds.includes(a.id)));
+      } catch (e) {
+        console.error("Live achievements sync error:", e);
+      }
+    });
+
+    return () => unsubUser();
+  }, [user?.uid, isAdmin]);
 
   if (loading) {
     return (
@@ -1143,21 +1260,12 @@ export default function DashboardScreen() {
           <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
             <Pressable
               style={st.adminQuickBtn}
-              onPress={() =>
-                router.push("/(tabs)/events?action=add" as any)
-              }
+              onPress={() => router.push("/(tabs)/events?action=add" as any)}
             >
               <View
-                style={[
-                  st.adminQuickIcon,
-                  { backgroundColor: TEAL + "15" },
-                ]}
+                style={[st.adminQuickIcon, { backgroundColor: TEAL + "15" }]}
               >
-                <Ionicons
-                  name="calendar-outline"
-                  size={22}
-                  color={TEAL}
-                />
+                <Ionicons name="calendar-outline" size={22} color={TEAL} />
               </View>
               <Text style={st.adminQuickLabel}>{"New\nEvent"}</Text>
             </Pressable>
@@ -1169,10 +1277,7 @@ export default function DashboardScreen() {
               }
             >
               <View
-                style={[
-                  st.adminQuickIcon,
-                  { backgroundColor: AMBER + "20" },
-                ]}
+                style={[st.adminQuickIcon, { backgroundColor: AMBER + "20" }]}
               >
                 <Ionicons
                   name="musical-notes-outline"
@@ -1188,16 +1293,9 @@ export default function DashboardScreen() {
               onPress={() => router.push("/statistics" as any)}
             >
               <View
-                style={[
-                  st.adminQuickIcon,
-                  { backgroundColor: TEAL + "15" },
-                ]}
+                style={[st.adminQuickIcon, { backgroundColor: TEAL + "15" }]}
               >
-                <Ionicons
-                  name="bar-chart-outline"
-                  size={22}
-                  color={TEAL}
-                />
+                <Ionicons name="bar-chart-outline" size={22} color={TEAL} />
               </View>
               <Text style={st.adminQuickLabel}>{"Full\nStats"}</Text>
             </Pressable>
@@ -1237,7 +1335,6 @@ export default function DashboardScreen() {
               ))
             )}
           </SectionCard>
-
 
           <View style={{ height: 32 }} />
         </ScrollView>
@@ -1283,15 +1380,18 @@ export default function DashboardScreen() {
     ? Math.max(
         0,
         Math.floor(
-          (new Date(nextSingerEvent.date).getTime() - now.getTime()) /
-            86400000,
+          (new Date(nextSingerEvent.date).getTime() - now.getTime()) / 86400000,
         ),
       )
     : null;
-  const firstPendingForm = singerForms.find((f) => f.status === "pending") ?? null;
-  const nextUnregisteredEvent = singerUpcomingEvents.find((e) => !myEventIds.includes(e.id)) ?? null;
+  const firstPendingForm =
+    singerForms.find((f) => f.status === "pending") ?? null;
+  const nextUnregisteredEvent =
+    singerUpcomingEvents.find((e) => !myEventIds.includes(e.id)) ?? null;
   const latestNotifItem = notifList[0] ?? null;
-  const myUpcomingEvents = singerUpcomingEvents.filter((e) => myEventIds.includes(e.id));
+  const myUpcomingEvents = singerUpcomingEvents.filter((e) =>
+    myEventIds.includes(e.id),
+  );
 
   return (
     <View style={st.screen}>
@@ -1357,7 +1457,8 @@ export default function DashboardScreen() {
           voiceType={user?.voice_type ?? null}
           latestNotif={latestNotifItem}
           onPendingForm={() =>
-            firstPendingForm && router.push(`/form/${firstPendingForm.id}` as any)
+            firstPendingForm &&
+            router.push(`/form/${firstPendingForm.id}` as any)
           }
           onNextEvent={() =>
             nextUnregisteredEvent &&
@@ -1622,7 +1723,11 @@ const st = StyleSheet.create({
     padding: 14,
     paddingBottom: 10,
   },
-  adminActionHeaderText: { fontSize: 13, fontWeight: "800" as const, color: DARK },
+  adminActionHeaderText: {
+    fontSize: 13,
+    fontWeight: "800" as const,
+    color: DARK,
+  },
   adminActionRow: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
@@ -1647,7 +1752,11 @@ const st = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  adminActionBadgeText: { fontSize: 11, fontWeight: "800" as const, color: "#fff" },
+  adminActionBadgeText: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    color: "#fff",
+  },
 
   // ── Admin KPI grid
   adminKpiGrid: {
@@ -1679,7 +1788,12 @@ const st = StyleSheet.create({
     alignItems: "center" as const,
     justifyContent: "center" as const,
   },
-  adminKpiLabel: { fontSize: 12, fontWeight: "700" as const, color: DARK, marginTop: 6 },
+  adminKpiLabel: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    color: DARK,
+    marginTop: 6,
+  },
   adminKpiSub: { fontSize: 10, color: SUB, marginTop: 2 },
   adminKpiAccentBar: {
     position: "absolute" as const,
@@ -1800,7 +1914,11 @@ const st = StyleSheet.create({
     paddingVertical: 6,
     alignItems: "center" as const,
   },
-  singerVoiceBadgeText: { fontSize: 12, fontWeight: "800" as const, color: "#fff" },
+  singerVoiceBadgeText: {
+    fontSize: 12,
+    fontWeight: "800" as const,
+    color: "#fff",
+  },
   singerHeroDivider: {
     height: 1,
     backgroundColor: "rgba(255,255,255,0.2)",
@@ -1831,7 +1949,11 @@ const st = StyleSheet.create({
     gap: 4,
   },
   singerBadgeEmoji: { fontSize: 28 },
-  singerBadgeLabel: { fontSize: 11, fontWeight: "800" as const, textAlign: "center" as const },
+  singerBadgeLabel: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    textAlign: "center" as const,
+  },
   singerBadgeSub: { fontSize: 9, color: MUTED, textAlign: "center" as const },
   singerBadgeLock: { fontSize: 10 },
 
@@ -1867,7 +1989,11 @@ const st = StyleSheet.create({
     alignItems: "center" as const,
     justifyContent: "center" as const,
   },
-  singerQuickBadgeText: { color: "#fff", fontSize: 10, fontWeight: "800" as const },
+  singerQuickBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "800" as const,
+  },
   singerQuickLabel: {
     fontSize: 13,
     fontWeight: "800" as const,
@@ -1930,7 +2056,12 @@ const st = StyleSheet.create({
     paddingHorizontal: 4,
   },
   shortcutBadgeText: { fontSize: 9, fontWeight: "900" as const, color: "#fff" },
-  shortcutLabel: { fontSize: 13, fontWeight: "800" as const, color: DARK, marginTop: 8 },
+  shortcutLabel: {
+    fontSize: 13,
+    fontWeight: "800" as const,
+    color: DARK,
+    marginTop: 8,
+  },
   shortcutSub: { fontSize: 10, color: SUB, marginTop: 2 },
 
   // ── Leaderboard Card
@@ -1956,7 +2087,12 @@ const st = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: BORDER,
   },
-  lbHeaderText: { fontSize: 13, fontWeight: "800" as const, color: DARK, flex: 1 },
+  lbHeaderText: {
+    fontSize: 13,
+    fontWeight: "800" as const,
+    color: DARK,
+    flex: 1,
+  },
   lbHeaderSub: { fontSize: 10, color: MUTED },
   lbRow: {
     flexDirection: "row" as const,
@@ -2004,6 +2140,11 @@ const st = StyleSheet.create({
     borderTopColor: BORDER,
     gap: 3,
   },
-  lbHowToTitle: { fontSize: 11, fontWeight: "800" as const, color: SUB, marginBottom: 4 },
+  lbHowToTitle: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    color: SUB,
+    marginBottom: 4,
+  },
   lbHowToRow: { fontSize: 11, color: MUTED },
 });
