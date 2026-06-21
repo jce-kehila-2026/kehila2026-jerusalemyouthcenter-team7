@@ -1,12 +1,15 @@
 import { useAuth } from "@/src/context/AuthContext";
 import { db } from "@/src/firebase/firebase";
-import {
-  getAllForms,
-  getFormSubmissions,
-} from "@/src/firebase/firestoreService";
+import { getFormSubmissions } from "@/src/firebase/firestoreService";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { deleteDoc, doc } from "firebase/firestore";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  query,
+} from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -58,28 +61,37 @@ export default function FormsScreen() {
   >({});
 
   useEffect(() => {
-    const fetchForms = async () => {
-      setLoading(true);
-      const data = await getAllForms();
-      const filteredData = data.filter(
-        (f) =>
-          typeof f.title !== "string" ||
-          !f.title.toLowerCase().includes("new student"),
-      );
-      setFormsList(filteredData);
+    setLoading(true);
+    const q = query(collection(db, "forms"));
+    const unsub = onSnapshot(
+      q,
+      async (snapshot) => {
+        const data = snapshot.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter(
+            (f: any) =>
+              typeof f.title !== "string" ||
+              !f.title.toLowerCase().includes("new student"),
+          );
+        setFormsList(data);
+        setLoading(false);
 
-      if (isAdmin) {
-        const allSubs = await getFormSubmissions();
-        const counts: Record<string, number> = {};
-        allSubs.forEach((sub) => {
-          if (sub.form_id) counts[sub.form_id] = (counts[sub.form_id] ?? 0) + 1;
-        });
-        setSubmissionCounts(counts);
-      }
-
-      setLoading(false);
-    };
-    fetchForms();
+        if (isAdmin) {
+          const allSubs = await getFormSubmissions();
+          const counts: Record<string, number> = {};
+          allSubs.forEach((sub) => {
+            if (sub.form_id)
+              counts[sub.form_id] = (counts[sub.form_id] ?? 0) + 1;
+          });
+          setSubmissionCounts(counts);
+        }
+      },
+      (error) => {
+        console.error("Forms listener error:", error);
+        setLoading(false);
+      },
+    );
+    return unsub;
   }, [isAdmin]);
 
   const visibleForms = formsList.filter((f) => {
@@ -332,9 +344,6 @@ export default function FormsScreen() {
                   if (formToDelete) {
                     try {
                       await deleteDoc(doc(db, "forms", formToDelete));
-                      setFormsList((prev) =>
-                        prev.filter((f) => f.id !== formToDelete),
-                      );
                     } catch (err) {
                       console.error("Delete failed:", err);
                     }

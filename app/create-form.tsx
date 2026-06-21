@@ -39,7 +39,7 @@ export default function CreateFormScreen() {
   const [title, setTitle]         = useState("");
   const [description, setDescription] = useState("");
   const [questions, setQuestions] = useState<
-    { id: string; text: string; type: string; options?: string[]; scaleMin?: number; scaleMax?: number }[]
+    { id: string; text: string; type: string; options?: string[]; scaleMin?: number; scaleMax?: number; minLabel?: string; maxLabel?: string }[]
   >([]);
   const [loading, setLoading] = useState(false);
 
@@ -128,6 +128,14 @@ export default function CreateFormScreen() {
     if (!isNaN(num)) {
       setQuestions(questions.map((q) => (q.id === qId ? { ...q, scaleMax: num } : q)));
     }
+  };
+
+  const updateScaleMinLabel = (qId: string, val: string) => {
+    setQuestions(questions.map((q) => (q.id === qId ? { ...q, minLabel: val } : q)));
+  };
+
+  const updateScaleMaxLabel = (qId: string, val: string) => {
+    setQuestions(questions.map((q) => (q.id === qId ? { ...q, maxLabel: val } : q)));
   };
 
   const updateOption = (qId: string, optIndex: number, text: string) => {
@@ -319,31 +327,55 @@ export default function CreateFormScreen() {
                 {/* Scale min/max config */}
                 {q.type === "scale" && (
                   <View style={s.scaleConfig}>
-                    <View style={s.scaleField}>
-                      <Text style={s.scaleLabel}>Min</Text>
-                      <TextInput
-                        style={s.scaleInput}
-                        keyboardType="number-pad"
-                        value={String(q.scaleMin ?? 1)}
-                        onChangeText={(v) => updateScaleMin(q.id, v)}
-                        maxLength={3}
-                      />
+                    <View style={s.scaleNumRow}>
+                      <View style={s.scaleField}>
+                        <Text style={s.scaleLabel}>Min</Text>
+                        <TextInput
+                          style={s.scaleInput}
+                          keyboardType="number-pad"
+                          value={String(q.scaleMin ?? 1)}
+                          onChangeText={(v) => updateScaleMin(q.id, v)}
+                          maxLength={3}
+                        />
+                      </View>
+                      <View style={s.scaleDivider} />
+                      <View style={s.scaleField}>
+                        <Text style={s.scaleLabel}>Max</Text>
+                        <TextInput
+                          style={s.scaleInput}
+                          keyboardType="number-pad"
+                          value={String(q.scaleMax ?? 10)}
+                          onChangeText={(v) => updateScaleMax(q.id, v)}
+                          maxLength={3}
+                        />
+                      </View>
+                      <View style={s.scalePreview}>
+                        <Text style={s.scalePreviewText}>
+                          {q.scaleMin ?? 1} → {q.scaleMax ?? 10}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={s.scaleDivider} />
-                    <View style={s.scaleField}>
-                      <Text style={s.scaleLabel}>Max</Text>
-                      <TextInput
-                        style={s.scaleInput}
-                        keyboardType="number-pad"
-                        value={String(q.scaleMax ?? 10)}
-                        onChangeText={(v) => updateScaleMax(q.id, v)}
-                        maxLength={3}
-                      />
-                    </View>
-                    <View style={s.scalePreview}>
-                      <Text style={s.scalePreviewText}>
-                        {q.scaleMin ?? 1} → {q.scaleMax ?? 10}
-                      </Text>
+                    <View style={s.scaleLabelRow}>
+                      <View style={s.scaleLabelField}>
+                        <Text style={s.scaleLabel}>Min Label</Text>
+                        <TextInput
+                          style={s.scaleLabelInput}
+                          placeholder="e.g. Not at all"
+                          placeholderTextColor={ds.subtext}
+                          value={q.minLabel ?? ""}
+                          onChangeText={(v) => updateScaleMinLabel(q.id, v)}
+                        />
+                      </View>
+                      <View style={s.scaleLabelField}>
+                        <Text style={s.scaleLabel}>Max Label</Text>
+                        <TextInput
+                          style={s.scaleLabelInput}
+                          placeholder="e.g. Extremely"
+                          placeholderTextColor={ds.subtext}
+                          value={q.maxLabel ?? ""}
+                          onChangeText={(v) => updateScaleMaxLabel(q.id, v)}
+                        />
+                      </View>
                     </View>
                   </View>
                 )}
@@ -585,15 +617,36 @@ const s = StyleSheet.create({
 
   // Scale config
   scaleConfig: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    gap: 12,
     marginTop: 8,
     padding: 12,
     backgroundColor: ds.teal + "0d",
     borderRadius: 8,
     borderWidth: 1,
     borderColor: ds.teal + "30",
+  },
+  scaleNumRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  scaleLabelRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  scaleLabelField: {
+    flex: 1,
+    gap: 4,
+  },
+  scaleLabelInput: {
+    borderWidth: 1,
+    borderColor: ds.teal + "60",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 14,
+    color: ds.text,
+    backgroundColor: ds.white,
   },
   scaleField: { alignItems: "center", gap: 4 },
   scaleLabel: {

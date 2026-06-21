@@ -351,9 +351,14 @@ export default function FormDetailScreen() {
                   {qType === "scale" && (() => {
                     const min = typeof q.scaleMin === "number" ? q.scaleMin : 1;
                     const max = typeof q.scaleMax === "number" ? q.scaleMax : 10;
+                    const minLabel = typeof q.minLabel === "string" ? q.minLabel.trim() : "";
+                    const maxLabel = typeof q.maxLabel === "string" ? q.maxLabel.trim() : "";
                     const steps = Array.from({ length: max - min + 1 }, (_, i) => min + i);
                     return (
-                      <View style={styles.scaleWrapper}>
+                      <View style={styles.scaleInlineRow}>
+                        {minLabel ? (
+                          <Text style={styles.scaleInlineLabel}>{minLabel}</Text>
+                        ) : null}
                         <View style={styles.scaleRow}>
                           {steps.map((val) => {
                             const selected = answers[qId] === String(val);
@@ -381,10 +386,9 @@ export default function FormDetailScreen() {
                             );
                           })}
                         </View>
-                        <View style={styles.scaleLabels}>
-                          <Text style={styles.scaleLabelText}>{min}</Text>
-                          <Text style={styles.scaleLabelText}>{max}</Text>
-                        </View>
+                        {maxLabel ? (
+                          <Text style={[styles.scaleInlineLabel, { textAlign: "right" }]}>{maxLabel}</Text>
+                        ) : null}
                       </View>
                     );
                   })()}
@@ -572,11 +576,23 @@ const styles = StyleSheet.create({
   },
 
   // Scale question
-  scaleWrapper: { gap: 12 },
+  scaleInlineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  scaleInlineLabel: {
+    fontSize: 12,
+    color: "#94A3B8",
+    fontWeight: "500",
+    flexShrink: 1,
+  },
   scaleRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
+    flexShrink: 1,
     gap: 10,
   },
   scaleBtn: {
@@ -595,17 +611,4 @@ const styles = StyleSheet.create({
     color: "#334155",
   },
   scaleBtnTextActive: { color: themeColors.white },
-  scaleLabels: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 2,
-    marginTop: 4,
-  },
-  scaleLabelText: {
-    fontSize: 11,
-    color: "#94A3B8",
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
 });
