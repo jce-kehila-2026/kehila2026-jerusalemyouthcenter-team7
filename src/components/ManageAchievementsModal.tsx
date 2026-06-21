@@ -8,6 +8,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  onSnapshot,
   query,
   serverTimestamp,
   updateDoc,
@@ -73,7 +74,9 @@ export function ManageAchievementsModal({ visible, onClose }: Props) {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
+    null,
+  );
 
   const [formVisible, setFormVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -83,35 +86,40 @@ export function ManageAchievementsModal({ visible, onClose }: Props) {
   const [formColor, setFormColor] = useState(TEAL);
   const [formSaving, setFormSaving] = useState(false);
 
-  const selectedStudent = students.find((s) => s.id === selectedStudentId) ?? null;
+  const selectedStudent =
+    students.find((s) => s.id === selectedStudentId) ?? null;
 
+  // ── Real-time achievements listener + one-time students fetch ─────────────
   useEffect(() => {
-    if (visible) {
-      loadAchievements();
-      loadStudents();
-    } else {
+    if (!visible) {
       setFormVisible(false);
       setSelectedStudentId(null);
       setTab("definitions");
+      return;
     }
-  }, [visible]);
 
-  const loadAchievements = async () => {
     setAchLoading(true);
-    try {
-      const snap = await getDocs(collection(db, "achievements"));
-      setAchievements(
-        snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<CustomAchievement, "id">),
-        })),
-      );
-    } catch (e) {
-      console.error("Load achievements error:", e);
-    } finally {
-      setAchLoading(false);
-    }
-  };
+    const unsub = onSnapshot(
+      collection(db, "achievements"),
+      (snap) => {
+        setAchievements(
+          snap.docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as Omit<CustomAchievement, "id">),
+          })),
+        );
+        setAchLoading(false);
+      },
+      (err) => {
+        console.error("Achievements onSnapshot error:", err);
+        setAchLoading(false);
+      },
+    );
+
+    loadStudents();
+
+    return () => unsub();
+  }, [visible]);
 
   const loadStudents = async () => {
     setStudentsLoading(true);
@@ -151,6 +159,8 @@ export function ManageAchievementsModal({ visible, onClose }: Props) {
     setFormVisible(true);
   };
 
+  // ── Save (create/edit) — onSnapshot keeps `achievements` in sync, so no
+  //    manual setAchievements() calls are needed here anymore ──────────────
   const saveForm = async () => {
     if (!formLabel.trim()) {
       Alert.alert("Missing field", "Please enter a label for the achievement.");
@@ -166,16 +176,12 @@ export function ManageAchievementsModal({ visible, onClose }: Props) {
       };
       if (editingId) {
         await updateDoc(doc(db, "achievements", editingId), data);
-        setAchievements((prev) =>
-          prev.map((a) => (a.id === editingId ? { ...a, ...data } : a)),
-        );
       } else {
-        const ref = await addDoc(collection(db, "achievements"), {
+        await addDoc(collection(db, "achievements"), {
           ...data,
           createdAt: serverTimestamp(),
           createdBy: user?.uid ?? "",
         });
-        setAchievements((prev) => [...prev, { id: ref.id, ...data }]);
       }
       setFormVisible(false);
     } catch (e) {
@@ -186,6 +192,8 @@ export function ManageAchievementsModal({ visible, onClose }: Props) {
     }
   };
 
+  // ── Delete — onSnapshot keeps `achievements` in sync; we still update
+  //    `students` locally since that data comes from a one-time fetch ──────
   const confirmDelete = (ach: CustomAchievement) => {
     Alert.alert(
       "Delete achievement",
@@ -208,7 +216,6 @@ export function ManageAchievementsModal({ visible, onClose }: Props) {
                   }),
                 ),
               );
-              setAchievements((prev) => prev.filter((a) => a.id !== ach.id));
               setStudents((prev) =>
                 prev.map((s) => ({
                   ...s,
@@ -275,7 +282,10 @@ export function ManageAchievementsModal({ visible, onClose }: Props) {
         <View style={s.tabRow}>
           <Pressable
             style={[s.tab, tab === "definitions" && s.tabActive]}
-            onPress={() => { setTab("definitions"); setFormVisible(false); }}
+            onPress={() => {
+              setTab("definitions");
+              setFormVisible(false);
+            }}
           >
             <Text style={[s.tabText, tab === "definitions" && s.tabTextActive]}>
               Manage
