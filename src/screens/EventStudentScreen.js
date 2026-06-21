@@ -326,11 +326,7 @@ export default function EventStudentScreen({
           style={{ flexDirection: "row", alignItems: "flex-end", gap: sp(1) }}
         >
           {/* Back button — only visible in Calendar tab */}
-          {activeTab === "calendar" && (
-            <Pressable onPress={() => setActiveTab("list")} style={s.backBtn}>
-              <Text style={s.backBtnText}>←</Text>
-            </Pressable>
-          )}
+          {activeTab === "calendar"}
           <View>
             <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
             <Text style={s.pageTitle}>

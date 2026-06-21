@@ -145,6 +145,11 @@ export default function StudentDetailScreen() {
     return groups.find((g) => studentYear && g.year_id === studentYear) || null;
   }, [groups, studentGroupId, studentYear]);
 
+  const sortedGroups = useMemo(
+    () => [...groups].sort((a, b) => Number(a.year_id) - Number(b.year_id)),
+    [groups],
+  );
+
   const fetchStudentData = useCallback(
     async (isInitialLoad = false) => {
       if (!id) return;
@@ -670,7 +675,7 @@ export default function StudentDetailScreen() {
               </TouchableOpacity>
             </View>
             <View style={s.groupList}>
-              {groups.map((g) => {
+              {sortedGroups.map((g) => {
                 const isActive = Number(studentYear) === Number(g.year_id);
                 return (
                   <TouchableOpacity
