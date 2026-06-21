@@ -124,6 +124,7 @@ export default function EventStudentScreen({
   studentYear = 1,
   studentVoiceType = "",
   studentName = "Student",
+  isAdmin = false,
   onEventPress,
 }) {
   const { events } = useEvents();
@@ -133,22 +134,25 @@ export default function EventStudentScreen({
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [gcalMenuTarget, setGcalMenuTarget] = useState(null);
 
-  const myEvents = events.filter((e) => {
-    const yearMatch =
-      e.group === "all" ||
-      e.group_name === "All Groups" ||
-      e.groupLabel === "All Groups" ||
-      e.group === `year${studentYear}` ||
-      e.group_name === `Year ${studentYear}` ||
-      e.groupLabel === `Year ${studentYear}`;
+  // Admins see every event; singers only see events for their own group/voice.
+  const myEvents = isAdmin
+    ? events
+    : events.filter((e) => {
+        const yearMatch =
+          e.group === "all" ||
+          e.group_name === "All Groups" ||
+          e.groupLabel === "All Groups" ||
+          e.group === `year${studentYear}` ||
+          e.group_name === `Year ${studentYear}` ||
+          e.groupLabel === `Year ${studentYear}`;
 
-    const voiceMatch =
-      !e.voiceSection ||
-      e.voiceSection === "all_voices" ||
-      e.voiceSection === studentVoiceType;
+        const voiceMatch =
+          !e.voiceSection ||
+          e.voiceSection === "all_voices" ||
+          e.voiceSection === studentVoiceType;
 
-    return yearMatch && voiceMatch;
-  });
+        return yearMatch && voiceMatch;
+      });
 
   const getGroupColor = (item) =>
     GROUP_COLORS[item.groupLabel] || GROUP_COLORS[item.group_name] || T.teal;
@@ -381,8 +385,9 @@ export default function EventStudentScreen({
       {/* Welcome */}
       <View style={s.welcomeBox}>
         <Text style={s.welcomeText}>
-          Hello, {studentName}! You have {myEvents.length} upcoming event
-          {myEvents.length !== 1 ? "s" : ""}.
+          {isAdmin
+            ? `There ${myEvents.length !== 1 ? "are" : "is"} ${myEvents.length} upcoming event${myEvents.length !== 1 ? "s" : ""}.`
+            : `Hello, ${studentName}! You have ${myEvents.length} upcoming event${myEvents.length !== 1 ? "s" : ""}.`}
         </Text>
       </View>
 
@@ -391,7 +396,9 @@ export default function EventStudentScreen({
         (myEvents.length === 0 ? (
           <View style={s.empty}>
             <Text style={{ fontSize: 48 }}>🎵</Text>
-            <Text style={s.emptyText}>No upcoming events for your group.</Text>
+            <Text style={s.emptyText}>
+              {isAdmin ? "No upcoming events." : "No upcoming events for your group."}
+            </Text>
           </View>
         ) : (
           <FlatList
@@ -560,7 +567,7 @@ export default function EventStudentScreen({
                   Open this event in Google Calendar
                 </Text>
                 <Text style={s.gcalMenuOptionSub}>
-                  View "{gcalMenuTarget?.title}" directly
+                  View &quot;{gcalMenuTarget?.title}&quot; directly
                 </Text>
               </View>
             </Pressable>
@@ -610,9 +617,9 @@ export default function EventStudentScreen({
               On Google Calendar (web)
             </Text>
             <Text style={s.icsStep}>
-              1. Next to "Other calendars", tap +{"\n"}
-              2. Choose "From URL"{"\n"}
-              3. Paste the link, then "Add calendar"
+              1. Next to &quot;Other calendars&quot;, tap +{"\n"}
+              2. Choose &quot;From URL&quot;{"\n"}
+              3. Paste the link, then &quot;Add calendar&quot;
             </Text>
             <Text style={[s.label, { marginTop: sp(2) }]}>
               On iPhone (Apple Calendar)

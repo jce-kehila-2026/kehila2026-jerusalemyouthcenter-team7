@@ -1049,7 +1049,10 @@ export default function DashboardScreen() {
       unsubNotif();
       unsubMsg();
     };
-  }, [user?.uid]);
+    // Depend on user?.uid (not the whole `user` object) so this doesn't
+    // re-run on every AuthContext re-render — only on an actual identity change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, isAdmin]);
 
   if (loading) {
     return (

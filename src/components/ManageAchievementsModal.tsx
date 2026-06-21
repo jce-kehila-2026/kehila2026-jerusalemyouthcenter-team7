@@ -13,7 +13,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -73,7 +73,9 @@ export function ManageAchievementsModal({ visible, onClose }: Props) {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
+    null,
+  );
 
   const [formVisible, setFormVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -83,7 +85,8 @@ export function ManageAchievementsModal({ visible, onClose }: Props) {
   const [formColor, setFormColor] = useState(TEAL);
   const [formSaving, setFormSaving] = useState(false);
 
-  const selectedStudent = students.find((s) => s.id === selectedStudentId) ?? null;
+  const selectedStudent =
+    students.find((s) => s.id === selectedStudentId) ?? null;
 
   useEffect(() => {
     if (visible) {
@@ -275,7 +278,10 @@ export function ManageAchievementsModal({ visible, onClose }: Props) {
         <View style={s.tabRow}>
           <Pressable
             style={[s.tab, tab === "definitions" && s.tabActive]}
-            onPress={() => { setTab("definitions"); setFormVisible(false); }}
+            onPress={() => {
+              setTab("definitions");
+              setFormVisible(false);
+            }}
           >
             <Text style={[s.tabText, tab === "definitions" && s.tabTextActive]}>
               Manage
@@ -414,7 +420,8 @@ export function ManageAchievementsModal({ visible, onClose }: Props) {
                 <Text style={{ fontSize: 36 }}>🏅</Text>
                 <Text style={s.emptyText}>No custom achievements yet.</Text>
                 <Text style={[s.emptyText, { fontSize: 12 }]}>
-                  Tap "Add New Achievement" to create your first one.
+                  Tap &&quot;Add New Achievement&rdquo; to create your first
+                  one.
                 </Text>
               </View>
             ) : (
@@ -505,7 +512,7 @@ export function ManageAchievementsModal({ visible, onClose }: Props) {
                           No achievements defined yet.
                         </Text>
                         <Text style={[s.emptyText, { fontSize: 12 }]}>
-                          Go to the "Manage" tab to create some first.
+                          Go to the &quot;Manage&quot; tab to create some first.
                         </Text>
                       </View>
                     ) : (

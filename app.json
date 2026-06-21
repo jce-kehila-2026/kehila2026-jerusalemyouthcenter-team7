@@ -9,9 +9,16 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "package": "com.kehila.mobileapp",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "bundleIdentifier": "com.kehila.mobileapp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.kehila.mobileapp",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -19,7 +26,11 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "output": "static",
@@ -27,6 +38,7 @@
     },
     "plugins": [
       "expo-router",
+      "@react-native-firebase/app",
       [
         "expo-splash-screen",
         {
@@ -56,6 +68,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ef0337a8-b6a1-40e7-90ba-1dd0e980a75a"
+      }
     }
   }
 }

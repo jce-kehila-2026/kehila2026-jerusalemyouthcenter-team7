@@ -1,5 +1,7 @@
 import { StudentSignupPayload, useAuth } from "@/src/context/AuthContext";
+import { PhoneVerify } from "@/src/components/PhoneVerify";
 import { COLORS } from "@/src/data/mockData";
+import { isValidEmail, isValidPhone } from "@/src/utils/validation";
 import { Link, useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -204,11 +206,16 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
+  const [phoneVerified, setPhoneVerified] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  const set = (k: keyof FormState) => (v: string) =>
+  const set = (k: keyof FormState) => (v: string) => {
+    // Editing the phone after verifying it invalidates the OTP proof —
+    // it was only ever proof of ownership for the exact number sent.
+    if (k === "phone") setPhoneVerified(false);
     setForm((p) => ({ ...p, [k]: v }));
+  };
 
   const inp = (k: string) => [
     s.input,
@@ -218,19 +225,32 @@ export default function SignupScreen() {
     },
   ];
 
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+
   const fld = (k: keyof FormState) => ({
     value: form[k] as string,
     onChangeText: set(k),
     onFocus: () => setFocused(k),
-    onBlur: () => setFocused(null),
+    onBlur: () => {
+      setFocused(null);
+      setTouched((p) => ({ ...p, [k]: true }));
+    },
   });
+
+  const phoneInvalid =
+    touched.phone && form.phone.trim().length > 0 && !isValidPhone(form.phone);
 
   // ── Validation per step ───────────────────────────────────────────────────
   const validate = (): string | null => {
     if (step === 1) {
       if (!form.full_name.trim()) return "Full name is required";
       if (!form.phone.trim()) return "Phone number is required";
+      if (!isValidPhone(form.phone))
+        return "Enter a valid phone number, e.g. 050-1234567 or +972501234567";
+      if (!phoneVerified)
+        return "Please verify your phone number with the code we sent you";
       if (!form.email.trim()) return "Email is required";
+      if (!isValidEmail(form.email)) return "Enter a valid email address";
       if (!form.birth_date.trim()) return "Date of birth is required";
       if (!form.gender) return "Please select your gender";
       if (!form.nationality) return "Please select your nationality";
@@ -249,6 +269,8 @@ export default function SignupScreen() {
     if (step === 3) {
       if (!form.parent_relation) return "Please select parent / guardian";
       if (!form.parent_phone.trim()) return "Parent phone number is required";
+      if (!isValidPhone(form.parent_phone))
+        return "Enter a valid parent phone number, e.g. 050-1234567 or +972501234567";
       if (!form.parent_name.trim()) return "Parent name is required";
       if (!form.medical_situation.trim())
         return "Medical situation is required";
@@ -286,6 +308,7 @@ export default function SignupScreen() {
     setLoading(true);
 
     const payload: StudentSignupPayload = {
+      phoneVerified,
       full_name: form.full_name.trim(),
       email: form.email.trim(),
       phone: form.phone.trim(),
@@ -358,12 +381,28 @@ export default function SignupScreen() {
           <FL text="Phone Number" req />
           <Text style={s.hint}>This is your login identifier</Text>
           <TextInput
-            style={inp("phone")}
+            style={[
+              ...inp("phone"),
+              phoneInvalid ? s.inputErr : null,
+            ]}
             {...fld("phone")}
             placeholder="+972-50-000-0000"
             placeholderTextColor="#aab"
             keyboardType="phone-pad"
           />
+          {phoneInvalid ? (
+            <Text style={s.fieldErrTxt}>
+              ⚠ Enter a valid phone number, e.g. 050-1234567 or
+              +972501234567
+            </Text>
+          ) : null}
+          {!phoneInvalid && form.phone.trim() ? (
+            <PhoneVerify
+              phone={form.phone}
+              verified={phoneVerified}
+              onVerified={() => setPhoneVerified(true)}
+            />
+          ) : null}
 
           <FL text="Email" req />
           <TextInput
@@ -793,6 +832,13 @@ const s = StyleSheet.create({
     marginBottom: 16,
   },
   errText: { color: COLORS.red, fontSize: 13, fontWeight: "500" },
+  fieldErrTxt: {
+    fontSize: 12,
+    color: COLORS.red,
+    marginTop: -10,
+    marginBottom: 12,
+    fontWeight: "600",
+  },
 
   input: {
     borderWidth: 1.5,

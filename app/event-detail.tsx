@@ -103,11 +103,6 @@ export default function EventDetail() {
   const groupStyle = GROUP_STYLES[group] || GROUP_STYLES["All Groups"];
   const { day, month } = getDateParts(date);
 
-  const formattedDate =
-    date && typeof date === "string" && date.includes("-")
-      ? date.split("-").reverse().join("/")
-      : date;
-
   // RSVP
   const [rsvpStatus, setRsvpStatus] = useState<"coming" | "not_coming" | null>(
     null,

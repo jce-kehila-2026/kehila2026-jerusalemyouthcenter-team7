@@ -185,7 +185,7 @@ export default function StudentDetailScreen() {
         setInitialLoading(false);
       }
     },
-    [id, user],
+    [id],
   );
 
   useEffect(() => {
