@@ -16,11 +16,12 @@ import { useRouter } from "expo-router";
 import {
   collection,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
   setDoc,
-  updateDoc,
+  where,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/src/firebase/firebase";
@@ -67,6 +68,7 @@ export default function ManageLeaderboardScreen() {
 
   const [activeTab, setActiveTab]     = useState<"rankings" | "challenges" | "adjust">("rankings");
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [allSingers, setAllSingers]   = useState<{ uid: string; name: string; voice_type: string }[]>([]);
   const [challenges, setChallenges]   = useState<Challenge[]>([]);
   const [lastReset, setLastReset]     = useState("Never");
   const [saving, setSaving]           = useState(false);
