@@ -196,11 +196,21 @@ export default function ManageLeaderboardScreen() {
 
   // ── Adjust individual singer points ───────────────────────────────────────
   async function adjustPoints(uid: string, delta: number) {
-    const entry = leaderboard.find((e) => e.uid === uid);
-    if (!entry) return;
-    const newPoints = Math.max(0, (entry.points ?? 0) + delta);
+    const existing = leaderboard.find((e) => e.uid === uid);
+    const singer = allSingers.find((s) => s.uid === uid);
+    const currentPoints = existing?.points ?? 0;
+    const newPoints = Math.max(0, currentPoints + delta);
     try {
-      await updateDoc(doc(db, "leaderboard", uid), { points: newPoints });
+      await setDoc(
+        doc(db, "leaderboard", uid),
+        {
+          uid,
+          name: existing?.name ?? singer?.name ?? "",
+          voice_type: existing?.voice_type ?? singer?.voice_type ?? "",
+          points: newPoints,
+        },
+        { merge: true },
+      );
     } catch {
       Alert.alert("Error", "Failed to update points.");
     }
@@ -222,11 +232,17 @@ export default function ManageLeaderboardScreen() {
     return acc;
   }, {});
 
+  // Adjust tab list — all singers with their current points merged in
+  const adjustList: LeaderboardEntry[] = allSingers.map((singer) => {
+    const lb = leaderboard.find((e) => e.uid === singer.uid);
+    return { ...singer, points: lb?.points ?? 0 };
+  });
+
   const filteredLb = search.trim()
-    ? leaderboard.filter((e) =>
+    ? adjustList.filter((e) =>
         e.name?.toLowerCase().includes(search.trim().toLowerCase()),
       )
-    : leaderboard;
+    : adjustList;
 
   const voiceEmoji: Record<string, string> = {
     soprano: "🎤", alto: "🎶", tenor: "🎺", bass: "🥁",
