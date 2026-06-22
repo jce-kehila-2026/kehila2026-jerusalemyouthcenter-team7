@@ -109,6 +109,19 @@ export default function ManageLeaderboardScreen() {
       (err) => console.error("leaderboard_config listener:", err),
     );
 
+    // Fetch all singers so the Adjust tab shows every singer, not just those with points
+    getDocs(query(collection(db, "users"), where("role", "==", "singer")))
+      .then((snap) => {
+        setAllSingers(
+          snap.docs.map((d) => ({
+            uid: d.id,
+            name: (d.data() as any).full_name ?? "",
+            voice_type: (d.data() as any).voice_type ?? "",
+          })),
+        );
+      })
+      .catch((err) => console.error("singers fetch:", err));
+
     return () => {
       unsubLb();
       unsubCfg();
