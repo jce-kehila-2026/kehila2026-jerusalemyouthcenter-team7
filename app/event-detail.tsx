@@ -1,3 +1,5 @@
+import { useAuth } from "@/src/context/AuthContext";
+import { leaderboardService } from "@/src/data/leaderboardService";
 import { db } from "@/src/firebase/firebase";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
@@ -72,6 +74,7 @@ function getDateParts(dateStr: string | string[] | undefined) {
 export default function EventDetail() {
   const params = useLocalSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
 
   // Two calling conventions:
   // 1) individual fields — admin Events screen
@@ -141,6 +144,14 @@ export default function EventDetail() {
         updatedAt: serverTimestamp(),
       });
       setRsvpStatus(status);
+      if (status === "coming" && user?.role === "singer" && studentId) {
+        await leaderboardService.awardPoints(
+          studentId,
+          studentName ?? user.full_name ?? "",
+          user.voice_type ?? "",
+          "register_event",
+        );
+      }
     } catch (e) {
       console.error("RSVP save error:", e);
       setRsvpError(true);

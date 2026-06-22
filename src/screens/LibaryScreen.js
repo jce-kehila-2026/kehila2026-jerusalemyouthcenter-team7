@@ -26,6 +26,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { leaderboardService } from "../data/leaderboardService";
 import { useAuth } from "../context/AuthContext";
 
 const COLORS = {
@@ -295,6 +296,14 @@ export default function LibraryScreen({ autoUpload = false }) {
       window.open(item.uri, "_blank");
     } else {
       Linking.openURL(item.uri).catch(() => {});
+    }
+    if (user?.role === "singer") {
+      leaderboardService.awardPoints(
+        user.uid,
+        user.full_name ?? "",
+        user.voice_type ?? "",
+        "open_library_file",
+      ).catch(() => {});
     }
   };
 
