@@ -1,6 +1,17 @@
 import { db } from "@/backend/firebase";
 import { StudentSignupPayload, useAuth } from "@/src/context/AuthContext";
 import { COLORS } from "@/src/data/mockData";
+import {
+  formatBirthDateInput,
+  hasNoDigits,
+  isValidAge,
+  isValidBirthDate,
+  isValidEmail,
+  isValidName,
+  isValidPhone,
+  isValidYear,
+  toE164,
+} from "@/src/utils/validation";
 import { Link, useRouter } from "expo-router";
 import { collection, getDocs } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
@@ -235,8 +246,20 @@ export default function SignupScreen() {
 
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  const set = (k: keyof FormState) => (v: string) =>
-    setForm((p) => ({ ...p, [k]: v }));
+  // Sanitizers strip characters that could never be valid for a field —
+  // applied as the user types so a phone/age/year field can't even hold
+  // letters, rather than only catching it at submit time.
+  const onlyDigits = (v: string) => v.replace(/\D/g, "");
+  const noDigits = (v: string) => v.replace(/[0-9]/g, "");
+  // "+972" is shown as a fixed prefix outside the input, so the field only
+  // ever holds the local number — strip a leading 0 in case it's pasted in.
+  const localPhoneDigits = (v: string) => onlyDigits(v).replace(/^0/, "");
+  const birthDateMask = formatBirthDateInput;
+
+  const set =
+    (k: keyof FormState, sanitize?: (v: string) => string) => (v: string) => {
+      setForm((p) => ({ ...p, [k]: sanitize ? sanitize(v) : v }));
+    };
 
   const inp = (k: string) => [
     s.input,
@@ -246,38 +269,67 @@ export default function SignupScreen() {
     },
   ];
 
-  const fld = (k: keyof FormState) => ({
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+  const fld = (k: keyof FormState, sanitize?: (v: string) => string) => ({
     value: form[k] as string,
-    onChangeText: set(k),
+    onChangeText: set(k, sanitize),
     onFocus: () => setFocused(k),
-    onBlur: () => setFocused(null),
+    onBlur: () => {
+      setFocused(null);
+      setTouched((p) => ({ ...p, [k]: true }));
+    },
   });
+
+  const phoneInvalid =
+    touched.phone && form.phone.trim().length > 0 && !isValidPhone(form.phone);
+  const parentPhoneInvalid =
+    touched.parent_phone &&
+    form.parent_phone.trim().length > 0 &&
+    !isValidPhone(form.parent_phone);
 
   // ── Validation per step ───────────────────────────────────────────────────
   const validate = (): string | null => {
     if (step === 1) {
       if (!form.full_name.trim()) return "Full name is required";
+      if (!isValidName(form.full_name))
+        return "Full name can only contain letters";
       if (!form.phone.trim()) return "Phone number is required";
+      if (!isValidPhone(form.phone))
+        return "Enter a valid phone number, e.g. 50-000-0000";
       if (!form.email.trim()) return "Email is required";
+      if (!isValidEmail(form.email)) return "Enter a valid email address";
       if (!form.birth_date.trim()) return "Date of birth is required";
+      if (!isValidBirthDate(form.birth_date))
+        return "Enter a valid date of birth in DD/MM/YYYY format";
       if (!form.gender) return "Please select your gender";
       if (!form.nationality) return "Please select your nationality";
       if (!form.age.trim()) return "Age is required";
-      if (isNaN(Number(form.age))) return "Age must be a number";
+      if (!isValidAge(form.age))
+        return "Age must be a number between 10 and 19";
       if (!form.address.trim()) return "Address is required";
+      if (!hasNoDigits(form.address))
+        return "Address cannot contain numbers";
       if (!form.neighborhood.trim()) return "Neighborhood is required";
+      if (!hasNoDigits(form.neighborhood))
+        return "Neighborhood cannot contain numbers";
     }
     if (step === 2) {
       if (!form.school_name.trim()) return "School name is required";
       if (!form.shirt_size) return "Please select your shirt size";
       if (!form.voice_type) return "Please select your voice type";
       if (!form.year_joined.trim()) return "Year joined is required";
-      if (isNaN(Number(form.year_joined))) return "Year must be a valid number";
+      if (!isValidYear(form.year_joined))
+        return `Year joined must be between 2000 and ${new Date().getFullYear()}`;
     }
     if (step === 3) {
       if (!form.parent_relation) return "Please select parent / guardian";
       if (!form.parent_phone.trim()) return "Parent phone number is required";
+      if (!isValidPhone(form.parent_phone))
+        return "Enter a valid parent phone number, e.g. 50-000-0000";
       if (!form.parent_name.trim()) return "Parent name is required";
+      if (!isValidName(form.parent_name))
+        return "Parent name can only contain letters";
       if (!form.medical_situation.trim())
         return "Medical situation is required";
       if (!form.password) return "Password is required";
@@ -316,7 +368,7 @@ export default function SignupScreen() {
     const payload: StudentSignupPayload = {
       full_name: form.full_name.trim(),
       email: form.email.trim(),
-      phone: form.phone.trim(),
+      phone: toE164(form.phone),
       birth_date: form.birth_date.trim(),
       address: form.address.trim(),
       neighborhood: form.neighborhood.trim(),
@@ -338,7 +390,7 @@ export default function SignupScreen() {
         | string,
       parent_relation: form.parent_relation as "father" | "mother",
       parent_name: form.parent_name.trim(),
-      parent_phone: form.parent_phone.trim(),
+      parent_phone: toE164(form.parent_phone),
       medical_situation: form.medical_situation.trim(),
       password: form.password,
     };
@@ -385,13 +437,28 @@ export default function SignupScreen() {
 
           <FL text="Phone Number" req />
           <Text style={s.hint}>This is your login identifier</Text>
-          <TextInput
-            style={inp("phone")}
-            {...fld("phone")}
-            placeholder="+972-50-000-0000"
-            placeholderTextColor="#aab"
-            keyboardType="phone-pad"
-          />
+          <View style={s.phoneRow}>
+            <View style={s.phonePrefix}>
+              <Text style={s.phonePrefixTxt}>+972</Text>
+            </View>
+            <TextInput
+              style={[
+                ...inp("phone"),
+                s.phoneInput,
+                phoneInvalid ? s.inputErr : null,
+              ]}
+              {...fld("phone", localPhoneDigits)}
+              placeholder="50-000-0000"
+              placeholderTextColor="#aab"
+              keyboardType="phone-pad"
+              maxLength={9}
+            />
+          </View>
+          {phoneInvalid ? (
+            <Text style={s.fieldErrTxt}>
+              ⚠ Enter a valid phone number, e.g. 50-000-0000
+            </Text>
+          ) : null}
 
           <FL text="Email" req />
           <TextInput
@@ -406,18 +473,21 @@ export default function SignupScreen() {
           <FL text="Date of Birth" req />
           <TextInput
             style={inp("birth_date")}
-            {...fld("birth_date")}
-            placeholder="DD/MM/YYYY"
+            {...fld("birth_date", birthDateMask)}
+            placeholder="00/00/0000"
             placeholderTextColor="#aab"
+            keyboardType="number-pad"
+            maxLength={10}
           />
 
           <FL text="Age" req />
           <TextInput
             style={inp("age")}
-            {...fld("age")}
+            {...fld("age", onlyDigits)}
             placeholder="e.g. 15"
             placeholderTextColor="#aab"
             keyboardType="number-pad"
+            maxLength={2}
           />
 
           <FL text="Gender" req />
@@ -444,15 +514,15 @@ export default function SignupScreen() {
           <FL text="Address" req />
           <TextInput
             style={inp("address")}
-            {...fld("address")}
-            placeholder="Street & number"
+            {...fld("address", noDigits)}
+            placeholder="Street name"
             placeholderTextColor="#aab"
           />
 
           <FL text="Neighborhood" req />
           <TextInput
             style={inp("neighborhood")}
-            {...fld("neighborhood")}
+            {...fld("neighborhood", noDigits)}
             placeholder="e.g. Katamon"
             placeholderTextColor="#aab"
           />
@@ -475,9 +545,10 @@ export default function SignupScreen() {
           <FL text="Year Joined Jerusalem Youth Chorus" req />
           <TextInput
             style={inp("year_joined")}
-            {...fld("year_joined")}
+            {...fld("year_joined", onlyDigits)}
             placeholder="e.g. 2024"
             placeholderTextColor="#aab"
+            maxLength={4}
             keyboardType="number-pad"
           />
 
@@ -539,13 +610,28 @@ export default function SignupScreen() {
             placeholderTextColor="#aab"
           />
           <FL text="Parent Phone Number" req />
-          <TextInput
-            style={inp("parent_phone")}
-            {...fld("parent_phone")}
-            placeholder="+972-50-000-0000"
-            placeholderTextColor="#aab"
-            keyboardType="phone-pad"
-          />
+          <View style={s.phoneRow}>
+            <View style={s.phonePrefix}>
+              <Text style={s.phonePrefixTxt}>+972</Text>
+            </View>
+            <TextInput
+              style={[
+                ...inp("parent_phone"),
+                s.phoneInput,
+                parentPhoneInvalid ? s.inputErr : null,
+              ]}
+              {...fld("parent_phone", localPhoneDigits)}
+              placeholder="50-000-0000"
+              placeholderTextColor="#aab"
+              keyboardType="phone-pad"
+              maxLength={9}
+            />
+          </View>
+          {parentPhoneInvalid ? (
+            <Text style={s.fieldErrTxt}>
+              ⚠ Enter a valid phone number, e.g. 50-000-0000
+            </Text>
+          ) : null}
           <FL text="Medical Situation" req />
           <TextInput
             style={[
@@ -816,6 +902,13 @@ const s = StyleSheet.create({
     marginBottom: 16,
   },
   errText: { color: COLORS.red, fontSize: 13, fontWeight: "500" },
+  fieldErrTxt: {
+    fontSize: 12,
+    color: COLORS.red,
+    marginTop: -10,
+    marginBottom: 12,
+    fontWeight: "600",
+  },
 
   input: {
     borderWidth: 1.5,
@@ -829,6 +922,22 @@ const s = StyleSheet.create({
   },
   inputErr: { borderColor: COLORS.red, backgroundColor: COLORS.redLight },
   inputOk: { borderColor: COLORS.success, backgroundColor: "#f0fff5" },
+  phoneRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 8,
+    marginBottom: 14,
+  },
+  phonePrefix: {
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    backgroundColor: COLORS.grayLight,
+  },
+  phonePrefixTxt: { fontSize: 15, fontWeight: "700", color: "#0d1717" },
+  phoneInput: { flex: 1, marginBottom: 0 },
   matchTxt: {
     fontSize: 12,
     color: COLORS.success,

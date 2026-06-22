@@ -203,7 +203,7 @@ export default function LibraryScreen({ autoUpload = false }) {
     if (autoUpload && isAdmin) {
       handlePickFile();
     }
-  }, [autoUpload]);
+  }, [autoUpload, isAdmin]);
 
   const handleUploadFile = async () => {
     if (!pendingFile) return;
@@ -513,7 +513,7 @@ export default function LibraryScreen({ autoUpload = false }) {
             <Text style={s.confirmMsg}>
               This will permanently remove{"\n"}
               <Text style={{ color: COLORS.text, fontWeight: "700" }}>
-                "{deleteTarget?.name}"
+                &quot;{deleteTarget?.name}&quot;
               </Text>
             </Text>
             <View style={{ flexDirection: "row", gap: 10 }}>

@@ -109,7 +109,6 @@ export default function LoginScreen() {
 
     setError("");
     setLoading(true);
-    console.log("Attempting login with", { identifier, password, role });
     const result = await login(identifier.trim(), password, role);
     setLoading(false);
 

@@ -90,13 +90,16 @@ export const studentService = {
     });
   },
 
-  async createGroup(name: string, memberIds: string[]): Promise<string> {
+  async createGroup(
+    name: string,
+    memberIds: string[],
+    yearId?: number,
+  ): Promise<string> {
     const ref = await addDoc(collection(db, "groups"), {
       name,
       member_ids: memberIds,
       created_at: new Date().toISOString(),
-      year_id: yearId,
-      program_id: yearId, // Assuming program_id is the same as year_id for simplicity
+      ...(yearId !== undefined && { year_id: yearId, program_id: yearId }),
     });
     return ref.id;
   },

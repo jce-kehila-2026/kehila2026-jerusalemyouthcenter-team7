@@ -1,8 +1,8 @@
 import { GlobalHeader } from "@/components/GlobalHeader";
 import { AppColors, Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useAuth } from "@/src/context/AuthContext";
 import { ForcePasswordChangeModal } from "@/src/components/ForcePasswordChangeModal";
+import { useAuth } from "@/src/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -56,9 +56,7 @@ export default function TabLayout() {
             paddingBottom: 4,
           },
           headerShown: true,
-          header: ({ options }) => (
-            <GlobalHeader title={options.title ?? ""} />
-          ),
+          header: ({ options }) => <GlobalHeader title={options.title ?? ""} />,
         }}
       >
         <Tabs.Screen
@@ -97,8 +95,14 @@ export default function TabLayout() {
             ),
           }}
         />
-        <Tabs.Screen name="messages" options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="notifications" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen
+          name="messages"
+          options={{ href: null, headerShown: false }}
+        />
+        <Tabs.Screen
+          name="notifications"
+          options={{ href: null, headerShown: false }}
+        />
         <Tabs.Screen
           name="library"
           options={{
@@ -108,12 +112,31 @@ export default function TabLayout() {
             ),
           }}
         />
-        <Tabs.Screen name="explore" options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="Join-requests" options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="admin" options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="student-events" options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="student-calender" options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="calendar" options={{ href: null, headerShown: false }} />
+
+        <Tabs.Screen
+          name="explore"
+          options={{ href: null, headerShown: false }}
+        />
+        <Tabs.Screen
+          name="Join-requests"
+          options={{ href: null, headerShown: false }}
+        />
+        <Tabs.Screen
+          name="admin"
+          options={{ href: null, headerShown: false }}
+        />
+        <Tabs.Screen
+          name="student-events"
+          options={{ href: null, headerShown: false }}
+        />
+        <Tabs.Screen
+          name="student-calender"
+          options={{ href: null, headerShown: false }}
+        />
+        <Tabs.Screen
+          name="calendar"
+          options={{ href: null, headerShown: false }}
+        />
       </Tabs>
 
       <ForcePasswordChangeModal
