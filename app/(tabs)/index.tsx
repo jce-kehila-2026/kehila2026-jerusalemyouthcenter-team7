@@ -335,11 +335,11 @@ function AdminKpiGrid({
       onPress: onSingers,
     },
     {
-      value: eventCount,
-      label: "Events",
-      icon: "calendar" as const,
+      value: "🏆" as string | number,
+      label: "Leaderboard",
+      icon: "trophy" as const,
       accent: AMBER,
-      sub: "scheduled",
+      sub: "manage & reset",
       onPress: onEvents,
     },
     {
@@ -1246,7 +1246,7 @@ export default function DashboardScreen() {
             adminCount={adminCount}
             achievementCount={achievementCount}
             onSingers={() => router.push("/(tabs)/students" as any)}
-            onEvents={() => router.push("/(tabs)/events" as any)}
+            onEvents={() => router.push("/manage-leaderboard" as any)}
             onForms={() => router.push("/(tabs)/forms" as any)}
             onRequests={() => setJoinRequestsOpen(true)}
             onAdmins={() => setManageAdminsOpen(true)}
