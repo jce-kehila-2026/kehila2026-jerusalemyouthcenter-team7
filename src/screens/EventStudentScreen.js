@@ -6,9 +6,7 @@ import {
   Modal,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -102,12 +100,6 @@ const getDateParts = (dateStr) => {
   };
 };
 
-const STATUSBAR_H =
-  Platform.OS === "android"
-    ? (StatusBar.currentHeight ?? 24)
-    : Platform.OS === "ios"
-      ? 44
-      : 0;
 
 // Decorative music notes used as a subtle accent on the right edge of cards.
 function MusicTrace() {
@@ -317,27 +309,12 @@ export default function EventStudentScreen({
   };
 
   return (
-    <SafeAreaView style={s.safe}>
-      <StatusBar barStyle="light-content" backgroundColor={T.teal} />
-
-      {/* Header */}
-      <View style={s.header}>
-        <View
-          style={{ flexDirection: "row", alignItems: "flex-end", gap: sp(1) }}
-        >
-          {/* Back button — only visible in Calendar tab */}
-          {activeTab === "calendar"}
-          <View>
-            <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
-            <Text style={s.pageTitle}>
-              {activeTab === "calendar" ? "Calendar" : "My Events"}
-            </Text>
-            <View style={s.yearBadge}>
-              <Text style={s.yearBadgeText}>Year {studentYear}</Text>
-            </View>
-          </View>
+    <View style={s.safe}>
+      {/* Sub-header: year badge + List/Calendar toggle */}
+      <View style={s.toggleBar}>
+        <View style={s.yearBadge}>
+          <Text style={s.yearBadgeText}>Year {studentYear}</Text>
         </View>
-        {/* List / Calendar toggle — always visible */}
         <View style={s.tabToggle}>
           <Pressable
             style={[
@@ -626,20 +603,21 @@ export default function EventStudentScreen({
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: T.bg },
-  header: {
-    backgroundColor: T.teal,
-    paddingHorizontal: sp(2),
-    paddingTop: STATUSBAR_H + sp(2),
-    paddingBottom: sp(2),
+  toggleBar: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "flex-end",
+    paddingHorizontal: sp(2),
+    paddingVertical: sp(1),
+    backgroundColor: T.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e8eef2",
   },
   orgLabel: {
     color: "rgba(255,255,255,0.85)",

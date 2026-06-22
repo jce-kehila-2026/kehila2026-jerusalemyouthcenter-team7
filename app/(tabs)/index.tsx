@@ -31,7 +31,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const TEAL = "#039899";
@@ -891,7 +890,6 @@ function SingerLeaderboard({
 export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const isAdmin = user?.role === "admin";
 
   const [loading, setLoading] = useState(true);
@@ -1184,29 +1182,29 @@ export default function DashboardScreen() {
   if (isAdmin) {
     return (
       <View style={st.screen}>
-        {/* ── Teal header ─────────────────────────────────────────────── */}
-        <View style={[st.header, { paddingTop: insets.top + 12 }]}>
-          <View style={st.headerTop}>
-            <View style={st.headerLeft}>
-              <Ionicons
-                name="musical-notes"
-                size={18}
-                color="rgba(255,255,255,0.8)"
-              />
-              <Text style={st.headerAppName}>Jerusalem Youth Chorus</Text>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={st.scroll}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* ── Quick-access icon row ────────────────────────────────── */}
+          <View style={st.dashActionsBar}>
+            <View style={st.dashGreeting}>
+              <Text style={st.dashWelcome}>Welcome back</Text>
+              <Text style={st.dashName}>{user?.full_name ?? "Admin"}</Text>
+              <Text style={st.dashDate}>{todayString()}</Text>
             </View>
-            <View style={st.headerRight}>
+            <View style={st.dashIcons}>
               <Pressable
                 onPress={() => router.push("/(tabs)/messages" as any)}
-                style={st.headerIconBtn}
+                style={st.dashIconBtn}
                 hitSlop={8}
               >
-                <Ionicons name="chatbubbles-outline" size={20} color="#fff" />
-                {/* unread badge if needed */}
+                <Ionicons name="chatbubbles-outline" size={22} color={TEAL} />
               </Pressable>
               <NotificationBell
                 unreadCount={unreadNotifs}
-                color="#fff"
+                color={TEAL}
                 onPress={() => router.push("/(tabs)/notifications" as any)}
               />
               <Pressable onPress={() => router.push("/profile" as any)}>
@@ -1218,16 +1216,7 @@ export default function DashboardScreen() {
               </Pressable>
             </View>
           </View>
-          <Text style={st.headerWelcome}>Welcome back</Text>
-          <Text style={st.headerTitle}>{user?.full_name ?? "Dashboard"}</Text>
-          <Text style={st.headerDate}>{todayString()}</Text>
-        </View>
 
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={st.scroll}
-          showsVerticalScrollIndicator={false}
-        >
           {/* ── Section 1: Action Items ──────────────────────────────── */}
           <AdminActionItems
             pendingRequests={pendingRequestCount}
@@ -1395,34 +1384,34 @@ export default function DashboardScreen() {
 
   return (
     <View style={st.screen}>
-      {/* ── Singer icon bar (messages · notifications · profile) ────── */}
-      <View style={[st.singerIconBar, { paddingTop: insets.top + 6 }]}>
-        <Pressable
-          onPress={() => router.push("/(tabs)/messages" as any)}
-          style={st.headerIconBtn}
-          hitSlop={8}
-        >
-          <Ionicons name="chatbubbles-outline" size={22} color="#fff" />
-        </Pressable>
-        <NotificationBell
-          unreadCount={unreadNotifs}
-          color="#fff"
-          onPress={() => router.push("/(tabs)/notifications" as any)}
-        />
-        <Pressable onPress={() => router.push("/profile" as any)}>
-          <View style={st.avatar}>
-            <Text style={st.avatarText}>
-              {user?.full_name?.charAt(0) ?? "S"}
-            </Text>
-          </View>
-        </Pressable>
-      </View>
-
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={st.scroll}
         showsVerticalScrollIndicator={false}
       >
+        {/* ── Singer icon row ──────────────────────────────────────────── */}
+        <View style={st.singerActionsBar}>
+          <Pressable
+            onPress={() => router.push("/(tabs)/messages" as any)}
+            style={st.dashIconBtn}
+            hitSlop={8}
+          >
+            <Ionicons name="chatbubbles-outline" size={22} color={TEAL} />
+          </Pressable>
+          <NotificationBell
+            unreadCount={unreadNotifs}
+            color={TEAL}
+            onPress={() => router.push("/(tabs)/notifications" as any)}
+          />
+          <Pressable onPress={() => router.push("/profile" as any)}>
+            <View style={st.avatar}>
+              <Text style={st.avatarText}>
+                {user?.full_name?.charAt(0) ?? "S"}
+              </Text>
+            </View>
+          </Pressable>
+        </View>
+
         {/* ── A: Hero Welcome Card ───────────────────────────────────── */}
         <SingerHeroCard
           firstName={firstName}
@@ -1529,9 +1518,7 @@ const st = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.5)",
+    backgroundColor: TEAL,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1546,6 +1533,27 @@ const st = StyleSheet.create({
 
   // ── Scroll content
   scroll: { padding: 14, paddingTop: 16 },
+
+  // ── Dashboard body action bar (replaces removed admin header)
+  dashActionsBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  dashGreeting: { flex: 1 },
+  dashWelcome: { fontSize: 12, color: MUTED, fontWeight: "500" },
+  dashName: { fontSize: 20, fontWeight: "800", color: DARK, marginTop: 2 },
+  dashDate: { fontSize: 11, color: MUTED, marginTop: 2 },
+  dashIcons: { flexDirection: "row", alignItems: "center", gap: 8 },
+  dashIconBtn: { padding: 4 },
+  singerActionsBar: {
+    flexDirection: "row" as const,
+    justifyContent: "flex-end" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginBottom: 12,
+  },
 
   // ── Card
   card: {

@@ -103,25 +103,21 @@ export default function FormsScreen() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
-      {/* ── Teal Header ───────────────────────────────────────────────── */}
-      <View style={s.headerBg}>
-        <View style={s.headerContent}>
-          <View>
-            <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
-            <Text style={s.pageTitle}>Forms</Text>
-            <Text style={s.subtitle}>{visibleForms.length} active</Text>
-          </View>
-          {isAdmin && (
-            <Pressable
-              style={s.manageBtn}
-              onPress={() => router.push("/create-form" as any)}
-            >
-              <Ionicons name="add-circle-outline" size={20} color={ds.white} />
-              <Text style={s.manageBtnText}>Manage</Text>
-            </Pressable>
-          )}
-        </View>
+    <SafeAreaView style={s.safe} edges={[]}>
+      {/* ── Toolbar ──────────────────────────────────────────────────── */}
+      <View style={s.toolbar}>
+        <Text style={s.toolbarCount}>
+          {visibleForms.length} active
+        </Text>
+        {isAdmin && (
+          <Pressable
+            style={s.manageBtn}
+            onPress={() => router.push("/create-form" as any)}
+          >
+            <Ionicons name="add-circle-outline" size={18} color={ds.teal} />
+            <Text style={s.manageBtnText}>Manage</Text>
+          </Pressable>
+        )}
       </View>
 
       {/* ── List ─────────────────────────────────────────────────────── */}
@@ -364,7 +360,7 @@ export default function FormsScreen() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: ds.teal },
+  safe: { flex: 1, backgroundColor: ds.bg },
   center: {
     flex: 1,
     alignItems: "center",
@@ -372,43 +368,34 @@ const s = StyleSheet.create({
     backgroundColor: ds.bg,
   },
 
-  // Header
-  headerBg: {
-    backgroundColor: ds.teal,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
-  },
-  headerContent: {
+  // Toolbar (below GlobalHeader)
+  toolbar: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "flex-end",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: ds.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: ds.border,
   },
-  orgLabel: {
-    fontSize: 12,
+  toolbarCount: {
+    fontSize: 13,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.85)",
-    marginBottom: 4,
-  },
-  pageTitle: { fontSize: 32, fontWeight: "900", color: ds.white },
-  subtitle: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "rgba(255,255,255,0.7)",
-    marginTop: 4,
+    color: ds.subtext,
   },
   manageBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    gap: 6,
+    backgroundColor: ds.teal + "15",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.4)",
+    borderColor: ds.teal + "40",
   },
-  manageBtnText: { fontSize: 14, fontWeight: "700", color: ds.white },
+  manageBtnText: { fontSize: 13, fontWeight: "700", color: ds.teal },
 
   // List
   list: { padding: 16, gap: 16, paddingBottom: 96, backgroundColor: ds.bg },

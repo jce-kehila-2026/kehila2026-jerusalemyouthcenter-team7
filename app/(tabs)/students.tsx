@@ -22,7 +22,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -483,17 +482,7 @@ export default function StudentsListScreen() {
   };
 
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
-      <StatusBar barStyle="light-content" backgroundColor={ds.teal} />
-
-      {/* Header */}
-      <View style={s.headerBg}>
-        <Text style={s.orgLabel}>
-          <Text style={{ opacity: 0.85 }}>🎵 Jerusalem Youth Chorus</Text>
-        </Text>
-        <Text style={s.pageTitle}>Students</Text>
-      </View>
-
+    <SafeAreaView style={s.safe} edges={[]}>
       <View style={s.content}>
         {/* Search */}
         <View style={s.searchSection}>
@@ -710,9 +699,6 @@ export default function StudentsListScreen() {
 // ── Styles ─────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: ds.bg },
-  headerBg: { backgroundColor: ds.teal, padding: 16, paddingTop: 40 },
-  orgLabel: { color: ds.white, opacity: 0.9 },
-  pageTitle: { color: ds.white, fontSize: 20, fontWeight: "700", marginTop: 6 },
   content: { flex: 1, padding: 12 },
   searchSection: { marginBottom: 12 },
   searchWrap: {

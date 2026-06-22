@@ -127,13 +127,6 @@ const emptyForm = {
   voiceSectionLabel: "All",
 };
 const emptyErrors = { title: "", date: "", time: "", location: "" };
-const STATUSBAR_H =
-  Platform.OS === "android"
-    ? (StatusBar.currentHeight ?? 24)
-    : Platform.OS === "ios"
-      ? 44
-      : 0;
-
 const ISRAEL_KEYWORDS = [
   "jerusalem",
   "tel aviv",
@@ -863,18 +856,7 @@ export default function EventsScreen() {
     <View style={s.safe}>
       <StatusBar barStyle="light-content" backgroundColor={T.teal} />
 
-      <View style={s.header}>
-        <View
-          style={{ flexDirection: "row", alignItems: "flex-end", gap: sp(1) }}
-        >
-          {activeTab === "calendar"}
-          <View>
-            <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
-            <Text style={s.pageTitle}>
-              {activeTab === "calendar" ? "Calendar" : "Events"}
-            </Text>
-          </View>
-        </View>
+      <View style={s.toggleBar}>
         <View style={s.tabToggle}>
           <Pressable
             style={[
@@ -1341,14 +1323,14 @@ export default function EventsScreen() {
 // ─── Stylesheet ────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: T.bg },
-  header: {
-    backgroundColor: T.teal,
-    paddingHorizontal: sp(2),
-    paddingTop: STATUSBAR_H + sp(2),
-    paddingBottom: sp(2),
+  toggleBar: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
+    justifyContent: "flex-end",
+    paddingHorizontal: sp(2),
+    paddingVertical: sp(1),
+    backgroundColor: T.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e8eef2",
   },
   orgLabel: {
     color: "rgba(255,255,255,0.85)",
@@ -1382,7 +1364,7 @@ const s = StyleSheet.create({
   tabToggleBtn: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8 },
   tabToggleBtnActive: { backgroundColor: "#fff" },
   tabToggleText: {
-    color: "rgba(255,255,255,0.8)",
+    color: "#666666",
     fontWeight: "600",
     fontSize: 13,
   },

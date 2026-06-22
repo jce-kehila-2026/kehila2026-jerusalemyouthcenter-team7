@@ -1,3 +1,4 @@
+import { CustomHeader } from "@/components/CustomHeader";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider } from "@/src/context/AuthContext";
 import {
@@ -26,33 +27,44 @@ function RootLayoutNav() {
         <Stack.Screen
           name="student/[id]"
           options={{
-            headerShown: true,
             title: "Student Details",
-            headerBackTitle: "Back",
+            header: ({ navigation, options, back }) => (
+              <CustomHeader
+                title={options.title ?? "Student Details"}
+                canGoBack={!!back}
+                onBack={() => navigation.goBack()}
+              />
+            ),
           }}
         />
         <Stack.Screen
           name="event/[id]"
           options={{
-            headerShown: true,
             title: "Event Details",
-            headerBackTitle: "Back",
+            header: ({ navigation, options, back }) => (
+              <CustomHeader
+                title={options.title ?? "Event Details"}
+                canGoBack={!!back}
+                onBack={() => navigation.goBack()}
+              />
+            ),
           }}
         />
         <Stack.Screen
           name="form/[id]"
-          options={{
-            headerShown: true,
-            title: "Form",
-            headerBackTitle: "Back",
-          }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="profile"
           options={{
-            headerShown: true,
             title: "My Profile",
-            headerBackTitle: "Back",
+            header: ({ navigation, options, back }) => (
+              <CustomHeader
+                title={options.title ?? "My Profile"}
+                canGoBack={!!back}
+                onBack={() => navigation.goBack()}
+              />
+            ),
           }}
         />
         <Stack.Screen name="statistics" options={{ headerShown: false }} />

@@ -1,3 +1,4 @@
+import { GlobalHeader } from "@/components/GlobalHeader";
 import { AppColors, Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/src/context/AuthContext";
@@ -54,7 +55,10 @@ export default function TabLayout() {
             borderTopColor: theme.border,
             paddingBottom: 4,
           },
-          headerShown: false,
+          headerShown: true,
+          header: ({ options }) => (
+            <GlobalHeader title={options.title ?? ""} />
+          ),
         }}
       >
         <Tabs.Screen
@@ -93,8 +97,8 @@ export default function TabLayout() {
             ),
           }}
         />
-        <Tabs.Screen name="messages" options={{ href: null }} />
-        <Tabs.Screen name="notifications" options={{ href: null }} />
+        <Tabs.Screen name="messages" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="notifications" options={{ href: null, headerShown: false }} />
         <Tabs.Screen
           name="library"
           options={{
@@ -104,12 +108,12 @@ export default function TabLayout() {
             ),
           }}
         />
-        <Tabs.Screen name="explore" options={{ href: null }} />
-        <Tabs.Screen name="Join-requests" options={{ href: null }} />
-        <Tabs.Screen name="admin" options={{ href: null }} />
-        <Tabs.Screen name="student-events" options={{ href: null }} />
-        <Tabs.Screen name="student-calender" options={{ href: null }} />
-        <Tabs.Screen name="calendar" options={{ href: null }} />
+        <Tabs.Screen name="explore" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="Join-requests" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="admin" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="student-events" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="student-calender" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="calendar" options={{ href: null, headerShown: false }} />
       </Tabs>
 
       <ForcePasswordChangeModal

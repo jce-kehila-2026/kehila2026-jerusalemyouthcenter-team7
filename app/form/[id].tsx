@@ -14,7 +14,7 @@ import {
   writeBatch,
   doc,
 } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -51,6 +51,8 @@ export default function FormDetailScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     const fetchForm = async () => {
@@ -69,6 +71,26 @@ export default function FormDetailScreen() {
       [questionId]: value,
     }));
     if (errorMsg) setErrorMsg(null);
+  };
+
+  const handleNext = (currentQuestions: any[], questions: any[]) => {
+    for (const q of currentQuestions) {
+      const qId = q.id || `q_${questions.indexOf(q)}`;
+      const val = answers[qId];
+      if (val === undefined || val === null || String(val).trim() === "") {
+        setErrorMsg("Please answer all questions on this page before continuing.");
+        return;
+      }
+    }
+    setErrorMsg(null);
+    setCurrentStep((s) => s + 1);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
+  const handleBack = () => {
+    setErrorMsg(null);
+    setCurrentStep((s) => s - 1);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
   };
 
   const handleSubmit = async () => {
@@ -204,10 +226,35 @@ export default function FormDetailScreen() {
     );
   }
 
-  // 🛡️ دروع الحماية للأسئلة والتفاصيل
   const questions = Array.isArray(form.questions) ? form.questions : [];
   const safeDescription =
     typeof form.description === "string" ? form.description : null;
+
+  let formPages: any[][];
+  let pageTitles: string[];
+  if (Array.isArray(form.pages) && form.pages.length > 0) {
+    formPages = form.pages.map((p: any) =>
+      Array.isArray(p.questions) ? p.questions : [],
+    );
+    pageTitles = form.pages.map((p: any) =>
+      typeof p.title === "string" ? p.title : "",
+    );
+  } else {
+    const CHUNK = 3;
+    formPages = [];
+    for (let i = 0; i < questions.length; i += CHUNK) {
+      formPages.push(questions.slice(i, i + CHUNK));
+    }
+    pageTitles = formPages.map(() => "");
+  }
+  if (formPages.length === 0) { formPages.push([]); pageTitles.push(""); }
+  const totalSteps = formPages.length;
+  const currentQuestions = formPages[currentStep] ?? [];
+  const isLastStep = currentStep === totalSteps - 1;
+  const globalStartIndex = formPages
+    .slice(0, currentStep)
+    .reduce((sum, p) => sum + p.length, 0);
+  const currentPageTitle = pageTitles[currentStep] ?? "";
 
   return (
     <SafeAreaView style={styles.container}>
@@ -234,25 +281,31 @@ export default function FormDetailScreen() {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {safeDescription && (
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent}>
+          {safeDescription && currentStep === 0 && (
             <Text style={styles.description}>{safeDescription}</Text>
           )}
+
+          {currentPageTitle ? (
+            <View style={styles.pageTitleCard}>
+              <Text style={styles.pageTitleText}>{currentPageTitle}</Text>
+            </View>
+          ) : null}
 
           {questions.length === 0 ? (
             <Text style={styles.noQuestions}>
               No questions available in this form.
             </Text>
           ) : (
-            questions.map((q: any, index: number) => {
-              // 🛡️ حماية للتأكد من أن النص نص فعلاً
+            currentQuestions.map((q: any, index: number) => {
+              const globalIndex = globalStartIndex + index;
               const qText =
                 typeof q.text === "string"
                   ? q.text
                   : typeof q.question_text === "string"
                     ? q.question_text
-                    : `سؤال ${index + 1}`;
-              const qId = q.id || `q_${index}`;
+                    : `Question ${globalIndex + 1}`;
+              const qId = q.id || `q_${globalIndex}`;
               const qType =
                 typeof q.answer_type === "string"
                   ? q.answer_type
@@ -269,7 +322,7 @@ export default function FormDetailScreen() {
                         { backgroundColor: activeColor },
                       ]}
                     >
-                      <Text style={styles.questionNumberText}>{index + 1}</Text>
+                      <Text style={styles.questionNumberText}>{globalIndex + 1}</Text>
                     </View>
                     <Text style={styles.questionText}>{qText}</Text>
                   </View>
@@ -400,6 +453,22 @@ export default function FormDetailScreen() {
 
         {questions.length > 0 && (
           <View style={styles.footer}>
+            {/* Progress bar */}
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${((currentStep + 1) / totalSteps) * 100}%` as any,
+                    backgroundColor: activeColor,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.progressLabel}>
+              Page {currentStep + 1} of {totalSteps}
+            </Text>
+
             {errorMsg && (
               <View style={styles.errorBanner}>
                 <Ionicons
@@ -411,21 +480,57 @@ export default function FormDetailScreen() {
                 <Text style={styles.errorText}>{errorMsg}</Text>
               </View>
             )}
-            <Pressable
-              style={[
-                styles.submitBtn,
-                { backgroundColor: activeColor },
-                submitting && { opacity: 0.7 },
-              ]}
-              onPress={handleSubmit}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <ActivityIndicator color={themeColors.white} />
+
+            <View style={styles.navRow}>
+              <Pressable
+                style={[
+                  styles.backNavBtn,
+                  { borderColor: currentStep === 0 ? themeColors.gray : activeColor },
+                ]}
+                onPress={handleBack}
+                disabled={currentStep === 0}
+              >
+                <Ionicons
+                  name="arrow-back"
+                  size={18}
+                  color={currentStep === 0 ? themeColors.gray : activeColor}
+                />
+                <Text
+                  style={[
+                    styles.backNavBtnText,
+                    { color: currentStep === 0 ? themeColors.gray : activeColor },
+                  ]}
+                >
+                  Back
+                </Text>
+              </Pressable>
+
+              {isLastStep ? (
+                <Pressable
+                  style={[
+                    styles.submitBtn,
+                    { backgroundColor: activeColor, flex: 1 },
+                    submitting && { opacity: 0.7 },
+                  ]}
+                  onPress={handleSubmit}
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <ActivityIndicator color={themeColors.white} />
+                  ) : (
+                    <Text style={styles.submitBtnText}>Submit Form</Text>
+                  )}
+                </Pressable>
               ) : (
-                <Text style={styles.submitBtnText}>Submit Form</Text>
+                <Pressable
+                  style={[styles.submitBtn, { backgroundColor: activeColor, flex: 1 }]}
+                  onPress={() => handleNext(currentQuestions, questions)}
+                >
+                  <Text style={styles.submitBtnText}>Next</Text>
+                  <Ionicons name="arrow-forward" size={18} color={themeColors.white} />
+                </Pressable>
               )}
-            </Pressable>
+            </View>
           </View>
         )}
       </KeyboardAvoidingView>
@@ -611,4 +716,42 @@ const styles = StyleSheet.create({
     color: "#334155",
   },
   scaleBtnTextActive: { color: themeColors.white },
+
+  // Pagination footer
+  progressTrack: {
+    height: 4,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 2,
+    marginBottom: 8,
+  },
+  progressFill: { height: 4, borderRadius: 2 },
+  progressLabel: {
+    fontSize: 13,
+    color: "#888",
+    textAlign: "center",
+    marginBottom: 12,
+    fontWeight: "500",
+  },
+  navRow: { flexDirection: "row", gap: 12, alignItems: "center" },
+  backNavBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+  },
+  backNavBtnText: { fontSize: 16, fontWeight: "700" },
+
+  // Page section title
+  pageTitleCard: {
+    backgroundColor: themeColors.teal + "15",
+    borderRadius: 10,
+    padding: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: themeColors.teal,
+  },
+  pageTitleText: { fontSize: 15, fontWeight: "700", color: themeColors.teal },
 });
