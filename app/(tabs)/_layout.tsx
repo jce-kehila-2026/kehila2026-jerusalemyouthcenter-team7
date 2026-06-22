@@ -65,7 +65,6 @@ export default function TabLayout() {
           name="index"
           options={{
             title: "Dashboard",
-            headerShown: false,
             tabBarIcon: ({ color, size }) => (
               <TabIcon name="grid-outline" color={color} size={size} />
             ),
@@ -84,7 +83,6 @@ export default function TabLayout() {
           name="events"
           options={{
             title: "Events",
-            headerShown: false,
             tabBarIcon: ({ color, size }) => (
               <TabIcon name="calendar-outline" color={color} size={size} />
             ),
