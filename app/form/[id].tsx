@@ -1,4 +1,5 @@
 import { useAuth } from "@/src/context/AuthContext";
+import { leaderboardService } from "@/src/data/leaderboardService";
 import {
   getFormTemplate,
   submitStudentForm,
@@ -98,6 +99,15 @@ export default function FormDetailScreen() {
       }));
 
       await submitStudentForm(studentId, id as string, formattedResponses);
+
+      if (user?.role === "singer") {
+        await leaderboardService.awardPoints(
+          user.uid,
+          user.full_name ?? "",
+          user.voice_type ?? "",
+          "submit_form",
+        );
+      }
 
       try {
         const studentName = user?.full_name ?? "A student";
