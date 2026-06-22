@@ -1,4 +1,5 @@
 import { db } from "@/src/firebase/firebase";
+import { phoneDigitsKey } from "@/src/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
 import {
   collection,
@@ -333,7 +334,7 @@ export function JoinRequestsModal({ visible, onClose }: Props) {
     const performReject = async () => {
       setProcessingId(req.uid);
       try {
-        const phoneDigits = req.phone?.replace(/\D/g, "") ?? "";
+        const phoneDigits = phoneDigitsKey(req.phone ?? "");
 
         // Mirror to join_requests/{phoneDigits} — AuthContext's login and
         // signup flows check this collection to block rejected phones.

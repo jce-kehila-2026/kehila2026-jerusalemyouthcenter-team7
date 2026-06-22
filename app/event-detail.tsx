@@ -187,7 +187,6 @@ export default function EventDetail() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: sp(2), gap: sp(2) }}>
-        {/* ── Single unified card ── */}
         <View
           style={{
             backgroundColor: T.white,
@@ -250,7 +249,6 @@ export default function EventDetail() {
 
             {/* Main content */}
             <View style={{ flex: 1, padding: sp(2) }}>
-              {/* Group badge */}
               <View
                 style={{
                   alignSelf: "flex-start",
@@ -271,7 +269,6 @@ export default function EventDetail() {
                   {group}
                 </Text>
               </View>
-
               <Text
                 style={{
                   color: T.text,
@@ -282,7 +279,6 @@ export default function EventDetail() {
               >
                 {title}
               </Text>
-
               {location ? (
                 <Text
                   style={{
@@ -292,7 +288,7 @@ export default function EventDetail() {
                     marginBottom: sp(1),
                   }}
                 >
-                  📍 {location}
+                  📍 {location as string}
                 </Text>
               ) : null}
             </View>
@@ -311,7 +307,7 @@ export default function EventDetail() {
           {description ? (
             <View style={{ padding: sp(2) }}>
               <Text style={{ color: T.textSub, fontSize: 14, lineHeight: 22 }}>
-                {description}
+                {description as string}
               </Text>
             </View>
           ) : null}
@@ -366,7 +362,7 @@ export default function EventDetail() {
                           fontSize: 14,
                         }}
                       >
-                        ✓ I&apos;m Coming
+                        ✓ I'm Coming
                       </Text>
                     </Pressable>
 
@@ -391,7 +387,7 @@ export default function EventDetail() {
                           fontSize: 14,
                         }}
                       >
-                        ✕ Can&apos;t Make It
+                        ✕ Can't Make It
                       </Text>
                     </Pressable>
                   </View>
@@ -421,7 +417,7 @@ export default function EventDetail() {
                       textAlign: "center",
                     }}
                   >
-                    Couldn&apos;t save your response — please try again.
+                    Couldn't save your response — please try again.
                   </Text>
                 )}
               </View>

@@ -19,7 +19,6 @@ import {
   Linking,
   Modal,
   Platform,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -402,12 +401,7 @@ export default function LibraryScreen({ autoUpload = false }) {
   );
 
   return (
-    <SafeAreaView style={s.safe}>
-      <View style={s.header}>
-        <Text style={s.orgName}>Jerusalem Youth Chorus</Text>
-        <Text style={s.pageTitle}>Music Library</Text>
-      </View>
-
+    <View style={s.safe}>
       {/* Filter chips — admin only */}
       {isAdmin && (
         <View style={s.filtersWrap}>
@@ -654,27 +648,12 @@ export default function LibraryScreen({ autoUpload = false }) {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
-  header: {
-    backgroundColor: "#039899",
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === "ios" ? 56 : 40,
-    paddingBottom: 16,
-  },
-  orgName: {
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    marginBottom: 2,
-  },
-  pageTitle: { fontSize: 28, fontWeight: "800", color: "#ffffff" },
   filtersWrap: { height: 52, marginBottom: 12 },
   filtersContent: {
     paddingHorizontal: 16,

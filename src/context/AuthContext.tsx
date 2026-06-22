@@ -23,6 +23,7 @@ import React, {
   useState,
 } from "react";
 import { auth, db } from "../firebase/firebase";
+import { phoneDigitsKey } from "../utils/validation";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export type UserRole = "singer" | "admin";
@@ -52,7 +53,7 @@ export type StudentSignupPayload = {
   age: number;
   school_name: string;
   shirt_size: "S" | "M" | "L" | "XL";
-  voice_type: "bass" | "tenor" | "alto" | "soprano";
+  voice_type: string;
   year_joined: number;
   food_notes: "vegetarian" | "vegan" | "halal" | "kosher" | string;
   parent_relation: "father" | "mother";
@@ -60,8 +61,6 @@ export type StudentSignupPayload = {
   parent_phone: string;
   medical_situation: string;
   password: string;
-  // True once the signup screen has confirmed an SMS OTP for `phone`.
-  phoneVerified: boolean;
 };
 
 type AuthContextType = {
@@ -83,9 +82,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const normalizeSingerPhone = (phone: string) => {
-  const digits = phone.replace(/\D/g, "");
-  if (!digits) return "";
-  return digits;
+  return phoneDigitsKey(phone);
 };
 
 const phoneToEmail = (phone: string) => {
@@ -171,9 +168,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         }
 
         // Fast-path rejection check before Auth call
-        const rejectedDoc = await getDoc(
-          doc(db, "join_requests", singerPhone),
-        );
+        const rejectedDoc = await getDoc(doc(db, "join_requests", singerPhone));
         if (rejectedDoc.exists()) {
           const rd = rejectedDoc.data();
           if (rd.status === "rejected") {
@@ -316,15 +311,12 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
   ): Promise<"submitted" | "rejected" | false> => {
     isSigningUpRef.current = true;
     try {
-      const { password, phoneVerified, ...fields } = payload;
-      const phoneDigits = fields.phone.replace(/\D/g, "");
+      const { password, ...fields } = payload;
+      const phoneDigits = phoneDigitsKey(fields.phone);
 
       // Block re-registration for previously rejected phones
       const rejectedDoc = await getDoc(doc(db, "join_requests", phoneDigits));
-      if (
-        rejectedDoc.exists() &&
-        rejectedDoc.data().status === "rejected"
-      ) {
+      if (rejectedDoc.exists() && rejectedDoc.data().status === "rejected") {
         console.log("SIGNUP: phone previously rejected");
         isSigningUpRef.current = false;
         return "rejected";
@@ -402,7 +394,6 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         parent_name: fields.parent_name.trim(),
         parent_phone: fields.parent_phone.trim(),
         medical_situation: fields.medical_situation.trim(),
-        verified: phoneVerified,
         createdAt: serverTimestamp(),
       });
 
