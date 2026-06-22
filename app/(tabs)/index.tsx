@@ -6,6 +6,7 @@ import {
 import { ManageAdminsModal } from "@/src/components/ManageAdminsModal";
 import { NotificationBell } from "@/src/components/NotificationBell";
 import { useAuth } from "@/src/context/AuthContext";
+import { leaderboardService, LeaderboardEntry } from "@/src/data/leaderboardService";
 import { FirestoreMsg, messageService } from "@/src/data/messageService";
 import { notificationService } from "@/src/data/notificationService";
 import { db } from "@/src/firebase/firebase";
@@ -920,9 +921,7 @@ export default function DashboardScreen() {
     name: string;
     ext: string;
   } | null>(null);
-  const [leaderboard, setLeaderboard] = useState<
-    { uid: string; name: string; voice_type: string; points: number }[]
-  >([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myPoints, setMyPoints] = useState(0);
   const [myRank, setMyRank] = useState<number | null>(null);
 
@@ -993,7 +992,7 @@ export default function DashboardScreen() {
 
         // ── Singer-specific achievement data ────────────────────────
         if (!isAdmin) {
-          const [formSubs, userDoc, attDocs, formsSnap, libSnap, lbSnap] =
+          const [formSubs, userDoc, attDocs, formsSnap, libSnap] =
             await Promise.allSettled([
               getDocs(
                 query(
@@ -1009,13 +1008,6 @@ export default function DashboardScreen() {
                   collection(db, "library"),
                   orderBy("uploadedAt", "desc"),
                   limit(1),
-                ),
-              ),
-              getDocs(
-                query(
-                  collection(db, "leaderboard"),
-                  orderBy("points", "desc"),
-                  limit(10),
                 ),
               ),
             ]);
@@ -1094,23 +1086,6 @@ export default function DashboardScreen() {
             });
           }
 
-          // ── Leaderboard ──────────────────────────────────────────
-          if (lbSnap.status === "fulfilled" && lbSnap.value.size > 0) {
-            const entries = lbSnap.value.docs.map((d) => ({
-              uid: d.id,
-              ...(d.data() as any),
-            })) as {
-              uid: string;
-              name: string;
-              voice_type: string;
-              points: number;
-            }[];
-            setLeaderboard(entries);
-            const myEntry = entries.find((e) => e.uid === user?.uid);
-            if (myEntry) setMyPoints(myEntry.points ?? 0);
-            const rank = entries.findIndex((e) => e.uid === user?.uid);
-            setMyRank(rank >= 0 ? rank + 1 : null);
-          }
         }
       } catch (e) {
         console.error("Dashboard fetch error:", e);
@@ -1138,6 +1113,19 @@ export default function DashboardScreen() {
       unsubMsg();
     };
   }, [user?.uid]);
+
+  // Live leaderboard subscription — singer only
+  useEffect(() => {
+    if (!user?.uid || user?.role !== "singer") return;
+    const unsub = leaderboardService.subscribe((entries) => {
+      setLeaderboard(entries);
+      const rank = entries.findIndex((e) => e.uid === user.uid);
+      setMyRank(rank >= 0 ? rank + 1 : null);
+      const myEntry = entries.find((e) => e.uid === user.uid);
+      setMyPoints(myEntry?.points ?? 0);
+    });
+    return unsub;
+  }, [user?.uid, user?.role]);
 
   // ── Live sync: singer's awarded achievements update in real time ──────────
   useEffect(() => {
