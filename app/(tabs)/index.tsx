@@ -1175,34 +1175,11 @@ export default function DashboardScreen() {
           contentContainerStyle={st.scroll}
           showsVerticalScrollIndicator={false}
         >
-          {/* ── Quick-access icon row ────────────────────────────────── */}
-          <View style={st.dashActionsBar}>
-            <View style={st.dashGreeting}>
-              <Text style={st.dashWelcome}>Welcome back</Text>
-              <Text style={st.dashName}>{user?.full_name ?? "Admin"}</Text>
-              <Text style={st.dashDate}>{todayString()}</Text>
-            </View>
-            <View style={st.dashIcons}>
-              <Pressable
-                onPress={() => router.push("/(tabs)/messages" as any)}
-                style={st.dashIconBtn}
-                hitSlop={8}
-              >
-                <Ionicons name="chatbubbles-outline" size={22} color={TEAL} />
-              </Pressable>
-              <NotificationBell
-                unreadCount={unreadNotifs}
-                color={TEAL}
-                onPress={() => router.push("/(tabs)/notifications" as any)}
-              />
-              <Pressable onPress={() => router.push("/profile" as any)}>
-                <View style={st.avatar}>
-                  <Text style={st.avatarText}>
-                    {user?.full_name?.charAt(0) ?? "A"}
-                  </Text>
-                </View>
-              </Pressable>
-            </View>
+          {/* ── Greeting ─────────────────────────────────────────────── */}
+          <View style={st.dashGreeting}>
+            <Text style={st.dashWelcome}>Welcome back</Text>
+            <Text style={st.dashName}>{user?.full_name ?? "Admin"}</Text>
+            <Text style={st.dashDate}>{todayString()}</Text>
           </View>
 
           {/* ── Section 1: Action Items ──────────────────────────────── */}
@@ -1377,29 +1354,6 @@ export default function DashboardScreen() {
         contentContainerStyle={st.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Singer icon row ──────────────────────────────────────────── */}
-        <View style={st.singerActionsBar}>
-          <Pressable
-            onPress={() => router.push("/(tabs)/messages" as any)}
-            style={st.dashIconBtn}
-            hitSlop={8}
-          >
-            <Ionicons name="chatbubbles-outline" size={22} color={TEAL} />
-          </Pressable>
-          <NotificationBell
-            unreadCount={unreadNotifs}
-            color={TEAL}
-            onPress={() => router.push("/(tabs)/notifications" as any)}
-          />
-          <Pressable onPress={() => router.push("/profile" as any)}>
-            <View style={st.avatar}>
-              <Text style={st.avatarText}>
-                {user?.full_name?.charAt(0) ?? "S"}
-              </Text>
-            </View>
-          </Pressable>
-        </View>
-
         {/* ── A: Hero Welcome Card ───────────────────────────────────── */}
         <SingerHeroCard
           firstName={firstName}
