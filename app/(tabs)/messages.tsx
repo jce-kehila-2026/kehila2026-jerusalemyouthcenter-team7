@@ -102,7 +102,13 @@ function groupConversations(
     if (!fromMe && !msg.is_read) conv.unread = true;
   });
 
-  return Array.from(map.values());
+  const convs = Array.from(map.values());
+  convs.sort((a, b) => {
+    const timeA = a.thread.length > 0 ? new Date(a.thread[a.thread.length - 1].timestamp).getTime() : 0;
+    const timeB = b.thread.length > 0 ? new Date(b.thread[b.thread.length - 1].timestamp).getTime() : 0;
+    return timeB - timeA;
+  });
+  return convs;
 }
 
 // ── Screen ────────────────────────────────────────────────────────────────────
