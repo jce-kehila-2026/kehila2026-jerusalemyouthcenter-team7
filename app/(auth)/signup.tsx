@@ -2,7 +2,10 @@ import { db } from "@/backend/firebase";
 import { StudentSignupPayload, useAuth } from "@/src/context/AuthContext";
 import { PhoneVerify } from "@/src/components/PhoneVerify";
 import { COLORS } from "@/src/data/mockData";
-import { isValidEmail, isValidPhone } from "@/src/utils/validation";
+import {
+  isValidEmail,
+  isValidIsraeliLocalMobile,
+} from "@/src/utils/validation";
 import { Link, useRouter } from "expo-router";
 import { collection, getDocs } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
@@ -29,6 +32,41 @@ const CARD_OVERLAP = 15;
 // Extra scroll travel (beyond a normal screen-filling scroll) reserved so the
 // sheet can keep sliding up until it fully covers the hero image.
 const SCROLL_TRAVEL = HERO_H - CARD_OVERLAP;
+
+// ── Field formatting / validation helpers ──────────────────────────────────────
+const PHONE_PREFIX = "+972";
+const MIN_AGE = 10;
+const MAX_AGE = 19;
+
+// Strips the hardcoded "+972" prefix (and any non-digits) back to the local
+// part the user actually typed, so the input can display just that part.
+const localPhoneDigits = (full: string) =>
+  (full.startsWith(PHONE_PREFIX) ? full.slice(PHONE_PREFIX.length) : full)
+    .replace(/\D/g, "")
+    .slice(0, 9);
+
+// As the user types, keep only digits and rebuild "DD/MM/YYYY" — slashes are
+// inserted automatically, the user never types them.
+const formatBirthDate = (text: string) => {
+  const digits = text.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+};
+
+const hasDigits = (text: string) => /\d/.test(text);
+const stripDigits = (text: string) => text.replace(/[0-9]/g, "");
+
+const isValidBirthDate = (text: string): boolean => {
+  const m = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return false;
+  const day = Number(m[1]);
+  const month = Number(m[2]);
+  const year = Number(m[3]);
+  if (month < 1 || month > 12) return false;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  return day >= 1 && day <= daysInMonth;
+};
 
 // ── Reusable label ────────────────────────────────────────────────────────────
 function FL({
@@ -245,6 +283,24 @@ export default function SignupScreen() {
     setForm((p) => ({ ...p, [k]: v }));
   };
 
+  // "+972" is fixed in the UI — the user only ever types the local part, so
+  // we rebuild the full E.164-ish value from just the digits they entered.
+  const setPhoneLocal = (k: "phone" | "parent_phone") => (text: string) => {
+    if (k === "phone") setPhoneVerified(false);
+    const digits = text.replace(/\D/g, "").slice(0, 9);
+    setForm((p) => ({ ...p, [k]: digits ? `${PHONE_PREFIX}${digits}` : "" }));
+  };
+
+  const setBirthDate = (text: string) => {
+    setForm((p) => ({ ...p, birth_date: formatBirthDate(text) }));
+  };
+
+  // Address/neighborhood must be strict strings — digits are dropped as the
+  // user types rather than merely flagged on submit.
+  const setNoDigitsField = (k: "address" | "neighborhood") => (text: string) => {
+    setForm((p) => ({ ...p, [k]: stripDigits(text) }));
+  };
+
   const inp = (k: string) => [
     s.input,
     focused === k && {
@@ -266,24 +322,36 @@ export default function SignupScreen() {
   });
 
   const phoneInvalid =
-    touched.phone && form.phone.trim().length > 0 && !isValidPhone(form.phone);
+    touched.phone &&
+    form.phone.trim().length > 0 &&
+    !isValidIsraeliLocalMobile(localPhoneDigits(form.phone));
+
+  const parentPhoneInvalid =
+    touched.parent_phone &&
+    form.parent_phone.trim().length > 0 &&
+    !isValidIsraeliLocalMobile(localPhoneDigits(form.parent_phone));
 
   // ── Validation per step ───────────────────────────────────────────────────
   const validate = (): string | null => {
     if (step === 1) {
       if (!form.full_name.trim()) return "Full name is required";
+      if (hasDigits(form.full_name)) return "Full name cannot contain numbers";
       if (!form.phone.trim()) return "Phone number is required";
-      if (!isValidPhone(form.phone))
-        return "Enter a valid phone number, e.g. 050-1234567 or +972501234567";
+      if (!isValidIsraeliLocalMobile(localPhoneDigits(form.phone)))
+        return "Enter a valid 9-digit mobile number starting with 5, e.g. +972501234567";
       if (!phoneVerified)
         return "Please verify your phone number with the code we sent you";
       if (!form.email.trim()) return "Email is required";
       if (!isValidEmail(form.email)) return "Enter a valid email address";
       if (!form.birth_date.trim()) return "Date of birth is required";
+      if (!isValidBirthDate(form.birth_date))
+        return "Enter a valid date of birth (DD/MM/YYYY)";
       if (!form.gender) return "Please select your gender";
       if (!form.nationality) return "Please select your nationality";
       if (!form.age.trim()) return "Age is required";
       if (isNaN(Number(form.age))) return "Age must be a number";
+      if (Number(form.age) < MIN_AGE || Number(form.age) > MAX_AGE)
+        return `Age must be between ${MIN_AGE} and ${MAX_AGE}`;
       if (!form.address.trim()) return "Address is required";
       if (!form.neighborhood.trim()) return "Neighborhood is required";
     }
@@ -297,9 +365,11 @@ export default function SignupScreen() {
     if (step === 3) {
       if (!form.parent_relation) return "Please select parent / guardian";
       if (!form.parent_phone.trim()) return "Parent phone number is required";
-      if (!isValidPhone(form.parent_phone))
-        return "Enter a valid parent phone number, e.g. 050-1234567 or +972501234567";
+      if (!isValidIsraeliLocalMobile(localPhoneDigits(form.parent_phone)))
+        return "Enter a valid 9-digit parent mobile number starting with 5, e.g. +972501234567";
       if (!form.parent_name.trim()) return "Parent name is required";
+      if (hasDigits(form.parent_name))
+        return "Parent name cannot contain numbers";
       if (!form.medical_situation.trim())
         return "Medical situation is required";
       if (!form.password) return "Password is required";
@@ -408,20 +478,35 @@ export default function SignupScreen() {
 
           <FL text="Phone Number" req />
           <Text style={s.hint}>This is your login identifier</Text>
-          <TextInput
-            style={[
-              ...inp("phone"),
-              phoneInvalid ? s.inputErr : null,
-            ]}
-            {...fld("phone")}
-            placeholder="+972-50-000-0000"
-            placeholderTextColor="#aab"
-            keyboardType="phone-pad"
-          />
+          <View style={s.phoneRow}>
+            <View style={s.phonePrefix}>
+              <Text style={s.phonePrefixTxt}>{PHONE_PREFIX}</Text>
+            </View>
+            <TextInput
+              style={[
+                s.phoneInput,
+                focused === "phone" && {
+                  borderColor: COLORS.teal,
+                  backgroundColor: COLORS.white,
+                },
+                phoneInvalid ? s.inputErr : null,
+              ]}
+              value={localPhoneDigits(form.phone)}
+              onChangeText={setPhoneLocal("phone")}
+              onFocus={() => setFocused("phone")}
+              onBlur={() => {
+                setFocused(null);
+                setTouched((p) => ({ ...p, phone: true }));
+              }}
+              placeholder="501234567"
+              placeholderTextColor="#aab"
+              keyboardType="number-pad"
+              maxLength={9}
+            />
+          </View>
           {phoneInvalid ? (
             <Text style={s.fieldErrTxt}>
-              ⚠ Enter a valid phone number, e.g. 050-1234567 or
-              +972501234567
+              ⚠ Enter a 9-digit mobile number starting with 5, e.g. 501234567
             </Text>
           ) : null}
           {!phoneInvalid && form.phone.trim() ? (
@@ -445,18 +530,36 @@ export default function SignupScreen() {
           <FL text="Date of Birth" req />
           <TextInput
             style={inp("birth_date")}
-            {...fld("birth_date")}
-            placeholder="DD/MM/YYYY"
+            value={form.birth_date}
+            onChangeText={setBirthDate}
+            onFocus={() => setFocused("birth_date")}
+            onBlur={() => {
+              setFocused(null);
+              setTouched((p) => ({ ...p, birth_date: true }));
+            }}
+            placeholder="00/00/0000"
             placeholderTextColor="#aab"
+            keyboardType="number-pad"
+            maxLength={10}
           />
 
           <FL text="Age" req />
+          <Text style={s.hint}>Must be between {MIN_AGE} and {MAX_AGE}</Text>
           <TextInput
             style={inp("age")}
-            {...fld("age")}
+            value={form.age}
+            onChangeText={(text) =>
+              setForm((p) => ({ ...p, age: text.replace(/\D/g, "").slice(0, 2) }))
+            }
+            onFocus={() => setFocused("age")}
+            onBlur={() => {
+              setFocused(null);
+              setTouched((p) => ({ ...p, age: true }));
+            }}
             placeholder="e.g. 15"
             placeholderTextColor="#aab"
             keyboardType="number-pad"
+            maxLength={2}
           />
 
           <FL text="Gender" req />
@@ -483,15 +586,27 @@ export default function SignupScreen() {
           <FL text="Address" req />
           <TextInput
             style={inp("address")}
-            {...fld("address")}
-            placeholder="Street & number"
+            value={form.address}
+            onChangeText={setNoDigitsField("address")}
+            onFocus={() => setFocused("address")}
+            onBlur={() => {
+              setFocused(null);
+              setTouched((p) => ({ ...p, address: true }));
+            }}
+            placeholder="Street name"
             placeholderTextColor="#aab"
           />
 
           <FL text="Neighborhood" req />
           <TextInput
             style={inp("neighborhood")}
-            {...fld("neighborhood")}
+            value={form.neighborhood}
+            onChangeText={setNoDigitsField("neighborhood")}
+            onFocus={() => setFocused("neighborhood")}
+            onBlur={() => {
+              setFocused(null);
+              setTouched((p) => ({ ...p, neighborhood: true }));
+            }}
             placeholder="e.g. Katamon"
             placeholderTextColor="#aab"
           />
@@ -573,18 +688,50 @@ export default function SignupScreen() {
           <FL text="Parent Name" req />
           <TextInput
             style={inp("parent_name")}
-            {...fld("parent_name")}
+            value={form.parent_name}
+            onChangeText={(text) =>
+              setForm((p) => ({ ...p, parent_name: stripDigits(text) }))
+            }
+            onFocus={() => setFocused("parent_name")}
+            onBlur={() => {
+              setFocused(null);
+              setTouched((p) => ({ ...p, parent_name: true }));
+            }}
             placeholder="Parent full name"
             placeholderTextColor="#aab"
           />
           <FL text="Parent Phone Number" req />
-          <TextInput
-            style={inp("parent_phone")}
-            {...fld("parent_phone")}
-            placeholder="+972-50-000-0000"
-            placeholderTextColor="#aab"
-            keyboardType="phone-pad"
-          />
+          <View style={s.phoneRow}>
+            <View style={s.phonePrefix}>
+              <Text style={s.phonePrefixTxt}>{PHONE_PREFIX}</Text>
+            </View>
+            <TextInput
+              style={[
+                s.phoneInput,
+                focused === "parent_phone" && {
+                  borderColor: COLORS.teal,
+                  backgroundColor: COLORS.white,
+                },
+                parentPhoneInvalid ? s.inputErr : null,
+              ]}
+              value={localPhoneDigits(form.parent_phone)}
+              onChangeText={setPhoneLocal("parent_phone")}
+              onFocus={() => setFocused("parent_phone")}
+              onBlur={() => {
+                setFocused(null);
+                setTouched((p) => ({ ...p, parent_phone: true }));
+              }}
+              placeholder="501234567"
+              placeholderTextColor="#aab"
+              keyboardType="number-pad"
+              maxLength={9}
+            />
+          </View>
+          {parentPhoneInvalid ? (
+            <Text style={s.fieldErrTxt}>
+              ⚠ Enter a 9-digit mobile number starting with 5, e.g. 501234567
+            </Text>
+          ) : null}
           <FL text="Medical Situation" req />
           <TextInput
             style={[
@@ -875,6 +1022,29 @@ const s = StyleSheet.create({
   },
   inputErr: { borderColor: COLORS.red, backgroundColor: COLORS.redLight },
   inputOk: { borderColor: COLORS.success, backgroundColor: "#f0fff5" },
+  phoneRow: { flexDirection: "row", marginBottom: 14 },
+  phonePrefix: {
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRightWidth: 0,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+    backgroundColor: COLORS.grayLight,
+    paddingHorizontal: 13,
+    justifyContent: "center",
+  },
+  phonePrefixTxt: { fontSize: 15, color: COLORS.gray, fontWeight: "600" },
+  phoneInput: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+    padding: 13,
+    fontSize: 15,
+    color: "#0d1717",
+    backgroundColor: COLORS.grayLight,
+  },
   matchTxt: {
     fontSize: 12,
     color: COLORS.success,

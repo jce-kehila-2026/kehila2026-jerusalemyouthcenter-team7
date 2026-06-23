@@ -16,6 +16,12 @@ export function isValidPhone(phone: string): boolean {
   return IL_MOBILE_RE.test(trimmed) || INTL_PHONE_RE.test(trimmed);
 }
 
+// Israeli mobile local number entered after the hardcoded "+972" country
+// code prefix: exactly 9 digits, must start with 5 (e.g. "501234567").
+export function isValidIsraeliLocalMobile(localDigits: string): boolean {
+  return /^5\d{8}$/.test(localDigits);
+}
+
 // Converts a local Israeli/Palestinian mobile number (e.g. "050-1234567" or
 // "0501234567") into E.164 format required by Firebase phone auth. Numbers
 // already given with a country code (+972... or 972...) pass through as-is.
