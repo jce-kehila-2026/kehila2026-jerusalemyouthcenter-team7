@@ -454,28 +454,37 @@ function SingerHeroCard({
 
   return (
     <View style={st.singerHeroCard}>
+      {/* Decorative music elements */}
+      <Text style={st.heroDecor1} pointerEvents="none">♪</Text>
+      <Text style={st.heroDecor2} pointerEvents="none">🎵</Text>
+      <Text style={st.heroDecor3} pointerEvents="none">🎶</Text>
+
+      {/* Top row: greeting + voice badge */}
       <View style={st.singerHeroRow}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={st.singerHeroGreeting}>Welcome back 🎵</Text>
-          <Text style={st.singerHeroName}>Hey, {firstName}!</Text>
+          <Text style={st.singerHeroName}>Hey, {firstName}! 😊</Text>
         </View>
         {voiceEmoji && voiceLabel && (
           <View style={st.singerVoiceBadge}>
-            <Text style={st.singerVoiceBadgeText}>
-              {voiceEmoji} {voiceLabel}
-            </Text>
+            <Text style={st.singerVoiceBadgeText}>{voiceEmoji} {voiceLabel}</Text>
           </View>
         )}
       </View>
+
+      {/* Divider */}
       <View style={st.singerHeroDivider} />
+
+      {/* Bottom chips */}
       <View style={st.singerHeroChipsRow}>
         <View style={st.singerHeroChip}>
-          <Text style={st.singerHeroChipText}>🔥 {streakText}</Text>
+          <Text style={st.singerHeroChipIcon}>🔥</Text>
+          <Text style={st.singerHeroChipText} numberOfLines={1}>{streakText}</Text>
         </View>
+        <View style={st.singerHeroChipSep} />
         <View style={st.singerHeroChip}>
-          <Text style={st.singerHeroChipText} numberOfLines={2}>
-            📅 {nextText}
-          </Text>
+          <Text style={st.singerHeroChipIcon}>📅</Text>
+          <Text style={st.singerHeroChipText} numberOfLines={2}>{nextText}</Text>
         </View>
       </View>
     </View>
@@ -638,41 +647,34 @@ function SingerShortcuts({
   onVoiceGroup: () => void;
   onLatestNotif: () => void;
 }) {
-  const shortcuts = [
-    {
-      icon: "document-text-outline" as const,
-      label: firstPendingForm ? firstPendingForm.title : "No Pending Forms",
-      sublabel: firstPendingForm ? "Tap to fill now" : "All caught up ✓",
-      onPress: onPendingForm,
-      bgColor: TEAL + "15",
-      borderColor: TEAL,
-      iconColor: TEAL,
-      badge: firstPendingForm ? "!" : (null as string | null),
-      disabled: !firstPendingForm,
-    },
+  const cards = [
     {
       icon: "calendar-outline" as const,
-      label: nextUnregisteredEvent
-        ? nextUnregisteredEvent.title
-        : "No New Events",
+      label: nextUnregisteredEvent ? nextUnregisteredEvent.title : "No New Events",
       sublabel: nextUnregisteredEvent ? "Tap to register" : "Check back soon",
       onPress: onNextEvent,
-      bgColor: AMBER + "20",
-      borderColor: AMBER,
-      iconColor: AMBER,
+      bg: "#cfad5d",
+      decor: "🗓️",
       badge: null as string | null,
       disabled: !nextUnregisteredEvent,
     },
     {
+      icon: "document-text-outline" as const,
+      label: firstPendingForm ? firstPendingForm.title : "Pending Forms",
+      sublabel: firstPendingForm ? "Tap to fill now" : "All caught up ✓",
+      onPress: onPendingForm,
+      bg: "#b89a3e",
+      decor: "📋",
+      badge: firstPendingForm ? "!" : (null as string | null),
+      disabled: !firstPendingForm,
+    },
+    {
       icon: "musical-notes-outline" as const,
       label: latestLibraryFile ? latestLibraryFile.name : "No Uploads Yet",
-      sublabel: latestLibraryFile
-        ? `Latest · ${latestLibraryFile.ext}`
-        : "Nothing yet",
+      sublabel: latestLibraryFile ? `Latest · ${latestLibraryFile.ext}` : "Nothing yet",
       onPress: onLatestFile,
-      bgColor: RED + "15",
-      borderColor: RED,
-      iconColor: RED,
+      bg: "#7c5cbf",
+      decor: "🎶",
       badge: latestLibraryFile ? "NEW" : (null as string | null),
       disabled: !latestLibraryFile,
     },
@@ -681,39 +683,30 @@ function SingerShortcuts({
       label: unreadMessages > 0 ? `${unreadMessages} Unread` : "Messages",
       sublabel: unreadMessages > 0 ? "Tap to read now" : "No new messages",
       onPress: onMessages,
-      bgColor: TEAL + "15",
-      borderColor: TEAL,
-      iconColor: TEAL,
-      badge:
-        unreadMessages > 0 ? String(unreadMessages) : (null as string | null),
+      bg: "#0891b2",
+      decor: "💬",
+      badge: unreadMessages > 0 ? String(unreadMessages) : (null as string | null),
       disabled: false,
     },
     {
       icon: "people-outline" as const,
-      label: voiceType
-        ? `${voiceType.charAt(0).toUpperCase() + voiceType.slice(1)} Group`
-        : "My Voice Group",
+      label: voiceType ? `${voiceType.charAt(0).toUpperCase() + voiceType.slice(1)} Group` : "My Voice Group",
       sublabel: "See your section",
       onPress: onVoiceGroup,
-      bgColor: AMBER + "20",
-      borderColor: AMBER,
-      iconColor: AMBER,
+      bg: "#3730a3",
+      decor: "🎤",
       badge: null as string | null,
       disabled: false,
     },
     {
-      icon: "notifications-outline" as const,
-      label: latestNotif ? latestNotif.title : "Announcements",
-      sublabel: latestNotif
-        ? latestNotif.body.slice(0, 35) +
-          (latestNotif.body.length > 35 ? "…" : "")
-        : "Nothing new",
-      onPress: onLatestNotif,
-      bgColor: RED + "15",
-      borderColor: RED,
-      iconColor: RED,
+      icon: "library-outline" as const,
+      label: "Music Library",
+      sublabel: "Open the library",
+      onPress: onLatestFile,
+      bg: "#9f2d20",
+      decor: "🎵",
       badge: null as string | null,
-      disabled: !latestNotif,
+      disabled: false,
     },
   ];
 
@@ -721,43 +714,35 @@ function SingerShortcuts({
     <>
       <Text style={st.sectionLabel}>Quick Access</Text>
       <View style={st.shortcutsGrid}>
-        {shortcuts.map((s, i) => (
+        {cards.map((card, i) => (
           <Pressable
             key={i}
             style={[
               st.shortcutCard,
-              {
-                backgroundColor: s.bgColor,
-                borderColor: s.borderColor,
-                opacity: s.disabled ? 0.5 : 1,
-              },
+              { backgroundColor: card.bg, opacity: card.disabled ? 0.55 : 1 },
             ]}
-            onPress={s.disabled ? undefined : s.onPress}
+            onPress={card.disabled ? undefined : card.onPress}
+            android_ripple={{ color: "rgba(255,255,255,0.2)" }}
           >
+            {/* Decorative emoji — big, top-right */}
+            <Text style={st.shortcutDecor}>{card.decor}</Text>
+
+            {/* Icon + optional badge */}
             <View style={st.shortcutTop}>
-              <View
-                style={[
-                  st.shortcutIconCircle,
-                  { backgroundColor: s.iconColor + "20" },
-                ]}
-              >
-                <Ionicons name={s.icon} size={22} color={s.iconColor} />
+              <View style={st.shortcutIconWrap}>
+                <Ionicons name={card.icon} size={22} color="rgba(255,255,255,0.9)" />
               </View>
-              {s.badge && (
-                <View
-                  style={[st.shortcutBadge, { backgroundColor: s.borderColor }]}
-                >
-                  <Text style={st.shortcutBadgeText}>{s.badge}</Text>
+              {card.badge && (
+                <View style={st.shortcutBadge}>
+                  <Text style={st.shortcutBadgeText}>{card.badge}</Text>
                 </View>
               )}
             </View>
-            <View>
-              <Text style={st.shortcutLabel} numberOfLines={1}>
-                {s.label}
-              </Text>
-              <Text style={st.shortcutSub} numberOfLines={1}>
-                {s.sublabel}
-              </Text>
+
+            {/* Text at the bottom */}
+            <View style={st.shortcutBottom}>
+              <Text style={st.shortcutLabel} numberOfLines={2}>{card.label}</Text>
+              <Text style={st.shortcutSub} numberOfLines={1}>{card.sublabel}</Text>
             </View>
           </Pressable>
         ))}
@@ -1815,35 +1800,65 @@ const st = StyleSheet.create({
     backgroundColor: TEAL,
     borderRadius: 20,
     padding: 20,
+    paddingBottom: 16,
     marginBottom: 12,
     shadowColor: TEAL,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    elevation: 8,
+    overflow: "hidden" as const,
+  },
+  heroDecor1: {
+    position: "absolute" as const,
+    top: 10,
+    right: 60,
+    fontSize: 52,
+    color: "rgba(255,255,255,0.08)",
+    pointerEvents: "none" as const,
+  },
+  heroDecor2: {
+    position: "absolute" as const,
+    top: 28,
+    right: 14,
+    fontSize: 32,
+    color: "rgba(255,255,255,0.12)",
+    pointerEvents: "none" as const,
+  },
+  heroDecor3: {
+    position: "absolute" as const,
+    bottom: 8,
+    right: 20,
+    fontSize: 44,
+    color: "rgba(255,255,255,0.07)",
+    pointerEvents: "none" as const,
   },
   singerHeroRow: {
     flexDirection: "row" as const,
     alignItems: "flex-start" as const,
     justifyContent: "space-between" as const,
+    marginBottom: 4,
   },
   singerHeroGreeting: {
     fontSize: 13,
     color: "rgba(255,255,255,0.8)",
     fontWeight: "600" as const,
+    marginBottom: 2,
   },
   singerHeroName: {
-    fontSize: 28,
+    fontSize: 34,
     fontWeight: "900" as const,
     color: "#fff",
-    marginTop: 2,
+    lineHeight: 38,
   },
   singerVoiceBadge: {
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255,255,255,0.22)",
     borderRadius: 20,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     alignItems: "center" as const,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
   },
   singerVoiceBadgeText: {
     fontSize: 12,
@@ -1852,21 +1867,32 @@ const st = StyleSheet.create({
   },
   singerHeroDivider: {
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    marginVertical: 14,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    marginVertical: 12,
   },
-  singerHeroChipsRow: { flexDirection: "row" as const, gap: 12 },
+  singerHeroChipsRow: {
+    flexDirection: "row" as const,
+    alignItems: "flex-start" as const,
+  },
   singerHeroChip: {
     flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 6,
+    alignItems: "flex-start" as const,
+    gap: 5,
     flex: 1,
   },
+  singerHeroChipIcon: { fontSize: 13 },
   singerHeroChipText: {
     fontSize: 12,
-    color: "#fff",
-    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.92)",
+    fontWeight: "600" as const,
     flexShrink: 1,
+    lineHeight: 16,
+  },
+  singerHeroChipSep: {
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    marginHorizontal: 10,
+    alignSelf: "stretch" as const,
   },
 
   // ── Singer Badges Row
@@ -1953,47 +1979,61 @@ const st = StyleSheet.create({
   shortcutsGrid: {
     flexDirection: "row" as const,
     flexWrap: "wrap" as const,
-    gap: 8,
+    gap: 10,
     marginBottom: 12,
   },
   shortcutCard: {
     width: "47%" as any,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    padding: 14,
-    minHeight: 90,
+    borderRadius: 20,
+    padding: 16,
+    minHeight: 120,
     justifyContent: "space-between" as const,
+    overflow: "hidden" as const,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  shortcutDecor: {
+    position: "absolute" as const,
+    top: 6,
+    right: 10,
+    fontSize: 52,
+    opacity: 0.22,
+    pointerEvents: "none" as const,
   },
   shortcutTop: {
-    position: "relative" as const,
-    alignSelf: "flex-start" as const,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
   },
-  shortcutIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  shortcutIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center" as const,
     justifyContent: "center" as const,
   },
   shortcutBadge: {
-    position: "absolute" as const,
-    top: -4,
-    right: -4,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    minWidth: 22,
+    height: 22,
     alignItems: "center" as const,
     justifyContent: "center" as const,
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
   },
-  shortcutBadgeText: { fontSize: 9, fontWeight: "900" as const, color: "#fff" },
+  shortcutBadgeText: { fontSize: 10, fontWeight: "900" as const, color: DARK },
+  shortcutBottom: { gap: 2 },
   shortcutLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "800" as const,
-    color: DARK,
-    marginTop: 8,
+    color: "#fff",
+    lineHeight: 18,
   },
-  shortcutSub: { fontSize: 10, color: SUB, marginTop: 2 },
+  shortcutSub: { fontSize: 11, color: "rgba(255,255,255,0.75)", fontWeight: "500" as const },
 
   // ── Leaderboard Widget
   lbCard: {
