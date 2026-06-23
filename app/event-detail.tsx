@@ -1,3 +1,5 @@
+import { useAuth } from "@/src/context/AuthContext";
+import { leaderboardService } from "@/src/data/leaderboardService";
 import { db } from "@/src/firebase/firebase";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
@@ -72,6 +74,7 @@ function getDateParts(dateStr: string | string[] | undefined) {
 export default function EventDetail() {
   const params = useLocalSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
 
   // Two calling conventions:
   // 1) individual fields — admin Events screen
@@ -141,6 +144,14 @@ export default function EventDetail() {
         updatedAt: serverTimestamp(),
       });
       setRsvpStatus(status);
+      if (status === "coming" && user?.role === "singer" && studentId) {
+        await leaderboardService.awardPoints(
+          studentId,
+          studentName ?? user.full_name ?? "",
+          user.voice_type ?? "",
+          "register_event",
+        );
+      }
     } catch (e) {
       console.error("RSVP save error:", e);
       setRsvpError(true);
@@ -187,7 +198,6 @@ export default function EventDetail() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: sp(2), gap: sp(2) }}>
-        {/* ── Single unified card ── */}
         <View
           style={{
             backgroundColor: T.white,
@@ -250,7 +260,6 @@ export default function EventDetail() {
 
             {/* Main content */}
             <View style={{ flex: 1, padding: sp(2) }}>
-              {/* Group badge */}
               <View
                 style={{
                   alignSelf: "flex-start",
@@ -271,7 +280,6 @@ export default function EventDetail() {
                   {group}
                 </Text>
               </View>
-
               <Text
                 style={{
                   color: T.text,
@@ -282,7 +290,6 @@ export default function EventDetail() {
               >
                 {title}
               </Text>
-
               {location ? (
                 <Text
                   style={{
@@ -292,7 +299,7 @@ export default function EventDetail() {
                     marginBottom: sp(1),
                   }}
                 >
-                  📍 {location}
+                  📍 {location as string}
                 </Text>
               ) : null}
             </View>
@@ -311,7 +318,7 @@ export default function EventDetail() {
           {description ? (
             <View style={{ padding: sp(2) }}>
               <Text style={{ color: T.textSub, fontSize: 14, lineHeight: 22 }}>
-                {description}
+                {description as string}
               </Text>
             </View>
           ) : null}
@@ -366,7 +373,7 @@ export default function EventDetail() {
                           fontSize: 14,
                         }}
                       >
-                        ✓ I&apos;m Coming
+                        ✓ I'm Coming
                       </Text>
                     </Pressable>
 
@@ -391,7 +398,7 @@ export default function EventDetail() {
                           fontSize: 14,
                         }}
                       >
-                        ✕ Can&apos;t Make It
+                        ✕ Can't Make It
                       </Text>
                     </Pressable>
                   </View>
@@ -421,7 +428,7 @@ export default function EventDetail() {
                       textAlign: "center",
                     }}
                   >
-                    Couldn&apos;t save your response — please try again.
+                    Couldn't save your response — please try again.
                   </Text>
                 )}
               </View>

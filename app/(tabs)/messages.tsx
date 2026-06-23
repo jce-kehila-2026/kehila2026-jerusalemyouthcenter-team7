@@ -362,7 +362,11 @@ export default function MessagesScreen() {
         m.sender_id === conv.otherPartyId &&
         !m.is_read,
     );
-    await Promise.all(unread.map((m) => messageService.markRead(m.id)));
+    try {
+      await Promise.all(unread.map((m) => messageService.markRead(m.id)));
+    } catch (e) {
+      console.error("[messages] markRead failed:", e);
+    }
   }
 
   function openStudentConversation(student: Student) {

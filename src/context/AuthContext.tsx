@@ -52,7 +52,7 @@ export type StudentSignupPayload = {
   age: number;
   school_name: string;
   shirt_size: "S" | "M" | "L" | "XL";
-  voice_type: "bass" | "tenor" | "alto" | "soprano";
+  voice_type: string;
   year_joined: number;
   food_notes: "vegetarian" | "vegan" | "halal" | "kosher" | string;
   parent_relation: "father" | "mother";
@@ -171,9 +171,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         }
 
         // Fast-path rejection check before Auth call
-        const rejectedDoc = await getDoc(
-          doc(db, "join_requests", singerPhone),
-        );
+        const rejectedDoc = await getDoc(doc(db, "join_requests", singerPhone));
         if (rejectedDoc.exists()) {
           const rd = rejectedDoc.data();
           if (rd.status === "rejected") {
@@ -321,10 +319,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
 
       // Block re-registration for previously rejected phones
       const rejectedDoc = await getDoc(doc(db, "join_requests", phoneDigits));
-      if (
-        rejectedDoc.exists() &&
-        rejectedDoc.data().status === "rejected"
-      ) {
+      if (rejectedDoc.exists() && rejectedDoc.data().status === "rejected") {
         console.log("SIGNUP: phone previously rejected");
         isSigningUpRef.current = false;
         return "rejected";
