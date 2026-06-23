@@ -774,115 +774,79 @@ function SingerLeaderboard({
   myPoints,
   myRank,
 }: {
-  leaderboard: {
-    uid: string;
-    name: string;
-    voice_type: string;
-    points: number;
-  }[];
+  leaderboard: { uid: string; name: string; voice_type: string; points: number }[];
   myUid: string;
   myPoints: number;
   myRank: number | null;
 }) {
-  const podiumEmojis = ["🥇", "🥈", "🥉"];
-  const voiceEmoji: Record<string, string> = {
-    soprano: "🎤",
-    alto: "🎶",
-    tenor: "🎺",
-    bass: "🥁",
-  };
+  const router = useRouter();
+  const podium = ["🥇", "🥈", "🥉"];
   const top3 = leaderboard.slice(0, 3);
-  const isInTop3 = myRank !== null && myRank <= 3;
 
   return (
     <>
       <Text style={st.sectionLabel}>🏅 Weekly Leaderboard</Text>
-      <View style={st.lbCard}>
+      <Pressable
+        style={st.lbCard}
+        onPress={() => router.push("/leaderboard" as any)}
+        android_ripple={{ color: AMBER + "20" }}
+      >
+        {/* Header row */}
         <View style={st.lbHeader}>
-          <Ionicons name="trophy" size={16} color={AMBER} />
-          <Text style={st.lbHeaderText}>Top Singers This Week</Text>
-          <Text style={st.lbHeaderSub}>Resets every Monday</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Ionicons name="trophy" size={16} color={AMBER} />
+            <Text style={st.lbHeaderText}>Top Singers This Week</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Text style={st.lbViewAll}>View all</Text>
+            <Ionicons name="chevron-forward" size={13} color={TEAL} />
+          </View>
         </View>
 
+        {/* Horizontal podium */}
         {top3.length === 0 ? (
           <View style={st.lbEmpty}>
-            <Text style={st.lbEmptyText}>
-              🎵 No rankings yet — be the first!
-            </Text>
+            <Text style={st.lbEmptyText}>🎵 No rankings yet — be the first!</Text>
           </View>
         ) : (
-          top3.map((entry, i) => (
-            <View
-              key={entry.uid}
-              style={[
-                st.lbRow,
-                entry.uid === myUid && st.lbRowHighlight,
-                i === 0 && st.lbRowFirst,
-              ]}
-            >
-              <Text style={st.lbPodium}>{podiumEmojis[i]}</Text>
-              <View style={st.lbAvatar}>
-                <Text style={st.lbAvatarText}>
-                  {entry.name?.charAt(0)?.toUpperCase() ?? "?"}
+          <View style={st.lbPodiumRow}>
+            {top3.map((entry, i) => (
+              <View
+                key={entry.uid}
+                style={[st.lbPodiumCol, entry.uid === myUid && { borderColor: TEAL, borderWidth: 1.5 }]}
+              >
+                <Text style={st.lbPodiumEmoji}>{podium[i]}</Text>
+                <View style={[st.lbAvatar, i === 0 && { borderColor: AMBER, borderWidth: 2 }]}>
+                  <Text style={st.lbAvatarText}>
+                    {entry.name?.charAt(0)?.toUpperCase() ?? "?"}
+                  </Text>
+                </View>
+                <Text style={st.lbPodiumName} numberOfLines={1}>
+                  {entry.uid === myUid ? "You" : entry.name?.split(" ")[0]}
                 </Text>
+                <Text style={st.lbPodiumPts}>{entry.points ?? 0} pts</Text>
               </View>
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={st.lbName} numberOfLines={1}>
-                  {entry.uid === myUid ? "You 🌟" : entry.name}
-                </Text>
-                <Text style={st.lbVoice}>
-                  {voiceEmoji[entry.voice_type?.toLowerCase()] ?? "🎵"}{" "}
-                  {entry.voice_type ?? ""}
-                </Text>
-              </View>
-              <View style={st.lbPointsBadge}>
-                <Text style={st.lbPointsText}>{entry.points ?? 0}</Text>
-                <Text style={st.lbPointsLabel}>pts</Text>
-              </View>
-            </View>
-          ))
+            ))}
+          </View>
         )}
 
-        {!isInTop3 && (
-          <>
-            <View style={st.lbDivider} />
-            <View style={[st.lbRow, st.lbRowHighlight]}>
-              <Text style={st.lbPodium}>#{myRank ?? "?"}</Text>
-              <View
-                style={[
-                  st.lbAvatar,
-                  { backgroundColor: TEAL + "30", borderColor: TEAL },
-                ]}
-              >
-                <Text style={[st.lbAvatarText, { color: TEAL }]}>You</Text>
-              </View>
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={st.lbName}>Your Ranking</Text>
-                <Text style={st.lbVoice}>Keep going! 💪</Text>
-              </View>
-              <View
-                style={[
-                  st.lbPointsBadge,
-                  { backgroundColor: TEAL + "18", borderColor: TEAL },
-                ]}
-              >
-                <Text style={[st.lbPointsText, { color: TEAL }]}>
-                  {myPoints}
-                </Text>
-                <Text style={[st.lbPointsLabel, { color: TEAL }]}>pts</Text>
-              </View>
-            </View>
-          </>
-        )}
-
-        <View style={st.lbHowTo}>
-          <Text style={st.lbHowToTitle}>How to earn points:</Text>
-          <Text style={st.lbHowToRow}>✅ Register for event +10 pts</Text>
-          <Text style={st.lbHowToRow}>📝 Submit a form +5 pts</Text>
-          <Text style={st.lbHowToRow}>🎵 Open library file +5 pts</Text>
-          <Text style={st.lbHowToRow}>🔥 Attendance streak +15 pts</Text>
+        {/* My rank strip */}
+        <View style={st.lbMyRank}>
+          <Text style={st.lbMyRankText}>
+            {myRank ? `Your rank: #${myRank}` : "Not ranked yet"}
+          </Text>
+          <View style={[st.lbPointsBadge, { backgroundColor: TEAL + "18", borderColor: TEAL }]}>
+            <Text style={[st.lbPointsText, { color: TEAL }]}>{myPoints}</Text>
+            <Text style={[st.lbPointsLabel, { color: TEAL }]}>pts</Text>
+          </View>
         </View>
-      </View>
+
+        {/* Tap hint */}
+        <View style={st.lbTapHint}>
+          <Text style={st.lbTapHintText}>Tap to see full rankings & challenges</Text>
+        </View>
+
+      </Pressable>
     </>
   );
 }
@@ -922,6 +886,7 @@ export default function DashboardScreen() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myPoints, setMyPoints] = useState(0);
   const [myRank, setMyRank] = useState<number | null>(null);
+  const [activeChallenges, setActiveChallenges] = useState<{ label: string; points: number }[]>([]);
 
   const now = new Date();
   const upcomingEvents = eventList
@@ -1121,6 +1086,22 @@ export default function DashboardScreen() {
       setMyRank(rank >= 0 ? rank + 1 : null);
       const myEntry = entries.find((e) => e.uid === user.uid);
       setMyPoints(myEntry?.points ?? 0);
+    });
+    return unsub;
+  }, [user?.uid, user?.role]);
+
+  // Live active challenges — singer only
+  useEffect(() => {
+    if (!user?.uid || user?.role !== "singer") return;
+    const unsub = onSnapshot(doc(db, "leaderboard_config", "active"), (snap) => {
+      if (snap.exists()) {
+        const all: any[] = (snap.data() as any).challenges ?? [];
+        setActiveChallenges(
+          all.filter((c) => c.active).map((c) => ({ label: c.label, points: c.points ?? 0 })),
+        );
+      } else {
+        setActiveChallenges([]);
+      }
     });
     return unsub;
   }, [user?.uid, user?.role]);
@@ -2014,51 +1995,57 @@ const st = StyleSheet.create({
   },
   shortcutSub: { fontSize: 10, color: SUB, marginTop: 2 },
 
-  // ── Leaderboard Card
+  // ── Leaderboard Widget
   lbCard: {
     backgroundColor: "#ffffff",
     borderRadius: 18,
     borderWidth: 1,
     borderColor: BORDER,
     overflow: "hidden" as const,
-    shadowColor: "#000",
+    shadowColor: AMBER,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
     elevation: 3,
-    marginBottom: 4,
+    marginBottom: 12,
   },
   lbHeader: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
-    gap: 8,
-    padding: 14,
-    paddingBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: BORDER,
-  },
-  lbHeaderText: {
-    fontSize: 13,
-    fontWeight: "800" as const,
-    color: DARK,
-    flex: 1,
-  },
-  lbHeaderSub: { fontSize: 10, color: MUTED },
-  lbRow: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
     paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: BORDER,
+    paddingTop: 12,
+    paddingBottom: 10,
   },
-  lbRowFirst: { backgroundColor: AMBER + "08" },
-  lbRowHighlight: { backgroundColor: TEAL + "08" },
-  lbPodium: { fontSize: 18, width: 28, textAlign: "center" as const },
+  lbHeaderText: { fontSize: 13, fontWeight: "800" as const, color: DARK },
+  lbViewAll: { fontSize: 12, fontWeight: "700" as const, color: TEAL },
+  lbPodiumRow: {
+    flexDirection: "row" as const,
+    justifyContent: "space-around" as const,
+    paddingHorizontal: 8,
+    paddingBottom: 12,
+  },
+  lbPodiumCol: {
+    flex: 1,
+    alignItems: "center" as const,
+    gap: 4,
+    paddingVertical: 8,
+    marginHorizontal: 4,
+    borderRadius: 12,
+    backgroundColor: BORDER + "60",
+  },
+  lbPodiumEmoji: { fontSize: 20 },
+  lbPodiumName: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: DARK,
+    textAlign: "center" as const,
+  },
+  lbPodiumPts: { fontSize: 10, fontWeight: "600" as const, color: MUTED },
   lbAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: AMBER + "30",
     borderWidth: 1.5,
     borderColor: AMBER,
@@ -2066,8 +2053,16 @@ const st = StyleSheet.create({
     justifyContent: "center" as const,
   },
   lbAvatarText: { fontSize: 14, fontWeight: "800" as const, color: AMBER },
-  lbName: { fontSize: 13, fontWeight: "700" as const, color: DARK },
-  lbVoice: { fontSize: 10, color: SUB, marginTop: 1 },
+  lbMyRank: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: BORDER,
+  },
+  lbMyRankText: { fontSize: 13, fontWeight: "600" as const, color: DARK },
   lbPointsBadge: {
     alignItems: "center" as const,
     justifyContent: "center" as const,
@@ -2078,23 +2073,16 @@ const st = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  lbPointsText: { fontSize: 16, fontWeight: "900" as const, color: AMBER },
+  lbPointsText: { fontSize: 15, fontWeight: "900" as const, color: AMBER },
   lbPointsLabel: { fontSize: 8, fontWeight: "700" as const, color: AMBER },
-  lbDivider: { height: 1, backgroundColor: BORDER, marginHorizontal: 14 },
-  lbEmpty: { padding: 20, alignItems: "center" as const },
-  lbEmptyText: { fontSize: 13, color: MUTED, fontWeight: "600" as const },
-  lbHowTo: {
-    padding: 14,
-    paddingTop: 10,
+  lbTapHint: {
+    paddingVertical: 8,
+    alignItems: "center" as const,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: BORDER,
-    gap: 3,
+    backgroundColor: TEAL + "06",
   },
-  lbHowToTitle: {
-    fontSize: 11,
-    fontWeight: "800" as const,
-    color: SUB,
-    marginBottom: 4,
-  },
-  lbHowToRow: { fontSize: 11, color: MUTED },
+  lbTapHintText: { fontSize: 11, color: TEAL, fontWeight: "600" as const },
+  lbEmpty: { padding: 20, alignItems: "center" as const },
+  lbEmptyText: { fontSize: 13, color: MUTED, fontWeight: "600" as const },
 });
