@@ -1,9 +1,21 @@
 import { useAuth, UserRole } from "@/src/context/AuthContext";
 import { COLORS } from "@/src/data/mockData";
+import {
+  authenticateWithBiometrics,
+  clearCredentials,
+  ENROLLMENT_FLAG_KEY,
+  getBiometricType,
+  isBiometricAvailable,
+  loadCredentials,
+  saveCredentials,
+} from "@/src/utils/biometricAuth";
+import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import * as SecureStore from "expo-secure-store";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Image,
@@ -87,8 +99,30 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricType, setBiometricType] = useState<
+    "face" | "fingerprint" | "none"
+  >("none");
+  const [biometricLoading, setBiometricLoading] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    (async () => {
+      try {
+        const enrolled = await SecureStore.getItemAsync(ENROLLMENT_FLAG_KEY);
+        if (enrolled !== "true") return;
+        const available = await isBiometricAvailable();
+        if (!available) return;
+        const type = await getBiometricType();
+        setBiometricType(type);
+        setBiometricAvailable(true);
+      } catch {
+        // biometric button stays hidden
+      }
+    })();
+  }, []);
 
   const accent = role === "admin" ? COLORS.red : COLORS.teal;
 
@@ -114,7 +148,37 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (result === true) {
-      router.replace("/(tabs)" as any);
+      const canUseBiometric = await isBiometricAvailable();
+      const alreadyEnrolled = await SecureStore.getItemAsync(ENROLLMENT_FLAG_KEY);
+      if (canUseBiometric && alreadyEnrolled === null) {
+        const type = await getBiometricType();
+        const label = type === "face" ? "Face ID" : "Fingerprint";
+        Alert.alert(`Enable ${label}?`, `Sign in faster next time using ${label}. You can change this later in your profile.`, [
+          {
+            text: "Not Now",
+            style: "cancel",
+            onPress: async () => {
+              await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "declined");
+              router.replace("/(tabs)" as any);
+            },
+          },
+          {
+            text: "Enable",
+            onPress: async () => {
+              const ok = await authenticateWithBiometrics(`Confirm with ${label} to enable quick sign-in`);
+              if (ok) {
+                await saveCredentials(identifier.trim(), password, role);
+                await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "true");
+              } else {
+                await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "declined");
+              }
+              router.replace("/(tabs)" as any);
+            },
+          },
+        ]);
+      } else {
+        router.replace("/(tabs)" as any);
+      }
     } else if (result === "pending") {
       setError(
         "⏳ Your request is still pending admin approval.\nYou will be able to log in once approved.",
@@ -129,6 +193,44 @@ export default function LoginScreen() {
           ? "No account found for this phone number.\nPlease check your number or sign up."
           : "No admin account found with these credentials.\nCheck your email or role selection.",
       );
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    setBiometricLoading(true);
+    try {
+      const label = biometricType === "face" ? "Face ID" : "Fingerprint";
+      const ok = await authenticateWithBiometrics(`Sign in with ${label}`);
+      if (!ok) {
+        setBiometricLoading(false);
+        return;
+      }
+      const creds = await loadCredentials();
+      if (!creds) {
+        setBiometricLoading(false);
+        return;
+      }
+      setRole(creds.role);
+      const result = await login(creds.identifier, creds.password, creds.role);
+      if (result === true) {
+        router.replace("/(tabs)" as any);
+      } else if (result === "pending") {
+        setError(
+          "⏳ Your request is still pending admin approval.\nYou will be able to log in once approved.",
+        );
+      } else {
+        setError(
+          result === "rejected"
+            ? "❌ Your join request was not approved. Contact the administrator."
+            : "Saved credentials are no longer valid. Please sign in manually.",
+        );
+        await clearCredentials();
+        setBiometricAvailable(false);
+      }
+    } catch {
+      setError("Biometric authentication failed. Please sign in manually.");
+    } finally {
+      setBiometricLoading(false);
     }
   };
 
@@ -267,6 +369,39 @@ export default function LoginScreen() {
                 <Text style={s.btnText}>Sign In</Text>
               )}
             </Pressable>
+
+            {biometricAvailable && (
+              <Pressable
+                style={({ pressed }) => [
+                  s.biometricBtn,
+                  pressed && { opacity: 0.7 },
+                  (biometricLoading || loading) && { opacity: 0.5 },
+                ]}
+                onPress={handleBiometricLogin}
+                disabled={biometricLoading || loading}
+              >
+                {biometricLoading ? (
+                  <ActivityIndicator size="small" color={COLORS.teal} />
+                ) : (
+                  <>
+                    <Ionicons
+                      name={
+                        biometricType === "face"
+                          ? "scan-outline"
+                          : "finger-print-outline"
+                      }
+                      size={22}
+                      color={COLORS.teal}
+                    />
+                    <Text style={s.biometricText}>
+                      {biometricType === "face"
+                        ? "Sign in with Face ID"
+                        : "Sign in with Fingerprint"}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            )}
 
             <View style={s.divider}>
               <View style={s.divLine} />
@@ -412,5 +547,23 @@ const s = StyleSheet.create({
     color: COLORS.gray,
     fontSize: 13,
     lineHeight: 20,
+  },
+
+  biometricBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.teal,
+    backgroundColor: COLORS.tealLight,
+  },
+  biometricText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.teal,
   },
 });
