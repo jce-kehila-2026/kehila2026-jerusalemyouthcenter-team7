@@ -155,6 +155,9 @@ export default function MessagesScreen() {
   const [forwardingMsg, setForwardingMsg] = useState<ThreadMsg | null>(null);
   const [forwardTargets, setForwardTargets] = useState<Set<string>>(new Set());
 
+  // Reaction / action picker
+  const [pickerMsg, setPickerMsg] = useState<ThreadMsg | null>(null);
+
   // Group management (admin only)
   const [showGroupsModal, setShowGroupsModal] = useState(false);
   const [groupsData, setGroupsData] = useState<ChatGroup[]>([]);
@@ -624,6 +627,42 @@ export default function MessagesScreen() {
     const id = [...selectedIds][0];
     const msg = threadMessages.find((m) => m.id === id);
     if (msg) setForwardingMsg(msg);
+  }
+
+  const REACTION_EMOJIS = ["❤️", "😂", "👍", "😮", "😢", "🔥"];
+
+  async function handleReact(emoji: string) {
+    if (!pickerMsg) return;
+    const msg = pickerMsg;
+    setPickerMsg(null);
+    try {
+      if (msg.reactions?.[currentUid] === emoji) {
+        await messageService.removeReaction(msg.id, currentUid);
+      } else {
+        await messageService.addReaction(msg.id, currentUid, emoji);
+      }
+    } catch (e) {
+      console.error("Reaction error:", e);
+    }
+  }
+
+  function handlePickerReply() {
+    if (!pickerMsg) return;
+    setReplyingTo(pickerMsg);
+    setPickerMsg(null);
+  }
+
+  function handlePickerForward() {
+    if (!pickerMsg) return;
+    setForwardingMsg(pickerMsg);
+    setPickerMsg(null);
+  }
+
+  async function handlePickerDelete() {
+    if (!pickerMsg) return;
+    const id = pickerMsg.id;
+    setPickerMsg(null);
+    await messageService.deleteMessage(id);
   }
 
   function toggleForwardTarget(id: string) {
@@ -1190,6 +1229,51 @@ export default function MessagesScreen() {
           </View>
         </Modal>
 
+        {/* Reaction + action picker */}
+        <Modal
+          visible={!!pickerMsg}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setPickerMsg(null)}
+        >
+          <Pressable style={styles.pickerOverlay} onPress={() => setPickerMsg(null)}>
+            <Pressable style={[styles.pickerSheet, { backgroundColor: theme.card }]} onPress={() => {}}>
+              {/* Emoji row */}
+              <View style={styles.pickerEmojiRow}>
+                {REACTION_EMOJIS.map((emoji) => {
+                  const alreadyReacted = pickerMsg?.reactions?.[currentUid] === emoji;
+                  return (
+                    <Pressable
+                      key={emoji}
+                      style={[styles.pickerEmoji, alreadyReacted && styles.pickerEmojiActive]}
+                      onPress={() => handleReact(emoji)}
+                    >
+                      <Text style={styles.pickerEmojiText}>{emoji}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Divider */}
+              <View style={[styles.pickerDivider, { backgroundColor: theme.border }]} />
+
+              {/* Action buttons */}
+              <Pressable style={styles.pickerAction} onPress={handlePickerReply}>
+                <Ionicons name="return-down-back-outline" size={20} color={AppColors.primary} />
+                <Text style={[styles.pickerActionText, { color: theme.text }]}>Reply</Text>
+              </Pressable>
+              <Pressable style={styles.pickerAction} onPress={handlePickerForward}>
+                <Ionicons name="arrow-redo-outline" size={20} color={AppColors.primary} />
+                <Text style={[styles.pickerActionText, { color: theme.text }]}>Forward</Text>
+              </Pressable>
+              <Pressable style={styles.pickerAction} onPress={handlePickerDelete}>
+                <Ionicons name="trash-outline" size={20} color="#c56451" />
+                <Text style={[styles.pickerActionText, { color: "#c56451" }]}>Delete</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -1350,11 +1434,11 @@ export default function MessagesScreen() {
                       </Text>
                     )}
 
-                    {/* Bubble — long press enters selection, tap in selection mode toggles */}
+                    {/* Bubble — long press opens reaction/action picker; tap in selection mode toggles */}
                     <Pressable
-                      onLongPress={() => toggleSelection(msg.id)}
+                      onLongPress={() => setPickerMsg(msg)}
                       onPress={() => inSelectionMode && toggleSelection(msg.id)}
-                      delayLongPress={400}
+                      delayLongPress={350}
                     >
                       <View
                         style={[
@@ -2824,4 +2908,50 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   gmDeleteConfirmText: { fontSize: 14, fontWeight: "700", color: "#fff" },
+
+  // Reaction / action picker
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  pickerSheet: {
+    width: "100%",
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  pickerEmojiRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 18,
+    paddingHorizontal: 12,
+  },
+  pickerEmoji: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+  },
+  pickerEmojiActive: {
+    backgroundColor: AppColors.primary + "20",
+  },
+  pickerEmojiText: { fontSize: 26 },
+  pickerDivider: { height: StyleSheet.hairlineWidth, marginHorizontal: 16 },
+  pickerAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+  },
+  pickerActionText: { fontSize: 16, fontWeight: "500" },
 });
