@@ -30,6 +30,7 @@ export type FirestoreMsg = {
   timestamp: string;
   is_read: boolean;
   reactions?: Record<string, string>;
+  reply_to?: { id: string; content: string; sender_name: string; type: string };
 };
 
 export const messageService = {
