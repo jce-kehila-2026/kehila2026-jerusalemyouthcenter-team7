@@ -9,6 +9,7 @@ import {
     orderBy,
     query,
     updateDoc,
+    where,
 } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 
@@ -88,6 +89,22 @@ export const messageService = {
 
   async deleteMessage(messageId: string): Promise<void> {
     await deleteDoc(doc(db, "messages", messageId));
+  },
+
+  subscribeUnreadCount(uid: string, callback: (count: number) => void): () => void {
+    const q = query(
+      collection(db, "messages"),
+      where("receiver_id", "==", uid),
+      where("is_read", "==", false),
+    );
+    return onSnapshot(
+      q,
+      (snap) => callback(snap.size),
+      (err) => {
+        console.error("[messageService] subscribeUnreadCount error:", err);
+        callback(0);
+      },
+    );
   },
 };
 

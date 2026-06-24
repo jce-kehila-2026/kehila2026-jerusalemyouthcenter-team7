@@ -454,28 +454,37 @@ function SingerHeroCard({
 
   return (
     <View style={st.singerHeroCard}>
+      {/* Decorative music elements */}
+      <Text style={st.heroDecor1} pointerEvents="none">♪</Text>
+      <Text style={st.heroDecor2} pointerEvents="none">🎵</Text>
+      <Text style={st.heroDecor3} pointerEvents="none">🎶</Text>
+
+      {/* Top row: greeting + voice badge */}
       <View style={st.singerHeroRow}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={st.singerHeroGreeting}>Welcome back 🎵</Text>
-          <Text style={st.singerHeroName}>Hey, {firstName}!</Text>
+          <Text style={st.singerHeroName}>Hey, {firstName}! 😊</Text>
         </View>
         {voiceEmoji && voiceLabel && (
           <View style={st.singerVoiceBadge}>
-            <Text style={st.singerVoiceBadgeText}>
-              {voiceEmoji} {voiceLabel}
-            </Text>
+            <Text style={st.singerVoiceBadgeText}>{voiceEmoji} {voiceLabel}</Text>
           </View>
         )}
       </View>
+
+      {/* Divider */}
       <View style={st.singerHeroDivider} />
+
+      {/* Bottom chips */}
       <View style={st.singerHeroChipsRow}>
         <View style={st.singerHeroChip}>
-          <Text style={st.singerHeroChipText}>🔥 {streakText}</Text>
+          <Text style={st.singerHeroChipIcon}>🔥</Text>
+          <Text style={st.singerHeroChipText} numberOfLines={1}>{streakText}</Text>
         </View>
+        <View style={st.singerHeroChipSep} />
         <View style={st.singerHeroChip}>
-          <Text style={st.singerHeroChipText} numberOfLines={2}>
-            📅 {nextText}
-          </Text>
+          <Text style={st.singerHeroChipIcon}>📅</Text>
+          <Text style={st.singerHeroChipText} numberOfLines={2}>{nextText}</Text>
         </View>
       </View>
     </View>
@@ -536,75 +545,93 @@ function SingerBadgesRow({
     },
   ];
 
-  return (
-    <View style={{ marginBottom: 12 }}>
-      <SectionCard style={{ paddingBottom: 4 }}>
-        <Text style={st.sectionLabel}>My Achievements</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={st.singerBadgesScroll}
-        >
-          {badges.map((badge) => (
-            <View
-              key={badge.id}
-              style={[
-                st.singerBadgeCard,
-                badge.earned
-                  ? {
-                      backgroundColor: badge.color + "18",
-                      borderWidth: 2,
-                      borderColor: badge.color,
-                    }
-                  : {
-                      backgroundColor: "#f0f0f0",
-                      borderWidth: 2,
-                      borderColor: "#ddd",
-                    },
-              ]}
-            >
-              {badge.earned ? (
-                <Text style={st.singerBadgeEmoji}>{badge.emoji}</Text>
-              ) : (
-                <View style={{ opacity: 0.3 }}>
-                  <Text style={st.singerBadgeEmoji}>{badge.emoji}</Text>
-                </View>
-              )}
-              <Text
-                style={[
-                  st.singerBadgeLabel,
-                  { color: badge.earned ? badge.color : MUTED },
-                ]}
-              >
-                {badge.label}
-              </Text>
-              <Text style={st.singerBadgeSub}>{badge.sublabel}</Text>
-              {!badge.earned && <Text style={st.singerBadgeLock}>🔒</Text>}
-            </View>
-          ))}
+  const earnedCount = badges.filter((b) => b.earned).length + customAchievements.length;
+  const totalCount  = badges.length;
 
-          {/* Admin-awarded custom achievements */}
-          {customAchievements.map((ach) => (
-            <View
-              key={ach.id}
+  return (
+    <View style={st.achSection}>
+      {/* ── Section header ─────────────────────────────────────────── */}
+      <View style={st.achHeader}>
+        <Text style={st.achHeaderEmoji}>🌟</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={st.achHeaderTitle}>MY ACHIEVEMENTS</Text>
+          <Text style={st.achHeaderSub}>Collect them all!</Text>
+        </View>
+        <View style={st.achCountBadge}>
+          <Text style={st.achCountText}>{earnedCount}</Text>
+          <Text style={st.achCountSlash}>/{totalCount}</Text>
+        </View>
+      </View>
+
+      {/* ── Badge cards ────────────────────────────────────────────── */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={st.singerBadgesScroll}
+      >
+        {badges.map((badge) => (
+          <View
+            key={badge.id}
+            style={[
+              st.singerBadgeCard,
+              badge.earned
+                ? { backgroundColor: badge.color, shadowColor: badge.color }
+                : st.singerBadgeCardLocked,
+            ]}
+          >
+            {/* Decorative sparkle for earned */}
+            {badge.earned && (
+              <Text style={st.achCardDecor}>✦</Text>
+            )}
+
+            <Text
               style={[
-                st.singerBadgeCard,
-                {
-                  backgroundColor: ach.color + "18",
-                  borderWidth: 2,
-                  borderColor: ach.color,
-                },
+                st.singerBadgeEmoji,
+                !badge.earned && { opacity: 0.25 },
               ]}
             >
-              <Text style={st.singerBadgeEmoji}>{ach.emoji}</Text>
-              <Text style={[st.singerBadgeLabel, { color: ach.color }]}>
-                {ach.label}
-              </Text>
-              <Text style={st.singerBadgeSub}>{ach.sublabel}</Text>
-            </View>
-          ))}
-        </ScrollView>
-      </SectionCard>
+              {badge.emoji}
+            </Text>
+
+            <Text
+              style={[
+                st.singerBadgeLabel,
+                { color: badge.earned ? "#fff" : MUTED },
+              ]}
+            >
+              {badge.label}
+            </Text>
+
+            <Text
+              style={[
+                st.singerBadgeSub,
+                { color: badge.earned ? "rgba(255,255,255,0.75)" : "#bbb" },
+              ]}
+            >
+              {badge.sublabel}
+            </Text>
+
+            {!badge.earned && (
+              <View style={st.achLockWrap}>
+                <Text style={st.singerBadgeLock}>🔒</Text>
+              </View>
+            )}
+          </View>
+        ))}
+
+        {/* Admin-awarded custom achievements */}
+        {customAchievements.map((ach) => (
+          <View
+            key={ach.id}
+            style={[st.singerBadgeCard, { backgroundColor: ach.color, shadowColor: ach.color }]}
+          >
+            <Text style={st.achCardDecor}>✦</Text>
+            <Text style={st.singerBadgeEmoji}>{ach.emoji}</Text>
+            <Text style={[st.singerBadgeLabel, { color: "#fff" }]}>{ach.label}</Text>
+            <Text style={[st.singerBadgeSub, { color: "rgba(255,255,255,0.75)" }]}>{ach.sublabel}</Text>
+          </View>
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -638,41 +665,34 @@ function SingerShortcuts({
   onVoiceGroup: () => void;
   onLatestNotif: () => void;
 }) {
-  const shortcuts = [
-    {
-      icon: "document-text-outline" as const,
-      label: firstPendingForm ? firstPendingForm.title : "No Pending Forms",
-      sublabel: firstPendingForm ? "Tap to fill now" : "All caught up ✓",
-      onPress: onPendingForm,
-      bgColor: TEAL + "15",
-      borderColor: TEAL,
-      iconColor: TEAL,
-      badge: firstPendingForm ? "!" : (null as string | null),
-      disabled: !firstPendingForm,
-    },
+  const cards = [
     {
       icon: "calendar-outline" as const,
-      label: nextUnregisteredEvent
-        ? nextUnregisteredEvent.title
-        : "No New Events",
+      label: nextUnregisteredEvent ? nextUnregisteredEvent.title : "No New Events",
       sublabel: nextUnregisteredEvent ? "Tap to register" : "Check back soon",
       onPress: onNextEvent,
-      bgColor: AMBER + "20",
-      borderColor: AMBER,
-      iconColor: AMBER,
+      bg: "#cfad5d",
+      decor: "🗓️",
       badge: null as string | null,
       disabled: !nextUnregisteredEvent,
     },
     {
+      icon: "document-text-outline" as const,
+      label: firstPendingForm ? firstPendingForm.title : "Pending Forms",
+      sublabel: firstPendingForm ? "Tap to fill now" : "All caught up ✓",
+      onPress: onPendingForm,
+      bg: "#b89a3e",
+      decor: "📋",
+      badge: firstPendingForm ? "!" : (null as string | null),
+      disabled: !firstPendingForm,
+    },
+    {
       icon: "musical-notes-outline" as const,
       label: latestLibraryFile ? latestLibraryFile.name : "No Uploads Yet",
-      sublabel: latestLibraryFile
-        ? `Latest · ${latestLibraryFile.ext}`
-        : "Nothing yet",
+      sublabel: latestLibraryFile ? `Latest · ${latestLibraryFile.ext}` : "Nothing yet",
       onPress: onLatestFile,
-      bgColor: RED + "15",
-      borderColor: RED,
-      iconColor: RED,
+      bg: "#7c5cbf",
+      decor: "🎶",
       badge: latestLibraryFile ? "NEW" : (null as string | null),
       disabled: !latestLibraryFile,
     },
@@ -681,39 +701,30 @@ function SingerShortcuts({
       label: unreadMessages > 0 ? `${unreadMessages} Unread` : "Messages",
       sublabel: unreadMessages > 0 ? "Tap to read now" : "No new messages",
       onPress: onMessages,
-      bgColor: TEAL + "15",
-      borderColor: TEAL,
-      iconColor: TEAL,
-      badge:
-        unreadMessages > 0 ? String(unreadMessages) : (null as string | null),
+      bg: "#0891b2",
+      decor: "💬",
+      badge: unreadMessages > 0 ? String(unreadMessages) : (null as string | null),
       disabled: false,
     },
     {
       icon: "people-outline" as const,
-      label: voiceType
-        ? `${voiceType.charAt(0).toUpperCase() + voiceType.slice(1)} Group`
-        : "My Voice Group",
+      label: voiceType ? `${voiceType.charAt(0).toUpperCase() + voiceType.slice(1)} Group` : "My Voice Group",
       sublabel: "See your section",
       onPress: onVoiceGroup,
-      bgColor: AMBER + "20",
-      borderColor: AMBER,
-      iconColor: AMBER,
+      bg: "#3730a3",
+      decor: "🎤",
       badge: null as string | null,
       disabled: false,
     },
     {
-      icon: "notifications-outline" as const,
-      label: latestNotif ? latestNotif.title : "Announcements",
-      sublabel: latestNotif
-        ? latestNotif.body.slice(0, 35) +
-          (latestNotif.body.length > 35 ? "…" : "")
-        : "Nothing new",
-      onPress: onLatestNotif,
-      bgColor: RED + "15",
-      borderColor: RED,
-      iconColor: RED,
+      icon: "library-outline" as const,
+      label: "Music Library",
+      sublabel: "Open the library",
+      onPress: onLatestFile,
+      bg: "#9f2d20",
+      decor: "🎵",
       badge: null as string | null,
-      disabled: !latestNotif,
+      disabled: false,
     },
   ];
 
@@ -721,43 +732,35 @@ function SingerShortcuts({
     <>
       <Text style={st.sectionLabel}>Quick Access</Text>
       <View style={st.shortcutsGrid}>
-        {shortcuts.map((s, i) => (
+        {cards.map((card, i) => (
           <Pressable
             key={i}
             style={[
               st.shortcutCard,
-              {
-                backgroundColor: s.bgColor,
-                borderColor: s.borderColor,
-                opacity: s.disabled ? 0.5 : 1,
-              },
+              { backgroundColor: card.bg, opacity: card.disabled ? 0.55 : 1 },
             ]}
-            onPress={s.disabled ? undefined : s.onPress}
+            onPress={card.disabled ? undefined : card.onPress}
+            android_ripple={{ color: "rgba(255,255,255,0.2)" }}
           >
+            {/* Decorative emoji — big, top-right */}
+            <Text style={st.shortcutDecor}>{card.decor}</Text>
+
+            {/* Icon + optional badge */}
             <View style={st.shortcutTop}>
-              <View
-                style={[
-                  st.shortcutIconCircle,
-                  { backgroundColor: s.iconColor + "20" },
-                ]}
-              >
-                <Ionicons name={s.icon} size={22} color={s.iconColor} />
+              <View style={st.shortcutIconWrap}>
+                <Ionicons name={card.icon} size={22} color="rgba(255,255,255,0.9)" />
               </View>
-              {s.badge && (
-                <View
-                  style={[st.shortcutBadge, { backgroundColor: s.borderColor }]}
-                >
-                  <Text style={st.shortcutBadgeText}>{s.badge}</Text>
+              {card.badge && (
+                <View style={st.shortcutBadge}>
+                  <Text style={st.shortcutBadgeText}>{card.badge}</Text>
                 </View>
               )}
             </View>
-            <View>
-              <Text style={st.shortcutLabel} numberOfLines={1}>
-                {s.label}
-              </Text>
-              <Text style={st.shortcutSub} numberOfLines={1}>
-                {s.sublabel}
-              </Text>
+
+            {/* Text at the bottom */}
+            <View style={st.shortcutBottom}>
+              <Text style={st.shortcutLabel} numberOfLines={2}>{card.label}</Text>
+              <Text style={st.shortcutSub} numberOfLines={1}>{card.sublabel}</Text>
             </View>
           </Pressable>
         ))}
@@ -768,121 +771,148 @@ function SingerShortcuts({
 
 // ── Singer leaderboard component ──────────────────────────────────────────────
 
+// Podium colours matching the full leaderboard page
+const GOLD_C   = "#f59e0b";
+const SILVER_C = "#94a3b8";
+const BRONZE_C = "#cd7c3a";
+
 function SingerLeaderboard({
   leaderboard,
   myUid,
   myPoints,
   myRank,
 }: {
-  leaderboard: {
-    uid: string;
-    name: string;
-    voice_type: string;
-    points: number;
-  }[];
+  leaderboard: { uid: string; name: string; voice_type: string; points: number }[];
   myUid: string;
   myPoints: number;
   myRank: number | null;
 }) {
-  const podiumEmojis = ["🥇", "🥈", "🥉"];
-  const voiceEmoji: Record<string, string> = {
-    soprano: "🎤",
-    alto: "🎶",
-    tenor: "🎺",
-    bass: "🥁",
-  };
-  const top3 = leaderboard.slice(0, 3);
-  const isInTop3 = myRank !== null && myRank <= 3;
+  const router = useRouter();
+
+  // Order for the podium display: 2nd | 1st | 3rd
+  const slots = [
+    { entry: leaderboard[1] ?? null, rank: 2, color: SILVER_C, blockH: 60,  avatarS: 44 },
+    { entry: leaderboard[0] ?? null, rank: 1, color: GOLD_C,   blockH: 84,  avatarS: 56 },
+    { entry: leaderboard[2] ?? null, rank: 3, color: BRONZE_C, blockH: 46,  avatarS: 40 },
+  ];
+  const medals = ["🥇", "🥈", "🥉"];
+  const hasAny = leaderboard.length > 0;
 
   return (
     <>
       <Text style={st.sectionLabel}>🏅 Weekly Leaderboard</Text>
-      <View style={st.lbCard}>
+      <Pressable
+        style={st.lbCard}
+        onPress={() => router.push("/leaderboard" as any)}
+        android_ripple={{ color: AMBER + "20" }}
+      >
+        {/* ── Header ────────────────────────────────────────────────── */}
         <View style={st.lbHeader}>
-          <Ionicons name="trophy" size={16} color={AMBER} />
-          <Text style={st.lbHeaderText}>Top Singers This Week</Text>
-          <Text style={st.lbHeaderSub}>Resets every Monday</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={{ fontSize: 18 }}>🏆</Text>
+            <Text style={st.lbHeaderText}>Top Singers This Week</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+            <Text style={st.lbViewAll}>See all</Text>
+            <Ionicons name="chevron-forward" size={13} color={TEAL} />
+          </View>
         </View>
 
-        {top3.length === 0 ? (
+        {/* ── Podium ────────────────────────────────────────────────── */}
+        {!hasAny ? (
           <View style={st.lbEmpty}>
-            <Text style={st.lbEmptyText}>
-              🎵 No rankings yet — be the first!
-            </Text>
+            <Text style={{ fontSize: 36 }}>🎤</Text>
+            <Text style={st.lbEmptyText}>Be the first on the board!</Text>
           </View>
         ) : (
-          top3.map((entry, i) => (
-            <View
-              key={entry.uid}
-              style={[
-                st.lbRow,
-                entry.uid === myUid && st.lbRowHighlight,
-                i === 0 && st.lbRowFirst,
-              ]}
-            >
-              <Text style={st.lbPodium}>{podiumEmojis[i]}</Text>
-              <View style={st.lbAvatar}>
-                <Text style={st.lbAvatarText}>
-                  {entry.name?.charAt(0)?.toUpperCase() ?? "?"}
-                </Text>
-              </View>
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={st.lbName} numberOfLines={1}>
-                  {entry.uid === myUid ? "You 🌟" : entry.name}
-                </Text>
-                <Text style={st.lbVoice}>
-                  {voiceEmoji[entry.voice_type?.toLowerCase()] ?? "🎵"}{" "}
-                  {entry.voice_type ?? ""}
-                </Text>
-              </View>
-              <View style={st.lbPointsBadge}>
-                <Text style={st.lbPointsText}>{entry.points ?? 0}</Text>
-                <Text style={st.lbPointsLabel}>pts</Text>
-              </View>
+          <View style={st.lbPodiumWrap}>
+            <View style={st.lbPodiumRow}>
+              {slots.map((slot, i) => {
+                const isMe = slot.entry?.uid === myUid;
+                return (
+                  <View key={i} style={st.lbPodiumCol}>
+                    {/* Avatar + info above block */}
+                    {slot.entry ? (
+                      <View style={st.lbPodiumTop}>
+                        {isMe && (
+                          <View style={st.lbYouTag}>
+                            <Text style={st.lbYouTagText}>YOU ⭐</Text>
+                          </View>
+                        )}
+                        <View
+                          style={[
+                            st.lbAvatar,
+                            {
+                              width: slot.avatarS,
+                              height: slot.avatarS,
+                              borderRadius: slot.avatarS / 2,
+                              borderColor: slot.color,
+                              borderWidth: slot.rank === 1 ? 3 : 2,
+                            },
+                          ]}
+                        >
+                          <Text style={[st.lbAvatarText, { fontSize: slot.avatarS * 0.36 }]}>
+                            {slot.entry.name?.charAt(0)?.toUpperCase() ?? "?"}
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize: slot.rank === 1 ? 22 : 18 }}>
+                          {medals[slot.rank - 1]}
+                        </Text>
+                        <Text style={st.lbPodiumName} numberOfLines={1}>
+                          {isMe ? "You!" : slot.entry.name?.split(" ")[0]}
+                        </Text>
+                        <Text style={[st.lbPodiumPts, { color: slot.color }]}>
+                          {slot.entry.points ?? 0} pts
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={[st.lbPodiumTop, { opacity: 0.35 }]}>
+                        <View
+                          style={[
+                            st.lbAvatar,
+                            { width: slot.avatarS, height: slot.avatarS, borderRadius: slot.avatarS / 2, borderColor: "#ccc" },
+                          ]}
+                        >
+                          <Text style={{ fontSize: 18 }}>?</Text>
+                        </View>
+                        <Text style={{ fontSize: 18 }}>{medals[slot.rank - 1]}</Text>
+                      </View>
+                    )}
+
+                    {/* Podium block */}
+                    <View
+                      style={[
+                        st.lbPodiumBlock,
+                        { height: slot.blockH, backgroundColor: slot.color },
+                        slot.rank === 1 && st.lbPodiumBlockFirst,
+                      ]}
+                    >
+                      <Text style={st.lbPodiumBlockNum}>#{slot.rank}</Text>
+                    </View>
+                  </View>
+                );
+              })}
             </View>
-          ))
+            <View style={st.lbPodiumBase} />
+          </View>
         )}
 
-        {!isInTop3 && (
-          <>
-            <View style={st.lbDivider} />
-            <View style={[st.lbRow, st.lbRowHighlight]}>
-              <Text style={st.lbPodium}>#{myRank ?? "?"}</Text>
-              <View
-                style={[
-                  st.lbAvatar,
-                  { backgroundColor: TEAL + "30", borderColor: TEAL },
-                ]}
-              >
-                <Text style={[st.lbAvatarText, { color: TEAL }]}>You</Text>
-              </View>
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={st.lbName}>Your Ranking</Text>
-                <Text style={st.lbVoice}>Keep going! 💪</Text>
-              </View>
-              <View
-                style={[
-                  st.lbPointsBadge,
-                  { backgroundColor: TEAL + "18", borderColor: TEAL },
-                ]}
-              >
-                <Text style={[st.lbPointsText, { color: TEAL }]}>
-                  {myPoints}
-                </Text>
-                <Text style={[st.lbPointsLabel, { color: TEAL }]}>pts</Text>
-              </View>
-            </View>
-          </>
-        )}
-
-        <View style={st.lbHowTo}>
-          <Text style={st.lbHowToTitle}>How to earn points:</Text>
-          <Text style={st.lbHowToRow}>✅ Register for event +10 pts</Text>
-          <Text style={st.lbHowToRow}>📝 Submit a form +5 pts</Text>
-          <Text style={st.lbHowToRow}>🎵 Open library file +5 pts</Text>
-          <Text style={st.lbHowToRow}>🔥 Attendance streak +15 pts</Text>
+        {/* ── My rank strip ─────────────────────────────────────────── */}
+        <View style={st.lbMyRank}>
+          <Text style={st.lbMyRankText}>
+            {myRank ? `⭐ Your rank: #${myRank}` : "Complete challenges to rank up!"}
+          </Text>
+          <View style={[st.lbPointsBadge, { backgroundColor: TEAL + "18", borderColor: TEAL }]}>
+            <Text style={[st.lbPointsText, { color: TEAL }]}>{myPoints}</Text>
+            <Text style={[st.lbPointsLabel, { color: TEAL }]}>pts</Text>
+          </View>
         </View>
-      </View>
+
+        {/* ── Tap hint ──────────────────────────────────────────────── */}
+        <View style={st.lbTapHint}>
+          <Text style={st.lbTapHintText}>🎯 Tap for full rankings & challenges</Text>
+        </View>
+      </Pressable>
     </>
   );
 }
@@ -922,6 +952,7 @@ export default function DashboardScreen() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myPoints, setMyPoints] = useState(0);
   const [myRank, setMyRank] = useState<number | null>(null);
+  const [activeChallenges, setActiveChallenges] = useState<{ label: string; points: number }[]>([]);
 
   const now = new Date();
   const upcomingEvents = eventList
@@ -1128,6 +1159,22 @@ export default function DashboardScreen() {
     return unsub;
   }, [user?.uid, user?.role]);
 
+  // Live active challenges — singer only
+  useEffect(() => {
+    if (!user?.uid || user?.role !== "singer") return;
+    const unsub = onSnapshot(doc(db, "leaderboard_config", "active"), (snap) => {
+      if (snap.exists()) {
+        const all: any[] = (snap.data() as any).challenges ?? [];
+        setActiveChallenges(
+          all.filter((c) => c.active).map((c) => ({ label: c.label, points: c.points ?? 0 })),
+        );
+      } else {
+        setActiveChallenges([]);
+      }
+    });
+    return unsub;
+  }, [user?.uid, user?.role]);
+
   // ── Live sync: singer's awarded achievements update in real time ──────────
   useEffect(() => {
     if (!user || isAdmin) return;
@@ -1178,34 +1225,11 @@ export default function DashboardScreen() {
           contentContainerStyle={st.scroll}
           showsVerticalScrollIndicator={false}
         >
-          {/* ── Quick-access icon row ────────────────────────────────── */}
-          <View style={st.dashActionsBar}>
-            <View style={st.dashGreeting}>
-              <Text style={st.dashWelcome}>Welcome back</Text>
-              <Text style={st.dashName}>{user?.full_name ?? "Admin"}</Text>
-              <Text style={st.dashDate}>{todayString()}</Text>
-            </View>
-            <View style={st.dashIcons}>
-              <Pressable
-                onPress={() => router.push("/(tabs)/messages" as any)}
-                style={st.dashIconBtn}
-                hitSlop={8}
-              >
-                <Ionicons name="chatbubbles-outline" size={22} color={TEAL} />
-              </Pressable>
-              <NotificationBell
-                unreadCount={unreadNotifs}
-                color={TEAL}
-                onPress={() => router.push("/(tabs)/notifications" as any)}
-              />
-              <Pressable onPress={() => router.push("/profile" as any)}>
-                <View style={st.avatar}>
-                  <Text style={st.avatarText}>
-                    {user?.full_name?.charAt(0) ?? "A"}
-                  </Text>
-                </View>
-              </Pressable>
-            </View>
+          {/* ── Greeting ─────────────────────────────────────────────── */}
+          <View style={st.dashGreeting}>
+            <Text style={st.dashWelcome}>Welcome back</Text>
+            <Text style={st.dashName}>{user?.full_name ?? "Admin"}</Text>
+            <Text style={st.dashDate}>{todayString()}</Text>
           </View>
 
           {/* ── Section 1: Action Items ──────────────────────────────── */}
@@ -1380,29 +1404,6 @@ export default function DashboardScreen() {
         contentContainerStyle={st.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Singer icon row ──────────────────────────────────────────── */}
-        <View style={st.singerActionsBar}>
-          <Pressable
-            onPress={() => router.push("/(tabs)/messages" as any)}
-            style={st.dashIconBtn}
-            hitSlop={8}
-          >
-            <Ionicons name="chatbubbles-outline" size={22} color={TEAL} />
-          </Pressable>
-          <NotificationBell
-            unreadCount={unreadNotifs}
-            color={TEAL}
-            onPress={() => router.push("/(tabs)/notifications" as any)}
-          />
-          <Pressable onPress={() => router.push("/profile" as any)}>
-            <View style={st.avatar}>
-              <Text style={st.avatarText}>
-                {user?.full_name?.charAt(0) ?? "S"}
-              </Text>
-            </View>
-          </Pressable>
-        </View>
-
         {/* ── A: Hero Welcome Card ───────────────────────────────────── */}
         <SingerHeroCard
           firstName={firstName}
@@ -1883,35 +1884,65 @@ const st = StyleSheet.create({
     backgroundColor: TEAL,
     borderRadius: 20,
     padding: 20,
+    paddingBottom: 16,
     marginBottom: 12,
     shadowColor: TEAL,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    elevation: 8,
+    overflow: "hidden" as const,
+  },
+  heroDecor1: {
+    position: "absolute" as const,
+    top: 10,
+    right: 60,
+    fontSize: 52,
+    color: "rgba(255,255,255,0.08)",
+    pointerEvents: "none" as const,
+  },
+  heroDecor2: {
+    position: "absolute" as const,
+    top: 28,
+    right: 14,
+    fontSize: 32,
+    color: "rgba(255,255,255,0.12)",
+    pointerEvents: "none" as const,
+  },
+  heroDecor3: {
+    position: "absolute" as const,
+    bottom: 8,
+    right: 20,
+    fontSize: 44,
+    color: "rgba(255,255,255,0.07)",
+    pointerEvents: "none" as const,
   },
   singerHeroRow: {
     flexDirection: "row" as const,
     alignItems: "flex-start" as const,
     justifyContent: "space-between" as const,
+    marginBottom: 4,
   },
   singerHeroGreeting: {
     fontSize: 13,
     color: "rgba(255,255,255,0.8)",
     fontWeight: "600" as const,
+    marginBottom: 2,
   },
   singerHeroName: {
-    fontSize: 28,
+    fontSize: 34,
     fontWeight: "900" as const,
     color: "#fff",
-    marginTop: 2,
+    lineHeight: 38,
   },
   singerVoiceBadge: {
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255,255,255,0.22)",
     borderRadius: 20,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     alignItems: "center" as const,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
   },
   singerVoiceBadgeText: {
     fontSize: 12,
@@ -1920,41 +1951,110 @@ const st = StyleSheet.create({
   },
   singerHeroDivider: {
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    marginVertical: 14,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    marginVertical: 12,
   },
-  singerHeroChipsRow: { flexDirection: "row" as const, gap: 12 },
+  singerHeroChipsRow: {
+    flexDirection: "row" as const,
+    alignItems: "flex-start" as const,
+  },
   singerHeroChip: {
     flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 6,
+    alignItems: "flex-start" as const,
+    gap: 5,
     flex: 1,
   },
+  singerHeroChipIcon: { fontSize: 13 },
   singerHeroChipText: {
     fontSize: 12,
-    color: "#fff",
-    fontWeight: "700" as const,
+    color: "rgba(255,255,255,0.92)",
+    fontWeight: "600" as const,
     flexShrink: 1,
+    lineHeight: 16,
+  },
+  singerHeroChipSep: {
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    marginHorizontal: 10,
+    alignSelf: "stretch" as const,
   },
 
-  // ── Singer Badges Row
-  singerBadgesScroll: { paddingBottom: 8 },
-  singerBadgeCard: {
-    width: 100,
-    marginRight: 10,
-    borderRadius: 16,
-    padding: 12,
-    alignItems: "center" as const,
-    gap: 4,
+  // ── Achievements Section ──────────────────────────────────────────
+  achSection: {
+    marginBottom: 14,
   },
-  singerBadgeEmoji: { fontSize: 28 },
+  achHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 10,
+    marginBottom: 10,
+  },
+  achHeaderEmoji: { fontSize: 26 },
+  achHeaderTitle: {
+    fontSize: 13,
+    fontWeight: "900" as const,
+    color: DARK,
+    letterSpacing: 0.6,
+  },
+  achHeaderSub: { fontSize: 10, color: MUTED, fontWeight: "600" as const, marginTop: 1 },
+  achCountBadge: {
+    flexDirection: "row" as const,
+    alignItems: "baseline" as const,
+    backgroundColor: AMBER + "20",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1.5,
+    borderColor: AMBER,
+  },
+  achCountText: { fontSize: 18, fontWeight: "900" as const, color: AMBER },
+  achCountSlash: { fontSize: 12, fontWeight: "700" as const, color: AMBER + "99" },
+  singerBadgesScroll: { paddingBottom: 4, paddingRight: 4 },
+  singerBadgeCard: {
+    width: 110,
+    marginRight: 10,
+    borderRadius: 20,
+    padding: 14,
+    alignItems: "center" as const,
+    gap: 5,
+    overflow: "hidden" as const,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  singerBadgeCardLocked: {
+    backgroundColor: "#e8ecf0",
+    shadowColor: "transparent",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  achCardDecor: {
+    position: "absolute" as const,
+    top: 6,
+    right: 8,
+    fontSize: 22,
+    color: "rgba(255,255,255,0.25)",
+  },
+  achLockWrap: {
+    position: "absolute" as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center" as const,
+    justifyContent: "flex-end" as const,
+    paddingBottom: 8,
+  },
+  singerBadgeEmoji: { fontSize: 32 },
   singerBadgeLabel: {
     fontSize: 11,
-    fontWeight: "800" as const,
+    fontWeight: "900" as const,
     textAlign: "center" as const,
+    color: "#fff",
   },
-  singerBadgeSub: { fontSize: 9, color: MUTED, textAlign: "center" as const },
-  singerBadgeLock: { fontSize: 10 },
+  singerBadgeSub: { fontSize: 9, textAlign: "center" as const },
+  singerBadgeLock: { fontSize: 16 },
 
   // ── Singer Quick Grid
   singerQuickGrid: {
@@ -2021,102 +2121,163 @@ const st = StyleSheet.create({
   shortcutsGrid: {
     flexDirection: "row" as const,
     flexWrap: "wrap" as const,
-    gap: 8,
+    gap: 10,
     marginBottom: 12,
   },
   shortcutCard: {
     width: "47%" as any,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    padding: 14,
-    minHeight: 90,
+    borderRadius: 20,
+    padding: 16,
+    minHeight: 120,
     justifyContent: "space-between" as const,
+    overflow: "hidden" as const,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  shortcutDecor: {
+    position: "absolute" as const,
+    top: 6,
+    right: 10,
+    fontSize: 52,
+    opacity: 0.22,
+    pointerEvents: "none" as const,
   },
   shortcutTop: {
-    position: "relative" as const,
-    alignSelf: "flex-start" as const,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
   },
-  shortcutIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  shortcutIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center" as const,
     justifyContent: "center" as const,
   },
   shortcutBadge: {
-    position: "absolute" as const,
-    top: -4,
-    right: -4,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    minWidth: 22,
+    height: 22,
     alignItems: "center" as const,
     justifyContent: "center" as const,
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
   },
-  shortcutBadgeText: { fontSize: 9, fontWeight: "900" as const, color: "#fff" },
+  shortcutBadgeText: { fontSize: 10, fontWeight: "900" as const, color: DARK },
+  shortcutBottom: { gap: 2 },
   shortcutLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "800" as const,
-    color: DARK,
-    marginTop: 8,
+    color: "#fff",
+    lineHeight: 18,
   },
-  shortcutSub: { fontSize: 10, color: SUB, marginTop: 2 },
+  shortcutSub: { fontSize: 11, color: "rgba(255,255,255,0.75)", fontWeight: "500" as const },
 
-  // ── Leaderboard Card
+  // ── Leaderboard Widget ────────────────────────────────────────────
   lbCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: BORDER,
+    borderRadius: 22,
     overflow: "hidden" as const,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-    marginBottom: 4,
+    shadowColor: AMBER,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    elevation: 5,
+    marginBottom: 12,
   },
   lbHeader: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
-    gap: 8,
-    padding: 14,
-    paddingBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: BORDER,
+    justifyContent: "space-between" as const,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8,
   },
-  lbHeaderText: {
-    fontSize: 13,
-    fontWeight: "800" as const,
-    color: DARK,
-    flex: 1,
+  lbHeaderText: { fontSize: 14, fontWeight: "900" as const, color: DARK },
+  lbViewAll: { fontSize: 12, fontWeight: "700" as const, color: TEAL },
+  lbPodiumWrap: {
+    paddingHorizontal: 10,
+    paddingTop: 4,
+    backgroundColor: "#fafbff",
   },
-  lbHeaderSub: { fontSize: 10, color: MUTED },
-  lbRow: {
+  lbPodiumRow: {
     flexDirection: "row" as const,
-    alignItems: "center" as const,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: BORDER,
+    alignItems: "flex-end" as const,
+    height: 200,
+    gap: 6,
   },
-  lbRowFirst: { backgroundColor: AMBER + "08" },
-  lbRowHighlight: { backgroundColor: TEAL + "08" },
-  lbPodium: { fontSize: 18, width: 28, textAlign: "center" as const },
-  lbAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: AMBER + "30",
-    borderWidth: 1.5,
-    borderColor: AMBER,
+  lbPodiumCol: {
+    flex: 1,
+    alignItems: "center" as const,
+    justifyContent: "flex-end" as const,
+  },
+  lbPodiumTop: {
+    alignItems: "center" as const,
+    gap: 2,
+    marginBottom: 4,
+  },
+  lbYouTag: {
+    backgroundColor: TEAL + "20",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginBottom: 2,
+  },
+  lbYouTagText: { fontSize: 8, fontWeight: "900" as const, color: TEAL },
+  lbPodiumBlock: {
+    width: "100%" as any,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
     alignItems: "center" as const,
     justifyContent: "center" as const,
   },
-  lbAvatarText: { fontSize: 14, fontWeight: "800" as const, color: AMBER },
-  lbName: { fontSize: 13, fontWeight: "700" as const, color: DARK },
-  lbVoice: { fontSize: 10, color: SUB, marginTop: 1 },
+  lbPodiumBlockFirst: {
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+  },
+  lbPodiumBlockNum: {
+    fontSize: 16,
+    fontWeight: "900" as const,
+    color: "rgba(255,255,255,0.65)",
+  },
+  lbPodiumBase: {
+    height: 8,
+    backgroundColor: "#e2e8f0",
+    borderBottomLeftRadius: 6,
+    borderBottomRightRadius: 6,
+  },
+  lbPodiumName: {
+    fontSize: 11,
+    fontWeight: "800" as const,
+    color: DARK,
+    textAlign: "center" as const,
+  },
+  lbPodiumPts: { fontSize: 10, fontWeight: "700" as const },
+  lbAvatar: {
+    backgroundColor: AMBER + "30",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  lbAvatarText: { fontWeight: "900" as const, color: DARK },
+  lbMyRank: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: BORDER,
+  },
+  lbMyRankText: { fontSize: 12, fontWeight: "700" as const, color: DARK },
   lbPointsBadge: {
     alignItems: "center" as const,
     justifyContent: "center" as const,
@@ -2127,23 +2288,20 @@ const st = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  lbPointsText: { fontSize: 16, fontWeight: "900" as const, color: AMBER },
+  lbPointsText: { fontSize: 15, fontWeight: "900" as const, color: AMBER },
   lbPointsLabel: { fontSize: 8, fontWeight: "700" as const, color: AMBER },
-  lbDivider: { height: 1, backgroundColor: BORDER, marginHorizontal: 14 },
-  lbEmpty: { padding: 20, alignItems: "center" as const },
-  lbEmptyText: { fontSize: 13, color: MUTED, fontWeight: "600" as const },
-  lbHowTo: {
-    padding: 14,
-    paddingTop: 10,
+  lbTapHint: {
+    paddingVertical: 9,
+    alignItems: "center" as const,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: BORDER,
-    gap: 3,
+    backgroundColor: TEAL + "08",
   },
-  lbHowToTitle: {
-    fontSize: 11,
-    fontWeight: "800" as const,
-    color: SUB,
-    marginBottom: 4,
+  lbTapHintText: { fontSize: 11, color: TEAL, fontWeight: "700" as const },
+  lbEmpty: {
+    padding: 24,
+    alignItems: "center" as const,
+    gap: 6,
   },
-  lbHowToRow: { fontSize: 11, color: MUTED },
+  lbEmptyText: { fontSize: 13, color: MUTED, fontWeight: "700" as const },
 });

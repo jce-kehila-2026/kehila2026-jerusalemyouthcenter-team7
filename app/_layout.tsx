@@ -69,6 +69,8 @@ function RootLayoutNav() {
         />
         <Stack.Screen name="statistics" options={{ headerShown: false }} />
         <Stack.Screen name="manage-years" options={{ headerShown: false }} />
+        <Stack.Screen name="manage-leaderboard" options={{ headerShown: false }} />
+        <Stack.Screen name="leaderboard" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
