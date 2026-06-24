@@ -64,11 +64,11 @@ export const messageService = {
   },
 
   async send(data: Omit<FirestoreMsg, "id">): Promise<void> {
-    await addDoc(collection(db, "messages"), {
-      ...data,
-      timestamp: new Date().toISOString(),
-      is_read: false,
-    });
+    const payload = Object.fromEntries(
+      Object.entries({ ...data, timestamp: new Date().toISOString(), is_read: false })
+        .filter(([, v]) => v !== undefined),
+    );
+    await addDoc(collection(db, "messages"), payload);
   },
 
   async markRead(messageId: string): Promise<void> {
