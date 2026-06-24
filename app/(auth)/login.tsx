@@ -250,6 +250,17 @@ export default function LoginScreen() {
               onBlur={() => setFocused(null)}
             />
 
+            {role === "singer" ? (
+              <Pressable
+                style={s.forgotRow}
+                onPress={() =>
+                  router.push("/(auth)/forgot-password" as any)
+                }
+              >
+                <Text style={s.forgotTxt}>Did you forget your password?</Text>
+              </Pressable>
+            ) : null}
+
             <Pressable
               style={({ pressed }) => [
                 s.btn,
@@ -412,4 +423,6 @@ const s = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
   },
+  forgotRow: { alignItems: "flex-end", marginTop: -8, marginBottom: 16 },
+  forgotTxt: { fontSize: 13, fontWeight: "600", color: COLORS.teal },
 });

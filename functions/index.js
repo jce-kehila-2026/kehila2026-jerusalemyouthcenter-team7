@@ -1,5 +1,5 @@
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
-const { onRequest } = require("firebase-functions/v2/https");
+const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
 const { google } = require("googleapis");
 const path = require("path");
 const admin = require("firebase-admin");
@@ -283,4 +283,67 @@ exports.deleteGoogleCalendarEvent = onRequest(async (req, res) => {
     console.error("deleteGoogleCalendarEvent error:", err);
     res.status(500).json({ error: "Failed to delete Google Calendar event" });
   }
+});
+
+// Generates all plausible Firestore storage variants for a Firebase phone
+// auth E.164 phone number (e.g. "+972501234567").
+function phoneVariants(e164) {
+  const digits = e164.replace(/\D/g, ""); // "972501234567"
+  const local = digits.startsWith("972") ? `0${digits.slice(3)}` : digits;
+  return [
+    e164,           // "+972501234567"  — what signup stores
+    local,          // "0501234567"     — legacy entries without country code
+    `+${digits}`,   // "+972501234567"  — same as e164 but derived independently
+  ].filter((v, i, arr) => arr.indexOf(v) === i); // dedupe
+}
+
+// Callable function invoked by the app after a successful phone OTP
+// verification. Accepts the phone-auth idToken (proof of phone ownership)
+// and the desired new password, then updates the singer's Firebase Auth
+// password via the Admin SDK — something impossible from the client alone.
+exports.resetUserPassword = onCall(async (request) => {
+  const { idToken, newPassword } = request.data || {};
+
+  if (!idToken || typeof idToken !== "string") {
+    throw new HttpsError("invalid-argument", "Missing verification token.");
+  }
+  if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
+    throw new HttpsError("invalid-argument", "Password must be at least 6 characters.");
+  }
+
+  // Verify the phone-auth idToken — this proves the OTP was correctly entered.
+  let decoded;
+  try {
+    decoded = await admin.auth().verifyIdToken(idToken);
+  } catch (e) {
+    throw new HttpsError("unauthenticated", "Verification token is invalid or expired.");
+  }
+
+  const phoneNumber = decoded.phone_number;
+  if (!phoneNumber) {
+    throw new HttpsError("unauthenticated", "Token does not contain a phone number.");
+  }
+
+  // Find the singer's Firestore document by phone (trying format variants).
+  const variants = phoneVariants(phoneNumber);
+  let uid = null;
+  for (const variant of variants) {
+    const snap = await db
+      .collection("users")
+      .where("phone", "==", variant)
+      .limit(1)
+      .get();
+    if (!snap.empty) {
+      uid = snap.docs[0].data().uid;
+      break;
+    }
+  }
+
+  if (!uid) {
+    throw new HttpsError("not-found", "No account found for this phone number.");
+  }
+
+  // Update the singer's Firebase Auth password.
+  await admin.auth().updateUser(uid, { password: newPassword });
+  return { success: true };
 });

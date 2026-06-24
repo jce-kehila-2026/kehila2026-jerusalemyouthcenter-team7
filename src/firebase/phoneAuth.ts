@@ -28,3 +28,18 @@ export async function confirmOtp(
   await signOut(getAuth(getApp()));
   return true;
 }
+
+// Like confirmOtp but returns the phone-auth idToken before signing out.
+// Used by the forgot-password flow: the token is sent to the
+// resetUserPassword Cloud Function as proof that the OTP was correct,
+// allowing the server to update the singer's email-based Firebase Auth
+// password via the Admin SDK.
+export async function confirmOtpAndGetToken(
+  confirmation: FirebaseAuthTypes.ConfirmationResult,
+  code: string,
+): Promise<string> {
+  const result = await confirmation.confirm(code);
+  const idToken = await result.user.getIdToken();
+  await signOut(getAuth(getApp()));
+  return idToken;
+}
