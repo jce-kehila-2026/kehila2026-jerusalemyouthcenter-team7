@@ -52,6 +52,7 @@ type ThreadMsg = {
   fromMe: boolean;
   senderName: string;
   reactions?: Record<string, string>;
+  replyTo?: { id: string; content: string; senderName: string; type: string };
   is_read: boolean;
 };
 
@@ -96,6 +97,7 @@ function groupConversations(
       fromMe,
       senderName: msg.sender_name,
       reactions: msg.reactions,
+      replyTo: msg.reply_to ? { ...msg.reply_to, senderName: msg.reply_to.sender_name } : undefined,
       is_read: msg.is_read,
     });
 
@@ -266,6 +268,7 @@ export default function MessagesScreen() {
             fromMe: m.sender_id === currentUid,
             senderName: m.sender_name,
             reactions: m.reactions,
+            replyTo: m.reply_to ? { ...m.reply_to, senderName: m.reply_to.sender_name } : undefined,
             is_read: m.is_read,
           };
         });
@@ -310,6 +313,7 @@ export default function MessagesScreen() {
             fromMe: m.sender_id === currentUid,
             senderName: m.sender_name,
             reactions: m.reactions,
+            replyTo: m.reply_to ? { ...m.reply_to, senderName: m.reply_to.sender_name } : undefined,
             is_read: true,
           } as ThreadMsg;
         })
@@ -401,9 +405,16 @@ export default function MessagesScreen() {
         receiver_name: activeConv.otherName,
         content: text,
         type: "text",
-        // ISO string keeps ordering stable while the write is pending locally
         timestamp: new Date().toISOString(),
         is_read: false,
+        ...(replyingTo ? {
+          reply_to: {
+            id: replyingTo.id,
+            content: replyingTo.content,
+            sender_name: replyingTo.senderName,
+            type: replyingTo.type,
+          },
+        } : {}),
       });
 
       await notificationService.create({
@@ -1455,6 +1466,21 @@ export default function MessagesScreen() {
                           msg.type !== "text" && { padding: 6 },
                         ]}
                       >
+                        {/* REPLY QUOTE */}
+                        {msg.replyTo && (
+                          <View style={[
+                            styles.replyQuote,
+                            msg.fromMe ? styles.replyQuoteSent : styles.replyQuoteReceived,
+                          ]}>
+                            <Text style={[styles.replyQuoteName, { color: msg.fromMe ? "rgba(255,255,255,0.85)" : AppColors.primary }]}>
+                              {msg.replyTo.senderName}
+                            </Text>
+                            <Text style={[styles.replyQuoteText, { color: msg.fromMe ? "rgba(255,255,255,0.75)" : theme.subtext }]} numberOfLines={2}>
+                              {msg.replyTo.type === "text" ? msg.replyTo.content : `[${msg.replyTo.type}]`}
+                            </Text>
+                          </View>
+                        )}
+
                         {/* TEXT */}
                         {(msg.type === "text" || !msg.type) && (
                           <>
@@ -2661,6 +2687,24 @@ const styles = StyleSheet.create({
   },
   reactionEmoji: { fontSize: 14 },
   reactionCount: { fontSize: 11, fontWeight: "700", color: "#555" },
+
+  // Reply quote inside bubble
+  replyQuote: {
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 6,
+    borderLeftWidth: 3,
+  },
+  replyQuoteSent: {
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderLeftColor: "rgba(255,255,255,0.6)",
+  },
+  replyQuoteReceived: {
+    backgroundColor: AppColors.primary + "12",
+    borderLeftColor: AppColors.primary,
+  },
+  replyQuoteName: { fontSize: 11, fontWeight: "700", marginBottom: 2 },
+  replyQuoteText: { fontSize: 12, lineHeight: 16 },
 
   // Reply preview bar
   replyPreview: {
