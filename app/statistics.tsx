@@ -7,10 +7,20 @@ import {
   STAT_YEARS,
   YEARLY_TOTALS,
 } from "@/src/data/statsData";
+import {
+  type FormMeta,
+  type FormQuestionResult,
+  type FormResult,
+  getAttendanceStats,
+  getFormResults,
+  getForms,
+  getProgramStudents,
+} from "@/src/data/statsService";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -327,6 +337,67 @@ function DonutChart({
   );
 }
 
+// ── Chart: Form question result ────────────────────────────────────────────────
+function FormQuestionChart({
+  result,
+  chartWidth,
+}: {
+  result: FormQuestionResult;
+  chartWidth: number;
+}) {
+  const { answerType, counts, totalResponses } = result;
+
+  if (answerType === "text") {
+    return (
+      <View style={{ alignItems: "center", paddingVertical: 10 }}>
+        <Text style={{ fontSize: 22, fontWeight: "900", color: COLORS.text }}>
+          {totalResponses}
+        </Text>
+        <Text style={{ fontSize: 11, color: COLORS.muted }}>
+          text responses
+        </Text>
+      </View>
+    );
+  }
+
+  const entries =
+    answerType === "range"
+      ? Object.entries(counts).sort((a, b) => Number(a[0]) - Number(b[0]))
+      : Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+  if (entries.length === 0) {
+    return (
+      <Text
+        style={{
+          color: COLORS.muted,
+          fontSize: 12,
+          textAlign: "center",
+          paddingVertical: 8,
+        }}
+      >
+        No responses yet
+      </Text>
+    );
+  }
+
+  const truncate = (s: string) => (s.length > 10 ? s.slice(0, 9) + "…" : s);
+  const labels = entries.map(([k]) => truncate(k));
+  const values = entries.map(([, v]) => v);
+  const barColor = answerType === "yes_no" ? C_TEAL : C_ORA;
+
+  return (
+    <BarChart
+      values={values}
+      labels={labels}
+      color={barColor}
+      accentMax
+      accentColor={COLORS.teal}
+      chartWidth={chartWidth}
+      chartHeight={130}
+    />
+  );
+}
+
 // ── Brand Card ─────────────────────────────────────────────────────────────────
 function BrandCard({
   barColor = COLORS.teal,
@@ -510,14 +581,52 @@ export default function StatisticsScreen() {
   const [selYear, setSelYear] = useState<YearFilter>("2026");
   const [selGroup, setSelGroup] = useState<GroupFilter>("all");
 
+  // ── Real-data state (initialised to mock so charts never render blank) ─────
+  const [loading, setLoading] = useState(true);
+  const [monthlyAttendance, setMonthlyAttendance] =
+    useState(MONTHLY_ATTENDANCE);
+  const [yearlyTotals, setYearlyTotals] = useState(YEARLY_TOTALS);
+  const [sessionsPerMonth, setSessionsPerMonth] = useState(SESSIONS_PER_MONTH);
+  const [statStudents, setStatStudents] = useState(STAT_STUDENTS);
+  const [forms, setForms] = useState<FormMeta[]>([]);
+  const [selFormId, setSelFormId] = useState<string>("");
+  const [formResult, setFormResult] = useState<FormResult | null>(null);
+  const [formLoading, setFormLoading] = useState(false);
+
+  // ── Load Firestore data on mount ──────────────────────────────────────────
+  useEffect(() => {
+    Promise.all([getAttendanceStats(), getProgramStudents(), getForms()])
+      .then(([att, students, formList]) => {
+        setMonthlyAttendance(att.monthlyAttendance);
+        setYearlyTotals(att.yearlyTotals);
+        setSessionsPerMonth(att.sessionsPerMonth);
+        setStatStudents(students);
+        setForms(formList);
+        if (formList.length > 0) setSelFormId(formList[0].id);
+      })
+      .catch((e) => console.error("[stats] load error:", e))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // ── Load form results when selected form changes ──────────────────────────
+  useEffect(() => {
+    if (!selFormId) return;
+    setFormLoading(true);
+    setFormResult(null);
+    getFormResults(selFormId)
+      .then(setFormResult)
+      .catch((e) => console.error("[stats] form results:", e))
+      .finally(() => setFormLoading(false));
+  }, [selFormId]);
+
   const fullW = width - 32;
   const halfW = (width - 40) / 2;
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const filteredStudents = useMemo(() => {
-    if (selGroup === "all") return STAT_STUDENTS;
-    return STAT_STUDENTS.filter((s) => s.groupId === selGroup);
-  }, [selGroup]);
+    if (selGroup === "all") return statStudents;
+    return statStudents.filter((s) => s.groupId === selGroup);
+  }, [selGroup, statStudents]);
 
   const genderData = useMemo(() => {
     const f = filteredStudents.filter((s) => s.gender === "female").length;
@@ -528,7 +637,7 @@ export default function StatisticsScreen() {
   const groupGenderData = useMemo(
     () =>
       STAT_GROUPS.map((g) => {
-        const gs = STAT_STUDENTS.filter((s) => s.groupId === g.id);
+        const gs = statStudents.filter((s) => s.groupId === g.id);
         return {
           ...g,
           female: gs.filter((s) => s.gender === "female").length,
@@ -536,14 +645,14 @@ export default function StatisticsScreen() {
           total: gs.length,
         };
       }),
-    [],
+    [statStudents],
   );
 
   const { trendValues, trendLabels } = useMemo(() => {
     const gKey = selGroup === "all" ? "all" : selGroup;
     if (selYear === "all") {
       const vals = Array.from(STAT_YEARS).map((y) => {
-        const e = MONTHLY_ATTENDANCE.find(
+        const e = monthlyAttendance.find(
           (m) => m.year === y && m.groupId === gKey,
         );
         if (!e) return 0;
@@ -558,7 +667,7 @@ export default function StatisticsScreen() {
       };
     }
     const y = parseInt(selYear, 10);
-    const e = MONTHLY_ATTENDANCE.find(
+    const e = monthlyAttendance.find(
       (m) => m.year === y && m.groupId === gKey,
     );
     const rates = e ? e.rates : new Array(12).fill(0);
@@ -566,7 +675,7 @@ export default function StatisticsScreen() {
       trendValues: rates.filter((r) => r > 0),
       trendLabels: MONTH_SHORT.filter((_, i) => rates[i] > 0),
     };
-  }, [selYear, selGroup]);
+  }, [selYear, selGroup, monthlyAttendance]);
 
   const avgAttendance = useMemo(() => {
     if (!trendValues.length) return 0;
@@ -578,27 +687,28 @@ export default function StatisticsScreen() {
   const yoyData = useMemo(
     () => ({
       values: Array.from(STAT_YEARS).map(
-        (y) => YEARLY_TOTALS[y]?.students ?? 0,
+        (y) => yearlyTotals[y]?.students ?? 0,
       ),
       labels: Array.from(STAT_YEARS).map(String),
     }),
-    [],
+    [yearlyTotals],
   );
 
   const sessionData = useMemo(() => {
     const y = selYear === "all" ? 2025 : parseInt(selYear, 10);
-    const raw = SESSIONS_PER_MONTH[y] ?? SESSIONS_PER_MONTH[2025];
+    const raw =
+      sessionsPerMonth[y] ?? sessionsPerMonth[2025] ?? new Array(12).fill(0);
     return {
-      values: raw.filter((v) => v > 0),
-      labels: MONTH_SHORT.filter((_, i) => raw[i] > 0),
+      values: (raw as number[]).filter((v) => v > 0),
+      labels: MONTH_SHORT.filter((_, i) => (raw as number[])[i] > 0),
     };
-  }, [selYear]);
+  }, [selYear, sessionsPerMonth]);
 
   const totalHours = useMemo(() => {
     if (selYear === "all")
-      return Object.values(YEARLY_TOTALS).reduce((acc, v) => acc + v.hours, 0);
-    return YEARLY_TOTALS[parseInt(selYear, 10)]?.hours ?? 0;
-  }, [selYear]);
+      return Object.values(yearlyTotals).reduce((acc, v) => acc + v.hours, 0);
+    return yearlyTotals[parseInt(selYear, 10)]?.hours ?? 0;
+  }, [selYear, yearlyTotals]);
 
   const fPct =
     genderData.total > 0
@@ -642,166 +752,225 @@ export default function StatisticsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* KPI row A */}
-        <View style={s.row}>
-          <KpiCard
-            icon="people"
-            accent={COLORS.teal}
-            label="Total Students"
-            main={String(genderData.total)}
-            sub={`${totalHours.toLocaleString()} mentoring hrs`}
-          />
-          <KpiCard
-            icon="checkmark-circle"
-            accent={COLORS.teal}
-            label="Avg Attendance"
-            main={`${avgAttendance}%`}
-            sub={selYear === "all" ? "all years" : selYear}
-          />
-        </View>
-
-        {/* KPI row B */}
-        <View style={[s.row, { marginTop: 8 }]}>
-          <KpiCard
-            icon="female"
-            accent={F_COLOR}
-            label="Female"
-            main={String(genderData.female)}
-            sub={`${fPct}% of group`}
-          />
-          <KpiCard
-            icon="male"
-            accent={M_COLOR}
-            label="Male"
-            main={String(genderData.male)}
-            sub={`${mPct}% of group`}
-          />
-        </View>
-
-        {/* Attendance Trend */}
-        <View style={{ marginTop: 16 }}>
-          <BrandCard
-            barColor={COLORS.teal}
-            title={
-              selYear === "all"
-                ? "Yearly avg attendance (%)"
-                : `Monthly attendance — ${selYear} (%)`
-            }
-          >
-            <AreaTrendChart
-              values={trendValues}
-              labels={trendLabels}
-              color={COLORS.teal}
-              chartWidth={fullW - 32}
-            />
-          </BrandCard>
-        </View>
-
-        {/* Demographics row */}
-        <View style={[s.row, { marginTop: 8 }]}>
-          <BrandCard
-            barColor={COLORS.teal}
-            title="Gender Split"
-            style={{ width: halfW }}
-          >
-            <View style={{ alignItems: "center" }}>
-              <DonutChart
-                female={genderData.female}
-                male={genderData.male}
-                size={108}
+        {loading ? (
+          <View style={s.loadingWrap}>
+            <ActivityIndicator size="large" color={COLORS.teal} />
+          </View>
+        ) : (
+          <>
+            {/* KPI row A */}
+            <View style={s.row}>
+              <KpiCard
+                icon="people"
+                accent={COLORS.teal}
+                label="Total Students"
+                main={String(genderData.total)}
+                sub={`${totalHours.toLocaleString()} mentoring hrs`}
               />
-              <View style={s.legend}>
-                <View style={s.lgItem}>
-                  <View style={[s.lgDot, { backgroundColor: F_COLOR }]} />
-                  <Text style={s.lgTxt}>F · {genderData.female}</Text>
-                </View>
-                <View style={s.lgItem}>
-                  <View style={[s.lgDot, { backgroundColor: M_COLOR }]} />
-                  <Text style={s.lgTxt}>M · {genderData.male}</Text>
-                </View>
-              </View>
+              <KpiCard
+                icon="checkmark-circle"
+                accent={COLORS.teal}
+                label="Avg Attendance"
+                main={`${avgAttendance}%`}
+                sub={selYear === "all" ? "all years" : selYear}
+              />
             </View>
-          </BrandCard>
 
-          <BrandCard
-            barColor={COLORS.yellow}
-            title="By Group"
-            style={{ width: halfW }}
-          >
-            {groupGenderData.map((g) => {
-              const frac = g.total > 0 ? g.female / g.total : 0;
-              return (
-                <View key={g.id} style={{ marginBottom: 8 }}>
-                  <Text style={s.gLabel}>{g.name}</Text>
-                  <View style={s.gBar}>
-                    <View
-                      style={[
-                        s.gSeg,
-                        { flex: frac || 0.01, backgroundColor: F_COLOR },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        s.gSeg,
-                        { flex: 1 - frac || 0.01, backgroundColor: M_COLOR },
-                      ]}
-                    />
-                  </View>
-                  <Text style={s.gSub}>
-                    {g.female}F · {g.male}M
-                  </Text>
-                </View>
-              );
-            })}
-          </BrandCard>
-        </View>
-
-        {/* Growth & Engagement row */}
-        <View style={[s.row, { marginTop: 8 }]}>
-          <BrandCard
-            barColor={COLORS.teal}
-            title="YoY Growth"
-            style={{ width: halfW }}
-          >
-            <BarChart
-              values={yoyData.values}
-              labels={yoyData.labels}
-              color={COLORS.teal}
-              chartWidth={halfW - 32}
-              chartHeight={130}
-            />
-          </BrandCard>
-
-          <BrandCard
-            barColor={COLORS.yellow}
-            title="Sessions / Month"
-            style={{ width: halfW }}
-          >
-            {sessionData.values.length > 0 ? (
-              <BarChart
-                values={sessionData.values}
-                labels={sessionData.labels}
-                color={C_ORA}
-                accentMax
-                accentColor={C_TEAL}
-                chartWidth={halfW - 32}
-                chartHeight={130}
+            {/* KPI row B */}
+            <View style={[s.row, { marginTop: 8 }]}>
+              <KpiCard
+                icon="female"
+                accent={F_COLOR}
+                label="Female"
+                main={String(genderData.female)}
+                sub={`${fPct}% of group`}
               />
-            ) : (
-              <View
-                style={{
-                  height: 100,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
+              <KpiCard
+                icon="male"
+                accent={M_COLOR}
+                label="Male"
+                main={String(genderData.male)}
+                sub={`${mPct}% of group`}
+              />
+            </View>
+
+            {/* Attendance Trend */}
+            <View style={{ marginTop: 16 }}>
+              <BrandCard
+                barColor={COLORS.teal}
+                title={
+                  selYear === "all"
+                    ? "Yearly avg attendance (%)"
+                    : `Monthly attendance — ${selYear} (%)`
+                }
               >
-                <Text style={{ color: COLORS.muted, fontSize: 12 }}>
-                  No data
-                </Text>
+                <AreaTrendChart
+                  values={trendValues}
+                  labels={trendLabels}
+                  color={COLORS.teal}
+                  chartWidth={fullW - 32}
+                />
+              </BrandCard>
+            </View>
+
+            {/* Demographics row */}
+            <View style={[s.row, { marginTop: 8 }]}>
+              <BrandCard
+                barColor={COLORS.teal}
+                title="Gender Split"
+                style={{ width: halfW }}
+              >
+                <View style={{ alignItems: "center" }}>
+                  <DonutChart
+                    female={genderData.female}
+                    male={genderData.male}
+                    size={108}
+                  />
+                  <View style={s.legend}>
+                    <View style={s.lgItem}>
+                      <View style={[s.lgDot, { backgroundColor: F_COLOR }]} />
+                      <Text style={s.lgTxt}>F · {genderData.female}</Text>
+                    </View>
+                    <View style={s.lgItem}>
+                      <View style={[s.lgDot, { backgroundColor: M_COLOR }]} />
+                      <Text style={s.lgTxt}>M · {genderData.male}</Text>
+                    </View>
+                  </View>
+                </View>
+              </BrandCard>
+
+              <BrandCard
+                barColor={COLORS.yellow}
+                title="By Group"
+                style={{ width: halfW }}
+              >
+                {groupGenderData.map((g) => {
+                  const frac = g.total > 0 ? g.female / g.total : 0;
+                  return (
+                    <View key={g.id} style={{ marginBottom: 8 }}>
+                      <Text style={s.gLabel}>{g.name}</Text>
+                      <View style={s.gBar}>
+                        <View
+                          style={[
+                            s.gSeg,
+                            { flex: frac || 0.01, backgroundColor: F_COLOR },
+                          ]}
+                        />
+                        <View
+                          style={[
+                            s.gSeg,
+                            {
+                              flex: 1 - frac || 0.01,
+                              backgroundColor: M_COLOR,
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text style={s.gSub}>
+                        {g.female}F · {g.male}M
+                      </Text>
+                    </View>
+                  );
+                })}
+              </BrandCard>
+            </View>
+
+            {/* Growth & Engagement row */}
+            <View style={[s.row, { marginTop: 8 }]}>
+              <BrandCard
+                barColor={COLORS.teal}
+                title="YoY Growth"
+                style={{ width: halfW }}
+              >
+                <BarChart
+                  values={yoyData.values}
+                  labels={yoyData.labels}
+                  color={COLORS.teal}
+                  chartWidth={halfW - 32}
+                  chartHeight={130}
+                />
+              </BrandCard>
+
+              <BrandCard
+                barColor={COLORS.yellow}
+                title="Sessions / Month"
+                style={{ width: halfW }}
+              >
+                {sessionData.values.length > 0 ? (
+                  <BarChart
+                    values={sessionData.values}
+                    labels={sessionData.labels}
+                    color={C_ORA}
+                    accentMax
+                    accentColor={C_TEAL}
+                    chartWidth={halfW - 32}
+                    chartHeight={130}
+                  />
+                ) : (
+                  <View
+                    style={{
+                      height: 100,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ color: COLORS.muted, fontSize: 12 }}>
+                      No data
+                    </Text>
+                  </View>
+                )}
+              </BrandCard>
+            </View>
+
+            {/* ── Form Responses section (new) ────────────────────────────── */}
+            {forms.length > 0 && (
+              <View style={{ marginTop: 16 }}>
+                <BrandCard barColor={COLORS.yellow} title="Form Responses">
+                  <FilterChips
+                    options={forms.map((f) => ({
+                      value: f.id,
+                      label: f.title,
+                    }))}
+                    value={selFormId}
+                    onChange={setSelFormId}
+                  />
+                  {formLoading ? (
+                    <View
+                      style={{
+                        alignItems: "center",
+                        paddingTop: 20,
+                        paddingBottom: 8,
+                      }}
+                    >
+                      <ActivityIndicator size="small" color={COLORS.teal} />
+                    </View>
+                  ) : formResult ? (
+                    formResult.questions.map((q) => (
+                      <View key={q.questionId} style={{ marginTop: 16 }}>
+                        <Text style={s.qText}>{q.questionText}</Text>
+                        <FormQuestionChart
+                          result={q}
+                          chartWidth={fullW - 64}
+                        />
+                      </View>
+                    ))
+                  ) : (
+                    <Text
+                      style={{
+                        color: COLORS.muted,
+                        fontSize: 12,
+                        marginTop: 12,
+                        textAlign: "center",
+                      }}
+                    >
+                      No submissions yet for this form.
+                    </Text>
+                  )}
+                </BrandCard>
               </View>
             )}
-          </BrandCard>
-        </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -846,6 +1015,22 @@ const s = StyleSheet.create({
   lgItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   lgDot: { width: 8, height: 8, borderRadius: 4 },
   lgTxt: { fontSize: 11, color: COLORS.sub },
+
+  // Loading
+  loadingWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 400,
+  },
+
+  // Form question label
+  qText: {
+    fontSize: 12,
+    color: COLORS.sub,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
 
   // Group bars
   gLabel: {
