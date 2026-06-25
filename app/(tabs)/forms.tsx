@@ -106,9 +106,7 @@ export default function FormsScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       {/* ── Toolbar ──────────────────────────────────────────────────── */}
       <View style={s.toolbar}>
-        <Text style={s.toolbarCount}>
-          {visibleForms.length} active
-        </Text>
+        <Text style={s.toolbarCount}>{visibleForms.length} active</Text>
         {isAdmin && (
           <Pressable
             style={s.manageBtn}

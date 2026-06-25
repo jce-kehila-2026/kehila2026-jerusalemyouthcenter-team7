@@ -577,6 +577,7 @@ const s = StyleSheet.create({
   },
   avatarWrap: { position: "relative", marginBottom: 12 },
   avatar: {
+    
     width: 96,
     height: 96,
     borderRadius: 48,

@@ -1,18 +1,18 @@
 import { useAuth } from "@/src/context/AuthContext";
+import { db } from "@/src/firebase/firebase";
 import {
   getFormTemplate,
   submitStudentForm,
 } from "@/src/firebase/firestoreService";
-import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   collection,
+  doc,
   getDocs,
   query,
   where,
   writeBatch,
-  doc,
 } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -78,7 +78,9 @@ export default function FormDetailScreen() {
       const qId = q.id || `q_${questions.indexOf(q)}`;
       const val = answers[qId];
       if (val === undefined || val === null || String(val).trim() === "") {
-        setErrorMsg("Please answer all questions on this page before continuing.");
+        setErrorMsg(
+          "Please answer all questions on this page before continuing.",
+        );
         return;
       }
     }
@@ -123,7 +125,8 @@ export default function FormDetailScreen() {
 
       try {
         const studentName = user?.full_name ?? "A student";
-        const formTitle = typeof form?.title === "string" ? form.title : "a form";
+        const formTitle =
+          typeof form?.title === "string" ? form.title : "a form";
         const adminsSnap = await getDocs(
           query(collection(db, "users"), where("role", "==", "admin")),
         );
@@ -247,7 +250,10 @@ export default function FormDetailScreen() {
     }
     pageTitles = formPages.map(() => "");
   }
-  if (formPages.length === 0) { formPages.push([]); pageTitles.push(""); }
+  if (formPages.length === 0) {
+    formPages.push([]);
+    pageTitles.push("");
+  }
   const totalSteps = formPages.length;
   const currentQuestions = formPages[currentStep] ?? [];
   const isLastStep = currentStep === totalSteps - 1;
@@ -281,7 +287,10 @@ export default function FormDetailScreen() {
           </View>
         </View>
 
-        <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.scrollContent}
+        >
           {safeDescription && currentStep === 0 && (
             <Text style={styles.description}>{safeDescription}</Text>
           )}
@@ -322,7 +331,9 @@ export default function FormDetailScreen() {
                         { backgroundColor: activeColor },
                       ]}
                     >
-                      <Text style={styles.questionNumberText}>{globalIndex + 1}</Text>
+                      <Text style={styles.questionNumberText}>
+                        {globalIndex + 1}
+                      </Text>
                     </View>
                     <Text style={styles.questionText}>{qText}</Text>
                   </View>
@@ -401,50 +412,74 @@ export default function FormDetailScreen() {
                     </View>
                   )}
 
-                  {qType === "scale" && (() => {
-                    const min = typeof q.scaleMin === "number" ? q.scaleMin : 1;
-                    const max = typeof q.scaleMax === "number" ? q.scaleMax : 10;
-                    const minLabel = typeof q.minLabel === "string" ? q.minLabel.trim() : "";
-                    const maxLabel = typeof q.maxLabel === "string" ? q.maxLabel.trim() : "";
-                    const steps = Array.from({ length: max - min + 1 }, (_, i) => min + i);
-                    return (
-                      <View style={styles.scaleInlineRow}>
-                        {minLabel ? (
-                          <Text style={styles.scaleInlineLabel}>{minLabel}</Text>
-                        ) : null}
-                        <View style={styles.scaleRow}>
-                          {steps.map((val) => {
-                            const selected = answers[qId] === String(val);
-                            return (
-                              <Pressable
-                                key={val}
-                                style={[
-                                  styles.scaleBtn,
-                                  selected && {
-                                    backgroundColor: activeColor,
-                                    borderWidth: 0,
-                                    shadowColor: activeColor,
-                                    shadowOffset: { width: 0, height: 4 },
-                                    shadowOpacity: 0.35,
-                                    shadowRadius: 6,
-                                    elevation: 5,
-                                  },
-                                ]}
-                                onPress={() => handleAnswerChange(qId, String(val))}
-                              >
-                                <Text style={[styles.scaleBtnText, selected && styles.scaleBtnTextActive]}>
-                                  {val}
-                                </Text>
-                              </Pressable>
-                            );
-                          })}
+                  {qType === "scale" &&
+                    (() => {
+                      const min =
+                        typeof q.scaleMin === "number" ? q.scaleMin : 1;
+                      const max =
+                        typeof q.scaleMax === "number" ? q.scaleMax : 10;
+                      const minLabel =
+                        typeof q.minLabel === "string" ? q.minLabel.trim() : "";
+                      const maxLabel =
+                        typeof q.maxLabel === "string" ? q.maxLabel.trim() : "";
+                      const steps = Array.from(
+                        { length: max - min + 1 },
+                        (_, i) => min + i,
+                      );
+                      return (
+                        <View style={styles.scaleInlineRow}>
+                          {minLabel ? (
+                            <Text style={styles.scaleInlineLabel}>
+                              {minLabel}
+                            </Text>
+                          ) : null}
+                          <View style={styles.scaleRow}>
+                            {steps.map((val) => {
+                              const selected = answers[qId] === String(val);
+                              return (
+                                <Pressable
+                                  key={val}
+                                  style={[
+                                    styles.scaleBtn,
+                                    selected && {
+                                      backgroundColor: activeColor,
+                                      borderWidth: 0,
+                                      shadowColor: activeColor,
+                                      shadowOffset: { width: 0, height: 4 },
+                                      shadowOpacity: 0.35,
+                                      shadowRadius: 6,
+                                      elevation: 5,
+                                    },
+                                  ]}
+                                  onPress={() =>
+                                    handleAnswerChange(qId, String(val))
+                                  }
+                                >
+                                  <Text
+                                    style={[
+                                      styles.scaleBtnText,
+                                      selected && styles.scaleBtnTextActive,
+                                    ]}
+                                  >
+                                    {val}
+                                  </Text>
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                          {maxLabel ? (
+                            <Text
+                              style={[
+                                styles.scaleInlineLabel,
+                                { textAlign: "right" },
+                              ]}
+                            >
+                              {maxLabel}
+                            </Text>
+                          ) : null}
                         </View>
-                        {maxLabel ? (
-                          <Text style={[styles.scaleInlineLabel, { textAlign: "right" }]}>{maxLabel}</Text>
-                        ) : null}
-                      </View>
-                    );
-                  })()}
+                      );
+                    })()}
                 </View>
               );
             })
@@ -485,7 +520,10 @@ export default function FormDetailScreen() {
               <Pressable
                 style={[
                   styles.backNavBtn,
-                  { borderColor: currentStep === 0 ? themeColors.gray : activeColor },
+                  {
+                    borderColor:
+                      currentStep === 0 ? themeColors.gray : activeColor,
+                  },
                 ]}
                 onPress={handleBack}
                 disabled={currentStep === 0}
@@ -498,7 +536,9 @@ export default function FormDetailScreen() {
                 <Text
                   style={[
                     styles.backNavBtnText,
-                    { color: currentStep === 0 ? themeColors.gray : activeColor },
+                    {
+                      color: currentStep === 0 ? themeColors.gray : activeColor,
+                    },
                   ]}
                 >
                   Back
@@ -523,11 +563,18 @@ export default function FormDetailScreen() {
                 </Pressable>
               ) : (
                 <Pressable
-                  style={[styles.submitBtn, { backgroundColor: activeColor, flex: 1 }]}
+                  style={[
+                    styles.submitBtn,
+                    { backgroundColor: activeColor, flex: 1 },
+                  ]}
                   onPress={() => handleNext(currentQuestions, questions)}
                 >
                   <Text style={styles.submitBtnText}>Next</Text>
-                  <Ionicons name="arrow-forward" size={18} color={themeColors.white} />
+                  <Ionicons
+                    name="arrow-forward"
+                    size={18}
+                    color={themeColors.white}
+                  />
                 </Pressable>
               )}
             </View>
