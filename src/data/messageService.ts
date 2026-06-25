@@ -9,6 +9,7 @@ import {
     orderBy,
     query,
     updateDoc,
+    where,
 } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 
@@ -29,6 +30,7 @@ export type FirestoreMsg = {
   timestamp: string;
   is_read: boolean;
   reactions?: Record<string, string>;
+  reply_to?: { id: string; content: string; sender_name: string; type: string };
 };
 
 export const messageService = {
@@ -63,11 +65,11 @@ export const messageService = {
   },
 
   async send(data: Omit<FirestoreMsg, "id">): Promise<void> {
-    await addDoc(collection(db, "messages"), {
-      ...data,
-      timestamp: new Date().toISOString(),
-      is_read: false,
-    });
+    const payload = Object.fromEntries(
+      Object.entries({ ...data, timestamp: new Date().toISOString(), is_read: false })
+        .filter(([, v]) => v !== undefined),
+    );
+    await addDoc(collection(db, "messages"), payload);
   },
 
   async markRead(messageId: string): Promise<void> {
@@ -88,6 +90,22 @@ export const messageService = {
 
   async deleteMessage(messageId: string): Promise<void> {
     await deleteDoc(doc(db, "messages", messageId));
+  },
+
+  subscribeUnreadCount(uid: string, callback: (count: number) => void): () => void {
+    const q = query(
+      collection(db, "messages"),
+      where("receiver_id", "==", uid),
+      where("is_read", "==", false),
+    );
+    return onSnapshot(
+      q,
+      (snap) => callback(snap.size),
+      (err) => {
+        console.error("[messageService] subscribeUnreadCount error:", err);
+        callback(0);
+      },
+    );
   },
 };
 

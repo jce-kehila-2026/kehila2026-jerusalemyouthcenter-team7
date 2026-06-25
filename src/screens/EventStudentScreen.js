@@ -639,28 +639,29 @@ const s = StyleSheet.create({
   backBtnText: { color: "#fff", fontSize: 20, fontWeight: "700" },
   yearBadge: {
     alignSelf: "flex-start",
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: T.teal + "18",
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 20,
-    marginTop: 6,
+    borderWidth: 1,
+    borderColor: T.teal + "40",
   },
-  yearBadgeText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  yearBadgeText: { color: T.teal, fontSize: 13, fontWeight: "700" },
 
   tabToggle: {
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: T.teal + "12",
     borderRadius: 10,
     flexDirection: "row",
     padding: 3,
   },
   tabToggleBtn: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8 },
-  tabToggleBtnActive: { backgroundColor: "#fff" },
+  tabToggleBtnActive: { backgroundColor: T.teal },
   tabToggleText: {
-    color: "rgba(255,255,255,0.8)",
+    color: T.teal,
     fontWeight: "600",
     fontSize: 13,
   },
-  tabToggleTextActive: { color: T.teal, fontWeight: "700" },
+  tabToggleTextActive: { color: "#fff", fontWeight: "700" },
 
   welcomeBox: {
     margin: sp(2),

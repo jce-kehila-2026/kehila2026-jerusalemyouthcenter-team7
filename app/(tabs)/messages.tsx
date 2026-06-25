@@ -52,6 +52,7 @@ type ThreadMsg = {
   fromMe: boolean;
   senderName: string;
   reactions?: Record<string, string>;
+  replyTo?: { id: string; content: string; senderName: string; type: string };
   is_read: boolean;
 };
 
@@ -96,13 +97,20 @@ function groupConversations(
       fromMe,
       senderName: msg.sender_name,
       reactions: msg.reactions,
+      replyTo: msg.reply_to ? { ...msg.reply_to, senderName: msg.reply_to.sender_name } : undefined,
       is_read: msg.is_read,
     });
 
     if (!fromMe && !msg.is_read) conv.unread = true;
   });
 
-  return Array.from(map.values());
+  const convs = Array.from(map.values());
+  convs.sort((a, b) => {
+    const timeA = a.thread.length > 0 ? new Date(a.thread[a.thread.length - 1].timestamp).getTime() : 0;
+    const timeB = b.thread.length > 0 ? new Date(b.thread[b.thread.length - 1].timestamp).getTime() : 0;
+    return timeB - timeA;
+  });
+  return convs;
 }
 
 // ── Screen ────────────────────────────────────────────────────────────────────
@@ -148,6 +156,9 @@ export default function MessagesScreen() {
   // Forward modal
   const [forwardingMsg, setForwardingMsg] = useState<ThreadMsg | null>(null);
   const [forwardTargets, setForwardTargets] = useState<Set<string>>(new Set());
+
+  // Reaction / action picker
+  const [pickerMsg, setPickerMsg] = useState<ThreadMsg | null>(null);
 
   // Group management (admin only)
   const [showGroupsModal, setShowGroupsModal] = useState(false);
@@ -257,6 +268,7 @@ export default function MessagesScreen() {
             fromMe: m.sender_id === currentUid,
             senderName: m.sender_name,
             reactions: m.reactions,
+            replyTo: m.reply_to ? { ...m.reply_to, senderName: m.reply_to.sender_name } : undefined,
             is_read: m.is_read,
           };
         });
@@ -301,6 +313,7 @@ export default function MessagesScreen() {
             fromMe: m.sender_id === currentUid,
             senderName: m.sender_name,
             reactions: m.reactions,
+            replyTo: m.reply_to ? { ...m.reply_to, senderName: m.reply_to.sender_name } : undefined,
             is_read: true,
           } as ThreadMsg;
         })
@@ -353,7 +366,11 @@ export default function MessagesScreen() {
         m.sender_id === conv.otherPartyId &&
         !m.is_read,
     );
-    await Promise.all(unread.map((m) => messageService.markRead(m.id)));
+    try {
+      await Promise.all(unread.map((m) => messageService.markRead(m.id)));
+    } catch (e) {
+      console.error("[messages] markRead failed:", e);
+    }
   }
 
   function openStudentConversation(student: Student) {
@@ -388,9 +405,16 @@ export default function MessagesScreen() {
         receiver_name: activeConv.otherName,
         content: text,
         type: "text",
-        // ISO string keeps ordering stable while the write is pending locally
         timestamp: new Date().toISOString(),
         is_read: false,
+        ...(replyingTo ? {
+          reply_to: {
+            id: replyingTo.id,
+            content: replyingTo.content,
+            sender_name: replyingTo.senderName,
+            type: replyingTo.type,
+          },
+        } : {}),
       });
 
       await notificationService.create({
@@ -614,6 +638,42 @@ export default function MessagesScreen() {
     const id = [...selectedIds][0];
     const msg = threadMessages.find((m) => m.id === id);
     if (msg) setForwardingMsg(msg);
+  }
+
+  const REACTION_EMOJIS = ["❤️", "😂", "👍", "😮", "😢", "🔥"];
+
+  async function handleReact(emoji: string) {
+    if (!pickerMsg) return;
+    const msg = pickerMsg;
+    setPickerMsg(null);
+    try {
+      if (msg.reactions?.[currentUid] === emoji) {
+        await messageService.removeReaction(msg.id, currentUid);
+      } else {
+        await messageService.addReaction(msg.id, currentUid, emoji);
+      }
+    } catch (e) {
+      console.error("Reaction error:", e);
+    }
+  }
+
+  function handlePickerReply() {
+    if (!pickerMsg) return;
+    setReplyingTo(pickerMsg);
+    setPickerMsg(null);
+  }
+
+  function handlePickerForward() {
+    if (!pickerMsg) return;
+    setForwardingMsg(pickerMsg);
+    setPickerMsg(null);
+  }
+
+  async function handlePickerDelete() {
+    if (!pickerMsg) return;
+    const id = pickerMsg.id;
+    setPickerMsg(null);
+    await messageService.deleteMessage(id);
   }
 
   function toggleForwardTarget(id: string) {
@@ -1180,6 +1240,51 @@ export default function MessagesScreen() {
           </View>
         </Modal>
 
+        {/* Reaction + action picker */}
+        <Modal
+          visible={!!pickerMsg}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setPickerMsg(null)}
+        >
+          <Pressable style={styles.pickerOverlay} onPress={() => setPickerMsg(null)}>
+            <Pressable style={[styles.pickerSheet, { backgroundColor: theme.card }]} onPress={() => {}}>
+              {/* Emoji row */}
+              <View style={styles.pickerEmojiRow}>
+                {REACTION_EMOJIS.map((emoji) => {
+                  const alreadyReacted = pickerMsg?.reactions?.[currentUid] === emoji;
+                  return (
+                    <Pressable
+                      key={emoji}
+                      style={[styles.pickerEmoji, alreadyReacted && styles.pickerEmojiActive]}
+                      onPress={() => handleReact(emoji)}
+                    >
+                      <Text style={styles.pickerEmojiText}>{emoji}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Divider */}
+              <View style={[styles.pickerDivider, { backgroundColor: theme.border }]} />
+
+              {/* Action buttons */}
+              <Pressable style={styles.pickerAction} onPress={handlePickerReply}>
+                <Ionicons name="return-down-back-outline" size={20} color={AppColors.primary} />
+                <Text style={[styles.pickerActionText, { color: theme.text }]}>Reply</Text>
+              </Pressable>
+              <Pressable style={styles.pickerAction} onPress={handlePickerForward}>
+                <Ionicons name="arrow-redo-outline" size={20} color={AppColors.primary} />
+                <Text style={[styles.pickerActionText, { color: theme.text }]}>Forward</Text>
+              </Pressable>
+              <Pressable style={styles.pickerAction} onPress={handlePickerDelete}>
+                <Ionicons name="trash-outline" size={20} color="#c56451" />
+                <Text style={[styles.pickerActionText, { color: "#c56451" }]}>Delete</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -1340,11 +1445,11 @@ export default function MessagesScreen() {
                       </Text>
                     )}
 
-                    {/* Bubble — long press enters selection, tap in selection mode toggles */}
+                    {/* Bubble — long press opens reaction/action picker; tap in selection mode toggles */}
                     <Pressable
-                      onLongPress={() => toggleSelection(msg.id)}
+                      onLongPress={() => setPickerMsg(msg)}
                       onPress={() => inSelectionMode && toggleSelection(msg.id)}
-                      delayLongPress={400}
+                      delayLongPress={350}
                     >
                       <View
                         style={[
@@ -1361,6 +1466,21 @@ export default function MessagesScreen() {
                           msg.type !== "text" && { padding: 6 },
                         ]}
                       >
+                        {/* REPLY QUOTE */}
+                        {msg.replyTo && (
+                          <View style={[
+                            styles.replyQuote,
+                            msg.fromMe ? styles.replyQuoteSent : styles.replyQuoteReceived,
+                          ]}>
+                            <Text style={[styles.replyQuoteName, { color: msg.fromMe ? "rgba(255,255,255,0.85)" : AppColors.primary }]}>
+                              {msg.replyTo.senderName}
+                            </Text>
+                            <Text style={[styles.replyQuoteText, { color: msg.fromMe ? "rgba(255,255,255,0.75)" : theme.subtext }]} numberOfLines={2}>
+                              {msg.replyTo.type === "text" ? msg.replyTo.content : `[${msg.replyTo.type}]`}
+                            </Text>
+                          </View>
+                        )}
+
                         {/* TEXT */}
                         {(msg.type === "text" || !msg.type) && (
                           <>
@@ -2568,6 +2688,24 @@ const styles = StyleSheet.create({
   reactionEmoji: { fontSize: 14 },
   reactionCount: { fontSize: 11, fontWeight: "700", color: "#555" },
 
+  // Reply quote inside bubble
+  replyQuote: {
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 6,
+    borderLeftWidth: 3,
+  },
+  replyQuoteSent: {
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderLeftColor: "rgba(255,255,255,0.6)",
+  },
+  replyQuoteReceived: {
+    backgroundColor: AppColors.primary + "12",
+    borderLeftColor: AppColors.primary,
+  },
+  replyQuoteName: { fontSize: 11, fontWeight: "700", marginBottom: 2 },
+  replyQuoteText: { fontSize: 12, lineHeight: 16 },
+
   // Reply preview bar
   replyPreview: {
     flexDirection: "row",
@@ -2814,4 +2952,50 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   gmDeleteConfirmText: { fontSize: 14, fontWeight: "700", color: "#fff" },
+
+  // Reaction / action picker
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  pickerSheet: {
+    width: "100%",
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  pickerEmojiRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 18,
+    paddingHorizontal: 12,
+  },
+  pickerEmoji: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+  },
+  pickerEmojiActive: {
+    backgroundColor: AppColors.primary + "20",
+  },
+  pickerEmojiText: { fontSize: 26 },
+  pickerDivider: { height: StyleSheet.hairlineWidth, marginHorizontal: 16 },
+  pickerAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+  },
+  pickerActionText: { fontSize: 16, fontWeight: "500" },
 });
