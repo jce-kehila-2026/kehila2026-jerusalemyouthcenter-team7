@@ -18,13 +18,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 // ── Design System ─────────────────────────────────────────────────────────────
 const ds = {
-  teal:    "#039899",
-  red:     "#c56451",
-  white:   "#ffffff",
-  bg:      "#f5fafe",
-  text:    "#1a1a2e",
+  teal: "#039899",
+  red: "#c56451",
+  white: "#ffffff",
+  bg: "#f5fafe",
+  text: "#1a1a2e",
   subtext: "#5a6a7a",
-  border:  "#e8eef2",
+  border: "#e8eef2",
 } as const;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -67,10 +67,10 @@ export default function CreateFormScreen() {
     formData?: string;
   }>();
 
-  const [title, setTitle]             = useState("");
+  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [pages, setPages]             = useState<PageDef[]>([makePage()]);
-  const [loading, setLoading]         = useState(false);
+  const [pages, setPages] = useState<PageDef[]>([makePage()]);
+  const [loading, setLoading] = useState(false);
 
   const editing = isEditing === "true";
 
@@ -82,9 +82,14 @@ export default function CreateFormScreen() {
         setDescription(parsed.description || "");
         if (Array.isArray(parsed.pages) && parsed.pages.length > 0) {
           setPages(parsed.pages);
-        } else if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+        } else if (
+          Array.isArray(parsed.questions) &&
+          parsed.questions.length > 0
+        ) {
           // Legacy flat-question format: wrap in a single page
-          setPages([{ id: "page_legacy", title: "", questions: parsed.questions }]);
+          setPages([
+            { id: "page_legacy", title: "", questions: parsed.questions },
+          ]);
         }
       } catch (error) {
         console.error("Error parsing form data:", error);
@@ -141,9 +146,14 @@ export default function CreateFormScreen() {
     );
 
   // ── Question helpers ──────────────────────────────────────────────────────
-  const updatePage = (pageId: string, fn: (qs: QuestionDef[]) => QuestionDef[]) =>
+  const updatePage = (
+    pageId: string,
+    fn: (qs: QuestionDef[]) => QuestionDef[],
+  ) =>
     setPages((prev) =>
-      prev.map((p) => (p.id === pageId ? { ...p, questions: fn(p.questions) } : p)),
+      prev.map((p) =>
+        p.id === pageId ? { ...p, questions: fn(p.questions) } : p,
+      ),
     );
 
   const addQuestion = (pageId: string) =>
@@ -153,14 +163,21 @@ export default function CreateFormScreen() {
     updatePage(pageId, (qs) => qs.filter((q) => q.id !== qId));
 
   const updateQuestionText = (pageId: string, qId: string, text: string) =>
-    updatePage(pageId, (qs) => qs.map((q) => (q.id === qId ? { ...q, text } : q)));
+    updatePage(pageId, (qs) =>
+      qs.map((q) => (q.id === qId ? { ...q, text } : q)),
+    );
 
   const updateQuestionType = (pageId: string, qId: string, type: string) =>
     updatePage(pageId, (qs) =>
       qs.map((q) => {
         if (q.id !== qId) return q;
         if (type === "scale")
-          return { ...q, type, scaleMin: q.scaleMin ?? 1, scaleMax: q.scaleMax ?? 10 };
+          return {
+            ...q,
+            type,
+            scaleMin: q.scaleMin ?? 1,
+            scaleMax: q.scaleMax ?? 10,
+          };
         return { ...q, type, options: q.options?.length ? q.options : [""] };
       }),
     );
@@ -168,22 +185,35 @@ export default function CreateFormScreen() {
   const updateScaleMin = (pageId: string, qId: string, val: string) => {
     const num = parseInt(val, 10);
     if (!isNaN(num))
-      updatePage(pageId, (qs) => qs.map((q) => (q.id === qId ? { ...q, scaleMin: num } : q)));
+      updatePage(pageId, (qs) =>
+        qs.map((q) => (q.id === qId ? { ...q, scaleMin: num } : q)),
+      );
   };
 
   const updateScaleMax = (pageId: string, qId: string, val: string) => {
     const num = parseInt(val, 10);
     if (!isNaN(num))
-      updatePage(pageId, (qs) => qs.map((q) => (q.id === qId ? { ...q, scaleMax: num } : q)));
+      updatePage(pageId, (qs) =>
+        qs.map((q) => (q.id === qId ? { ...q, scaleMax: num } : q)),
+      );
   };
 
   const updateScaleMinLabel = (pageId: string, qId: string, val: string) =>
-    updatePage(pageId, (qs) => qs.map((q) => (q.id === qId ? { ...q, minLabel: val } : q)));
+    updatePage(pageId, (qs) =>
+      qs.map((q) => (q.id === qId ? { ...q, minLabel: val } : q)),
+    );
 
   const updateScaleMaxLabel = (pageId: string, qId: string, val: string) =>
-    updatePage(pageId, (qs) => qs.map((q) => (q.id === qId ? { ...q, maxLabel: val } : q)));
+    updatePage(pageId, (qs) =>
+      qs.map((q) => (q.id === qId ? { ...q, maxLabel: val } : q)),
+    );
 
-  const updateOption = (pageId: string, qId: string, optIndex: number, text: string) =>
+  const updateOption = (
+    pageId: string,
+    qId: string,
+    optIndex: number,
+    text: string,
+  ) =>
     updatePage(pageId, (qs) =>
       qs.map((q) => {
         if (q.id !== qId) return q;
@@ -195,7 +225,9 @@ export default function CreateFormScreen() {
 
   const addOption = (pageId: string, qId: string) =>
     updatePage(pageId, (qs) =>
-      qs.map((q) => (q.id === qId ? { ...q, options: [...(q.options || []), ""] } : q)),
+      qs.map((q) =>
+        q.id === qId ? { ...q, options: [...(q.options || []), ""] } : q,
+      ),
     );
 
   const removeOption = (pageId: string, qId: string, optIndex: number) =>
@@ -209,7 +241,11 @@ export default function CreateFormScreen() {
     );
 
   // ── Question card ─────────────────────────────────────────────────────────
-  const renderQuestion = (pageId: string, q: QuestionDef, globalIndex: number) => (
+  const renderQuestion = (
+    pageId: string,
+    q: QuestionDef,
+    globalIndex: number,
+  ) => (
     <View key={q.id} style={s.qCard}>
       <View style={s.questionHeader}>
         <View style={s.questionNumberBadge}>
@@ -252,7 +288,11 @@ export default function CreateFormScreen() {
               color={q.type === t ? ds.teal : ds.subtext}
             />
             <Text style={[s.typeBtnText, q.type === t && s.typeBtnTextActive]}>
-              {t === "text" ? "Text" : t === "multiple_choice" ? "Choice" : "Scale"}
+              {t === "text"
+                ? "Text"
+                : t === "multiple_choice"
+                  ? "Choice"
+                  : "Scale"}
             </Text>
           </Pressable>
         ))}
@@ -336,7 +376,10 @@ export default function CreateFormScreen() {
               )}
             </View>
           ))}
-          <Pressable style={s.addOptionBtn} onPress={() => addOption(pageId, q.id)}>
+          <Pressable
+            style={s.addOptionBtn}
+            onPress={() => addOption(pageId, q.id)}
+          >
             <Ionicons name="add" size={16} color={ds.teal} />
             <Text style={s.addOptionText}>Add Option</Text>
           </Pressable>
@@ -388,7 +431,9 @@ export default function CreateFormScreen() {
                 value={title}
                 onChangeText={setTitle}
               />
-              <Text style={[s.fieldLabel, { marginTop: 16 }]}>Form Description</Text>
+              <Text style={[s.fieldLabel, { marginTop: 16 }]}>
+                Form Description
+              </Text>
               <TextInput
                 style={[s.input, s.textArea]}
                 placeholder="Enter form description..."
@@ -446,10 +491,7 @@ export default function CreateFormScreen() {
               )}
 
               {/* Add question to this page */}
-              <Pressable
-                style={s.addQBtn}
-                onPress={() => addQuestion(page.id)}
-              >
+              <Pressable style={s.addQBtn} onPress={() => addQuestion(page.id)}>
                 <Ionicons name="add-circle-outline" size={18} color={ds.teal} />
                 <Text style={s.addQBtnText}>
                   Add Question to Page {pageIndex + 1}
@@ -631,7 +673,12 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   questionNumberText: { fontSize: 12, fontWeight: "700", color: ds.white },
-  questionHeaderLabel: { flex: 1, fontSize: 14, fontWeight: "700", color: ds.text },
+  questionHeaderLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    color: ds.text,
+  },
   deleteBtn: {
     width: 28,
     height: 28,

@@ -10,8 +10,8 @@ import {
 } from "@/src/utils/biometricAuth";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import * as SecureStore from "expo-secure-store";
 import { Stack, useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
@@ -138,9 +138,12 @@ export default function ProfileScreen() {
   const [passwordSuccess, setPasswordSuccess] = useState("");
 
   // Biometric toggle state
-  const [biometricHardwareAvailable, setBiometricHardwareAvailable] = useState(false);
+  const [biometricHardwareAvailable, setBiometricHardwareAvailable] =
+    useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
-  const [biometricType, setBiometricType] = useState<"face" | "fingerprint" | "none">("none");
+  const [biometricType, setBiometricType] = useState<
+    "face" | "fingerprint" | "none"
+  >("none");
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [bioPassword, setBioPassword] = useState("");
   const [bioLoading, setBioLoading] = useState(false);
@@ -237,18 +240,22 @@ export default function ProfileScreen() {
       setBioError("");
       setShowBiometricModal(true);
     } else {
-      Alert.alert(`Disable ${biometricLabel}?`, "You can re-enable this anytime from your profile.", [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Disable",
-          style: "destructive",
-          onPress: async () => {
-            await clearCredentials();
-            await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "declined");
-            setBiometricEnabled(false);
+      Alert.alert(
+        `Disable ${biometricLabel}?`,
+        "You can re-enable this anytime from your profile.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Disable",
+            style: "destructive",
+            onPress: async () => {
+              await clearCredentials();
+              await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "declined");
+              setBiometricEnabled(false);
+            },
           },
-        },
-      ]);
+        ],
+      );
     }
   };
 
@@ -260,20 +267,27 @@ export default function ProfileScreen() {
     setBioLoading(true);
     setBioError("");
     try {
-      const ok = await authenticateWithBiometrics(`Confirm with ${biometricLabel} to enable quick sign-in`);
+      const ok = await authenticateWithBiometrics(
+        `Confirm with ${biometricLabel} to enable quick sign-in`,
+      );
       if (!ok) {
-        setBioError(`${biometricLabel} verification was cancelled. Please try again.`);
+        setBioError(
+          `${biometricLabel} verification was cancelled. Please try again.`,
+        );
         setBioLoading(false);
         return;
       }
-      const identifier = user?.role === "singer" ? (user?.phone ?? "") : (user?.email ?? "");
+      const identifier =
+        user?.role === "singer" ? (user?.phone ?? "") : (user?.email ?? "");
       await saveCredentials(identifier, bioPassword, user?.role);
       await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "true");
       setBiometricEnabled(true);
       setShowBiometricModal(false);
       setBioPassword("");
     } catch (e: any) {
-      setBioError(`Could not enable ${biometricLabel}: ${e?.message ?? "Unknown error"}.`);
+      setBioError(
+        `Could not enable ${biometricLabel}: ${e?.message ?? "Unknown error"}.`,
+      );
     } finally {
       setBioLoading(false);
     }
@@ -482,7 +496,11 @@ export default function ProfileScreen() {
               <View style={s.settingRow}>
                 <View style={s.rowIcon}>
                   <Ionicons
-                    name={biometricType === "face" ? "scan-outline" : "finger-print-outline"}
+                    name={
+                      biometricType === "face"
+                        ? "scan-outline"
+                        : "finger-print-outline"
+                    }
                     size={20}
                     color={ds.teal}
                   />
@@ -573,7 +591,8 @@ export default function ProfileScreen() {
             </View>
 
             <Text style={[s.msgText, { color: ds.subtext, marginBottom: 16 }]}>
-              Enter your password to save it securely. {biometricLabel} will unlock it on future sign-ins.
+              Enter your password to save it securely. {biometricLabel} will
+              unlock it on future sign-ins.
             </Text>
 
             {bioError ? (
