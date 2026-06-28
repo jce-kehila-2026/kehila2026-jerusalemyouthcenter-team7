@@ -190,50 +190,53 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (result === true) {
-      try {
-        const canUseBiometric = await isBiometricAvailable();
-        const alreadyEnrolled =
-          await SecureStore.getItemAsync(ENROLLMENT_FLAG_KEY);
-        if (canUseBiometric && alreadyEnrolled === null) {
-          const type = await getBiometricType();
-          const label = type === "face" ? "Face ID" : "Fingerprint";
-          Alert.alert(
-            `Enable ${label}?`,
-            `Sign in faster next time using ${label}. You can change this later in your profile.`,
-            [
-              {
-                text: "Not Now",
-                style: "cancel",
-                onPress: async () => {
-                  await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "declined");
-                  router.replace("/(tabs)" as any);
+      if (Platform.OS !== "web") {
+        try {
+          const canUseBiometric = await isBiometricAvailable();
+          const alreadyEnrolled =
+            await SecureStore.getItemAsync(ENROLLMENT_FLAG_KEY);
+          if (canUseBiometric && alreadyEnrolled === null) {
+            const type = await getBiometricType();
+            const label = type === "face" ? "Face ID" : "Fingerprint";
+            Alert.alert(
+              `Enable ${label}?`,
+              `Sign in faster next time using ${label}. You can change this later in your profile.`,
+              [
+                {
+                  text: "Not Now",
+                  style: "cancel",
+                  onPress: async () => {
+                    await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "declined");
+                    router.replace("/(tabs)" as any);
+                  },
                 },
-              },
-              {
-                text: "Enable",
-                onPress: async () => {
-                  const ok = await authenticateWithBiometrics(
-                    `Confirm with ${label} to enable quick sign-in`,
-                  );
-                  if (ok) {
-                    await saveCredentials(identifier.trim(), password, role);
-                    await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "true");
-                  } else {
-                    await SecureStore.setItemAsync(
-                      ENROLLMENT_FLAG_KEY,
-                      "declined",
+                {
+                  text: "Enable",
+                  onPress: async () => {
+                    const ok = await authenticateWithBiometrics(
+                      `Confirm with ${label} to enable quick sign-in`,
                     );
-                  }
-                  router.replace("/(tabs)" as any);
+                    if (ok) {
+                      await saveCredentials(identifier.trim(), password, role);
+                      await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "true");
+                    } else {
+                      await SecureStore.setItemAsync(
+                        ENROLLMENT_FLAG_KEY,
+                        "declined",
+                      );
+                    }
+                    router.replace("/(tabs)" as any);
+                  },
                 },
-              },
-            ],
-          );
-        } else {
+              ],
+            );
+          } else {
+            router.replace("/(tabs)" as any);
+          }
+        } catch {
           router.replace("/(tabs)" as any);
         }
-      } catch {
-        // SecureStore or biometric check failed — proceed normally
+      } else {
         router.replace("/(tabs)" as any);
       }
     } else if (result === "pending") {

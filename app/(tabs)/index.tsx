@@ -4,9 +4,11 @@ import {
   ManageAchievementsModal,
 } from "@/src/components/ManageAchievementsModal";
 import { ManageAdminsModal } from "@/src/components/ManageAdminsModal";
-import { NotificationBell } from "@/src/components/NotificationBell";
 import { useAuth } from "@/src/context/AuthContext";
-import { leaderboardService, LeaderboardEntry } from "@/src/data/leaderboardService";
+import {
+  LeaderboardEntry,
+  leaderboardService,
+} from "@/src/data/leaderboardService";
 import { FirestoreMsg, messageService } from "@/src/data/messageService";
 import { notificationService } from "@/src/data/notificationService";
 import { db } from "@/src/firebase/firebase";
@@ -347,7 +349,7 @@ function AdminKpiGrid({
       label: "Forms",
       icon: "document-text" as const,
       accent: TEAL,
-      sub: "submitted",
+      sub: "active",
       onPress: onForms,
     },
     {
@@ -455,9 +457,15 @@ function SingerHeroCard({
   return (
     <View style={st.singerHeroCard}>
       {/* Decorative music elements */}
-      <Text style={st.heroDecor1} pointerEvents="none">♪</Text>
-      <Text style={st.heroDecor2} pointerEvents="none">🎵</Text>
-      <Text style={st.heroDecor3} pointerEvents="none">🎶</Text>
+      <Text style={st.heroDecor1} pointerEvents="none">
+        ♪
+      </Text>
+      <Text style={st.heroDecor2} pointerEvents="none">
+        🎵
+      </Text>
+      <Text style={st.heroDecor3} pointerEvents="none">
+        🎶
+      </Text>
 
       {/* Top row: greeting + voice badge */}
       <View style={st.singerHeroRow}>
@@ -467,7 +475,9 @@ function SingerHeroCard({
         </View>
         {voiceEmoji && voiceLabel && (
           <View style={st.singerVoiceBadge}>
-            <Text style={st.singerVoiceBadgeText}>{voiceEmoji} {voiceLabel}</Text>
+            <Text style={st.singerVoiceBadgeText}>
+              {voiceEmoji} {voiceLabel}
+            </Text>
           </View>
         )}
       </View>
@@ -479,12 +489,16 @@ function SingerHeroCard({
       <View style={st.singerHeroChipsRow}>
         <View style={st.singerHeroChip}>
           <Text style={st.singerHeroChipIcon}>🔥</Text>
-          <Text style={st.singerHeroChipText} numberOfLines={1}>{streakText}</Text>
+          <Text style={st.singerHeroChipText} numberOfLines={1}>
+            {streakText}
+          </Text>
         </View>
         <View style={st.singerHeroChipSep} />
         <View style={st.singerHeroChip}>
           <Text style={st.singerHeroChipIcon}>📅</Text>
-          <Text style={st.singerHeroChipText} numberOfLines={2}>{nextText}</Text>
+          <Text style={st.singerHeroChipText} numberOfLines={2}>
+            {nextText}
+          </Text>
         </View>
       </View>
     </View>
@@ -545,8 +559,9 @@ function SingerBadgesRow({
     },
   ];
 
-  const earnedCount = badges.filter((b) => b.earned).length + customAchievements.length;
-  const totalCount  = badges.length;
+  const earnedCount =
+    badges.filter((b) => b.earned).length + customAchievements.length;
+  const totalCount = badges.length;
 
   return (
     <View style={st.achSection}>
@@ -580,15 +595,10 @@ function SingerBadgesRow({
             ]}
           >
             {/* Decorative sparkle for earned */}
-            {badge.earned && (
-              <Text style={st.achCardDecor}>✦</Text>
-            )}
+            {badge.earned && <Text style={st.achCardDecor}>✦</Text>}
 
             <Text
-              style={[
-                st.singerBadgeEmoji,
-                !badge.earned && { opacity: 0.25 },
-              ]}
+              style={[st.singerBadgeEmoji, !badge.earned && { opacity: 0.25 }]}
             >
               {badge.emoji}
             </Text>
@@ -623,12 +633,21 @@ function SingerBadgesRow({
         {customAchievements.map((ach) => (
           <View
             key={ach.id}
-            style={[st.singerBadgeCard, { backgroundColor: ach.color, shadowColor: ach.color }]}
+            style={[
+              st.singerBadgeCard,
+              { backgroundColor: ach.color, shadowColor: ach.color },
+            ]}
           >
             <Text style={st.achCardDecor}>✦</Text>
             <Text style={st.singerBadgeEmoji}>{ach.emoji}</Text>
-            <Text style={[st.singerBadgeLabel, { color: "#fff" }]}>{ach.label}</Text>
-            <Text style={[st.singerBadgeSub, { color: "rgba(255,255,255,0.75)" }]}>{ach.sublabel}</Text>
+            <Text style={[st.singerBadgeLabel, { color: "#fff" }]}>
+              {ach.label}
+            </Text>
+            <Text
+              style={[st.singerBadgeSub, { color: "rgba(255,255,255,0.75)" }]}
+            >
+              {ach.sublabel}
+            </Text>
           </View>
         ))}
       </ScrollView>
@@ -668,7 +687,9 @@ function SingerShortcuts({
   const cards = [
     {
       icon: "calendar-outline" as const,
-      label: nextUnregisteredEvent ? nextUnregisteredEvent.title : "No New Events",
+      label: nextUnregisteredEvent
+        ? nextUnregisteredEvent.title
+        : "No New Events",
       sublabel: nextUnregisteredEvent ? "Tap to register" : "Check back soon",
       onPress: onNextEvent,
       bg: "#cfad5d",
@@ -689,7 +710,9 @@ function SingerShortcuts({
     {
       icon: "musical-notes-outline" as const,
       label: latestLibraryFile ? latestLibraryFile.name : "No Uploads Yet",
-      sublabel: latestLibraryFile ? `Latest · ${latestLibraryFile.ext}` : "Nothing yet",
+      sublabel: latestLibraryFile
+        ? `Latest · ${latestLibraryFile.ext}`
+        : "Nothing yet",
       onPress: onLatestFile,
       bg: "#7c5cbf",
       decor: "🎶",
@@ -703,12 +726,15 @@ function SingerShortcuts({
       onPress: onMessages,
       bg: "#0891b2",
       decor: "💬",
-      badge: unreadMessages > 0 ? String(unreadMessages) : (null as string | null),
+      badge:
+        unreadMessages > 0 ? String(unreadMessages) : (null as string | null),
       disabled: false,
     },
     {
       icon: "people-outline" as const,
-      label: voiceType ? `${voiceType.charAt(0).toUpperCase() + voiceType.slice(1)} Group` : "My Voice Group",
+      label: voiceType
+        ? `${voiceType.charAt(0).toUpperCase() + voiceType.slice(1)} Group`
+        : "My Voice Group",
       sublabel: "See your section",
       onPress: onVoiceGroup,
       bg: "#3730a3",
@@ -748,7 +774,11 @@ function SingerShortcuts({
             {/* Icon + optional badge */}
             <View style={st.shortcutTop}>
               <View style={st.shortcutIconWrap}>
-                <Ionicons name={card.icon} size={22} color="rgba(255,255,255,0.9)" />
+                <Ionicons
+                  name={card.icon}
+                  size={22}
+                  color="rgba(255,255,255,0.9)"
+                />
               </View>
               {card.badge && (
                 <View style={st.shortcutBadge}>
@@ -759,8 +789,12 @@ function SingerShortcuts({
 
             {/* Text at the bottom */}
             <View style={st.shortcutBottom}>
-              <Text style={st.shortcutLabel} numberOfLines={2}>{card.label}</Text>
-              <Text style={st.shortcutSub} numberOfLines={1}>{card.sublabel}</Text>
+              <Text style={st.shortcutLabel} numberOfLines={2}>
+                {card.label}
+              </Text>
+              <Text style={st.shortcutSub} numberOfLines={1}>
+                {card.sublabel}
+              </Text>
             </View>
           </Pressable>
         ))}
@@ -772,7 +806,7 @@ function SingerShortcuts({
 // ── Singer leaderboard component ──────────────────────────────────────────────
 
 // Podium colours matching the full leaderboard page
-const GOLD_C   = "#f59e0b";
+const GOLD_C = "#f59e0b";
 const SILVER_C = "#94a3b8";
 const BRONZE_C = "#cd7c3a";
 
@@ -782,7 +816,12 @@ function SingerLeaderboard({
   myPoints,
   myRank,
 }: {
-  leaderboard: { uid: string; name: string; voice_type: string; points: number }[];
+  leaderboard: {
+    uid: string;
+    name: string;
+    voice_type: string;
+    points: number;
+  }[];
   myUid: string;
   myPoints: number;
   myRank: number | null;
@@ -791,9 +830,27 @@ function SingerLeaderboard({
 
   // Order for the podium display: 2nd | 1st | 3rd
   const slots = [
-    { entry: leaderboard[1] ?? null, rank: 2, color: SILVER_C, blockH: 60,  avatarS: 44 },
-    { entry: leaderboard[0] ?? null, rank: 1, color: GOLD_C,   blockH: 84,  avatarS: 56 },
-    { entry: leaderboard[2] ?? null, rank: 3, color: BRONZE_C, blockH: 46,  avatarS: 40 },
+    {
+      entry: leaderboard[1] ?? null,
+      rank: 2,
+      color: SILVER_C,
+      blockH: 60,
+      avatarS: 44,
+    },
+    {
+      entry: leaderboard[0] ?? null,
+      rank: 1,
+      color: GOLD_C,
+      blockH: 84,
+      avatarS: 56,
+    },
+    {
+      entry: leaderboard[2] ?? null,
+      rank: 3,
+      color: BRONZE_C,
+      blockH: 46,
+      avatarS: 40,
+    },
   ];
   const medals = ["🥇", "🥈", "🥉"];
   const hasAny = leaderboard.length > 0;
@@ -851,7 +908,12 @@ function SingerLeaderboard({
                             },
                           ]}
                         >
-                          <Text style={[st.lbAvatarText, { fontSize: slot.avatarS * 0.36 }]}>
+                          <Text
+                            style={[
+                              st.lbAvatarText,
+                              { fontSize: slot.avatarS * 0.36 },
+                            ]}
+                          >
                             {slot.entry.name?.charAt(0)?.toUpperCase() ?? "?"}
                           </Text>
                         </View>
@@ -870,12 +932,19 @@ function SingerLeaderboard({
                         <View
                           style={[
                             st.lbAvatar,
-                            { width: slot.avatarS, height: slot.avatarS, borderRadius: slot.avatarS / 2, borderColor: "#ccc" },
+                            {
+                              width: slot.avatarS,
+                              height: slot.avatarS,
+                              borderRadius: slot.avatarS / 2,
+                              borderColor: "#ccc",
+                            },
                           ]}
                         >
                           <Text style={{ fontSize: 18 }}>?</Text>
                         </View>
-                        <Text style={{ fontSize: 18 }}>{medals[slot.rank - 1]}</Text>
+                        <Text style={{ fontSize: 18 }}>
+                          {medals[slot.rank - 1]}
+                        </Text>
                       </View>
                     )}
 
@@ -900,9 +969,16 @@ function SingerLeaderboard({
         {/* ── My rank strip ─────────────────────────────────────────── */}
         <View style={st.lbMyRank}>
           <Text style={st.lbMyRankText}>
-            {myRank ? `⭐ Your rank: #${myRank}` : "Complete challenges to rank up!"}
+            {myRank
+              ? `⭐ Your rank: #${myRank}`
+              : "Complete challenges to rank up!"}
           </Text>
-          <View style={[st.lbPointsBadge, { backgroundColor: TEAL + "18", borderColor: TEAL }]}>
+          <View
+            style={[
+              st.lbPointsBadge,
+              { backgroundColor: TEAL + "18", borderColor: TEAL },
+            ]}
+          >
             <Text style={[st.lbPointsText, { color: TEAL }]}>{myPoints}</Text>
             <Text style={[st.lbPointsLabel, { color: TEAL }]}>pts</Text>
           </View>
@@ -910,7 +986,9 @@ function SingerLeaderboard({
 
         {/* ── Tap hint ──────────────────────────────────────────────── */}
         <View style={st.lbTapHint}>
-          <Text style={st.lbTapHintText}>🎯 Tap for full rankings & challenges</Text>
+          <Text style={st.lbTapHintText}>
+            🎯 Tap for full rankings & challenges
+          </Text>
         </View>
       </Pressable>
     </>
@@ -952,7 +1030,9 @@ export default function DashboardScreen() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myPoints, setMyPoints] = useState(0);
   const [myRank, setMyRank] = useState<number | null>(null);
-  const [activeChallenges, setActiveChallenges] = useState<{ label: string; points: number }[]>([]);
+  const [activeChallenges, setActiveChallenges] = useState<
+    { label: string; points: number }[]
+  >([]);
 
   const now = new Date();
   const upcomingEvents = eventList
@@ -1012,12 +1092,8 @@ export default function DashboardScreen() {
           setMyEventIds(ids);
         }
 
-        // ── Admin-specific: count achievement definitions ────────────
-        if (isAdmin) {
-          getDocs(collection(db, "achievements"))
-            .then((snap) => setAchievementCount(snap.size))
-            .catch(() => {});
-        }
+        // ── Admin-specific achievement/form counts are handled by a
+        // live onSnapshot listener in a separate effect below ───────
 
         // ── Singer-specific achievement data ────────────────────────
         if (!isAdmin) {
@@ -1114,7 +1190,6 @@ export default function DashboardScreen() {
               ext: (data.ext ?? data.type ?? "FILE").toUpperCase(),
             });
           }
-
         }
       } catch (e) {
         console.error("Dashboard fetch error:", e);
@@ -1146,6 +1221,43 @@ export default function DashboardScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid, isAdmin]);
 
+  // Live admin KPI counts — achievements and total forms.
+  // Using onSnapshot (instead of a one-time getDocs) so the dashboard
+  // updates immediately when an achievement or form is added/removed,
+  // without requiring a manual refresh.
+  useEffect(() => {
+    if (!user?.uid || !isAdmin) return;
+
+    const unsubAchievements = onSnapshot(
+      collection(db, "achievements"),
+      (snap) => setAchievementCount(snap.size),
+      (error) => console.error("Error listening to achievements:", error),
+    );
+
+    const unsubForms = onSnapshot(
+      collection(db, "forms"),
+      (snap) => {
+        // Mirror the same filter the Forms tab applies, so this card's
+        // count always matches what's shown there (e.g. excludes the
+        // special "new student" intake form from the regular count).
+        const visibleForms = snap.docs.filter((d) => {
+          const title = (d.data() as any).title;
+          return (
+            typeof title !== "string" ||
+            !title.toLowerCase().includes("new student")
+          );
+        });
+        setFormCount(visibleForms.length);
+      },
+      (error) => console.error("Error listening to forms:", error),
+    );
+
+    return () => {
+      unsubAchievements();
+      unsubForms();
+    };
+  }, [user?.uid, isAdmin]);
+
   // Live leaderboard subscription — singer only
   useEffect(() => {
     if (!user?.uid || user?.role !== "singer") return;
@@ -1162,16 +1274,21 @@ export default function DashboardScreen() {
   // Live active challenges — singer only
   useEffect(() => {
     if (!user?.uid || user?.role !== "singer") return;
-    const unsub = onSnapshot(doc(db, "leaderboard_config", "active"), (snap) => {
-      if (snap.exists()) {
-        const all: any[] = (snap.data() as any).challenges ?? [];
-        setActiveChallenges(
-          all.filter((c) => c.active).map((c) => ({ label: c.label, points: c.points ?? 0 })),
-        );
-      } else {
-        setActiveChallenges([]);
-      }
-    });
+    const unsub = onSnapshot(
+      doc(db, "leaderboard_config", "active"),
+      (snap) => {
+        if (snap.exists()) {
+          const all: any[] = (snap.data() as any).challenges ?? [];
+          setActiveChallenges(
+            all
+              .filter((c) => c.active)
+              .map((c) => ({ label: c.label, points: c.points ?? 0 })),
+          );
+        } else {
+          setActiveChallenges([]);
+        }
+      },
+    );
     return unsub;
   }, [user?.uid, user?.role]);
 
@@ -1289,7 +1406,7 @@ export default function DashboardScreen() {
                   color={AMBER}
                 />
               </View>
-              <Text style={st.adminQuickLabel}>{"Upload\nMusic"}</Text>
+              <Text style={st.adminQuickLabel}>{"Upload\nFiles"}</Text>
             </Pressable>
 
             <Pressable
@@ -1452,29 +1569,6 @@ export default function DashboardScreen() {
         />
 
         {/* ── E: My Upcoming Events ──────────────────────────────────── */}
-        <SectionCard>
-          <SectionHeader
-            title="My Upcoming Events"
-            action="View all →"
-            onAction={() => router.push("/(tabs)/events" as any)}
-          />
-          {myUpcomingEvents.length === 0 ? (
-            <View style={st.emptyInCard}>
-              <Ionicons name="calendar-outline" size={36} color={MUTED} />
-              <Text style={st.emptyText}>No registered events yet</Text>
-            </View>
-          ) : (
-            myUpcomingEvents.slice(0, 3).map((e, i) => (
-              <View key={e.id}>
-                {i > 0 && <View style={st.rowDivider} />}
-                <EventRow
-                  event={e}
-                  onPress={() => router.push(`/event/${e.id}` as any)}
-                />
-              </View>
-            ))
-          )}
-        </SectionCard>
 
         <View style={{ height: 32 }} />
       </ScrollView>
@@ -1996,7 +2090,12 @@ const st = StyleSheet.create({
     color: DARK,
     letterSpacing: 0.6,
   },
-  achHeaderSub: { fontSize: 10, color: MUTED, fontWeight: "600" as const, marginTop: 1 },
+  achHeaderSub: {
+    fontSize: 10,
+    color: MUTED,
+    fontWeight: "600" as const,
+    marginTop: 1,
+  },
   achCountBadge: {
     flexDirection: "row" as const,
     alignItems: "baseline" as const,
@@ -2008,7 +2107,11 @@ const st = StyleSheet.create({
     borderColor: AMBER,
   },
   achCountText: { fontSize: 18, fontWeight: "900" as const, color: AMBER },
-  achCountSlash: { fontSize: 12, fontWeight: "700" as const, color: AMBER + "99" },
+  achCountSlash: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+    color: AMBER + "99",
+  },
   singerBadgesScroll: { paddingBottom: 4, paddingRight: 4 },
   singerBadgeCard: {
     width: 110,
@@ -2175,7 +2278,11 @@ const st = StyleSheet.create({
     color: "#fff",
     lineHeight: 18,
   },
-  shortcutSub: { fontSize: 11, color: "rgba(255,255,255,0.75)", fontWeight: "500" as const },
+  shortcutSub: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.75)",
+    fontWeight: "500" as const,
+  },
 
   // ── Leaderboard Widget ────────────────────────────────────────────
   lbCard: {

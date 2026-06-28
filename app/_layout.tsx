@@ -71,6 +71,7 @@ function RootLayoutNav() {
         <Stack.Screen name="manage-years" options={{ headerShown: false }} />
         <Stack.Screen name="manage-leaderboard" options={{ headerShown: false }} />
         <Stack.Screen name="leaderboard" options={{ headerShown: false }} />
+        <Stack.Screen name="form-submissions/[id]" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

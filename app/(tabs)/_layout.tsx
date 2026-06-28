@@ -191,7 +191,7 @@ export default function TabLayout() {
           header: () => {
             const titles: Record<string, string> = {
               index: "Dashboard",
-              students: "Students",
+              students: "Singers",
               events: "Events",
               forms: "Forms",
               library: "Library",
@@ -205,6 +205,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="index"
           options={{
+            tabBarLabel: "Dashboard",
             tabBarIcon: ({ color, size }) => (
               <TabIcon name="grid-outline" color={color} size={size} />
             ),
@@ -213,6 +214,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="students"
           options={{
+            tabBarLabel: "Singers",
             tabBarIcon: ({ color, size }) => (
               <TabIcon name="people-outline" color={color} size={size} />
             ),
@@ -234,7 +236,6 @@ export default function TabLayout() {
             ),
           }}
         />
-
         <Tabs.Screen
           name="messages"
           options={{ href: null, headerShown: false }}
@@ -251,7 +252,6 @@ export default function TabLayout() {
             ),
           }}
         />
-
         <Tabs.Screen
           name="explore"
           options={{ href: null, headerShown: false }}
