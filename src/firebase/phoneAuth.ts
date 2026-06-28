@@ -39,6 +39,7 @@ export async function confirmOtpAndGetToken(
   code: string,
 ): Promise<string> {
   const result = await confirmation.confirm(code);
+  if (!result) throw new Error("OTP verification failed: no credential returned.");
   const idToken = await result.user.getIdToken();
   await signOut(getAuth(getApp()));
   return idToken;

@@ -294,6 +294,7 @@ function phoneVariants(e164) {
     e164,           // "+972501234567"  — what signup stores
     local,          // "0501234567"     — legacy entries without country code
     `+${digits}`,   // "+972501234567"  — same as e164 but derived independently
+    digits,         // "972501234567"   — no + prefix, stored by some older paths
   ].filter((v, i, arr) => arr.indexOf(v) === i); // dedupe
 }
 
@@ -334,7 +335,9 @@ exports.resetUserPassword = onCall(async (request) => {
       .limit(1)
       .get();
     if (!snap.empty) {
-      uid = snap.docs[0].data().uid;
+      // Prefer the uid field; fall back to the document ID (they should be
+      // identical, but the field can be missing on manually-created docs).
+      uid = snap.docs[0].data().uid || snap.docs[0].id;
       break;
     }
   }

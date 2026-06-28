@@ -1,11 +1,11 @@
-import { confirmOtpAndGetToken, sendOtp } from "@/src/firebase/phoneAuth";
-import { db } from "@/src/firebase/firebase";
 import { COLORS } from "@/src/data/mockData";
+import { db } from "@/src/firebase/firebase";
+import { confirmOtpAndGetToken, sendOtp } from "@/src/firebase/phoneAuth";
 import { isValidIsraeliLocalMobile, toE164 } from "@/src/utils/validation";
 import type { FirebaseAuthTypes } from "@react-native-firebase/auth";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { getFunctions, httpsCallable } from "firebase/functions";
 import { useRouter } from "expo-router";
+import { collection, getDocs, query, where, limit } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -24,10 +24,6 @@ type Step = "phone" | "otp" | "password" | "success";
 
 const PHONE_PREFIX = "+972";
 
-const localDigits = (full: string) =>
-  (full.startsWith(PHONE_PREFIX) ? full.slice(PHONE_PREFIX.length) : full)
-    .replace(/\D/g, "")
-    .slice(0, 9);
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -51,13 +47,24 @@ export default function ForgotPasswordScreen() {
     return (
       <SafeAreaView style={s.safe}>
         <View style={s.header}>
-          <Pressable style={s.backBtn} onPress={() => router.back()} hitSlop={12}>
+          <Pressable
+            style={s.backBtn}
+            onPress={() => router.back()}
+            hitSlop={12}
+          >
             <Text style={s.backTxt}>← Back</Text>
           </Pressable>
           <Text style={s.headerTitle}>Password Recovery</Text>
           <View style={{ width: 64 }} />
         </View>
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
           <View style={s.card}>
             <View style={s.iconRow}>
               <Text style={s.stepEmoji}>📱</Text>
@@ -89,11 +96,22 @@ export default function ForgotPasswordScreen() {
     setError("");
     setLoading(true);
     try {
-      // Check if this phone is registered in the users collection.
-      const snap = await getDocs(
-        query(collection(db, "users"), where("phone", "==", fullPhone)),
+      // Check all plausible phone formats so users registered with any variant
+      // (e.g. "0501234567", "+972501234567", "972501234567") can reset.
+      const digits = fullPhone.replace(/\D/g, ""); // "972501234567"
+      const localPhone = digits.startsWith("972") ? `0${digits.slice(3)}` : digits;
+      const phoneFormats = [fullPhone, localPhone, digits].filter(
+        (v, i, arr) => arr.indexOf(v) === i,
       );
-      if (snap.empty) {
+
+      let found = false;
+      for (const fmt of phoneFormats) {
+        const snap = await getDocs(
+          query(collection(db, "users"), where("phone", "==", fmt), limit(1)),
+        );
+        if (!snap.empty) { found = true; break; }
+      }
+      if (!found) {
         setError("No account found for this phone number.");
         setLoading(false);
         return;
@@ -102,7 +120,11 @@ export default function ForgotPasswordScreen() {
       confirmationRef.current = await sendOtp(toE164(fullPhone));
       setStep("otp");
     } catch (e: any) {
-      setError(e?.message ?? "Could not send verification code. Try again.");
+      if (e?.code === "auth/too-many-requests") {
+        setError("Firebase has temporarily blocked requests from this device. Please wait a few minutes and try again.");
+      } else {
+        setError(e?.message ?? "Could not send verification code. Try again.");
+      }
     }
     setLoading(false);
   };
@@ -114,7 +136,11 @@ export default function ForgotPasswordScreen() {
     try {
       confirmationRef.current = await sendOtp(toE164(fullPhone));
     } catch (e: any) {
-      setError(e?.message ?? "Could not resend code.");
+      if (e?.code === "auth/too-many-requests") {
+        setError("Firebase has temporarily blocked requests from this device. Please wait a few minutes and try again.");
+      } else {
+        setError(e?.message ?? "Could not resend code.");
+      }
     }
     setLoading(false);
   };
@@ -129,7 +155,10 @@ export default function ForgotPasswordScreen() {
     setError("");
     setLoading(true);
     try {
-      const token = await confirmOtpAndGetToken(confirmationRef.current, otpCode.trim());
+      const token = await confirmOtpAndGetToken(
+        confirmationRef.current,
+        otpCode.trim(),
+      );
       setIdToken(token);
       setStep("password");
     } catch {
@@ -159,10 +188,20 @@ export default function ForgotPasswordScreen() {
       await resetUserPassword({ idToken, newPassword });
       setStep("success");
     } catch (e: any) {
-      const msg =
-        e?.message?.replace(/^.*?:\s*/, "") ?? // strip Firebase error prefix
-        "Failed to reset password. Please try again.";
-      setError(msg);
+      // Firebase Functions v2 serializes HttpsError code into e.code
+      // ("functions/not-found") but the human message may not reach the client.
+      // Map known codes to user-friendly strings.
+      const code: string = e?.code ?? "";
+      if (code === "functions/not-found") {
+        setError("No account found for this phone number. Please go back and re-enter your number.");
+      } else if (code === "functions/unauthenticated") {
+        setError("Verification failed or expired. Please start again from the beginning.");
+      } else if (code === "functions/invalid-argument") {
+        setError("Invalid request. Please check your inputs and try again.");
+      } else {
+        const raw: string = e?.message ?? "";
+        setError(raw.replace(/^.*?:\s*/, "") || "Failed to reset password. Please try again.");
+      }
     }
     setLoading(false);
   };
@@ -170,12 +209,31 @@ export default function ForgotPasswordScreen() {
   // ── Helpers ───────────────────────────────────────────────────────────────
   const inp = (key: string) => [
     s.input,
-    focused === key && { borderColor: COLORS.teal, backgroundColor: COLORS.white },
+    focused === key && {
+      borderColor: COLORS.teal,
+      backgroundColor: COLORS.white,
+    },
   ];
 
   const goBack = () => {
-    if (step === "otp") { setStep("phone"); setOtpCode(""); setError(""); return; }
-    if (step === "password") { setStep("otp"); setError(""); return; }
+    if (step === "otp") {
+      setStep("phone");
+      setOtpCode("");
+      setError("");
+      confirmationRef.current = null;
+      return;
+    }
+    if (step === "password") {
+      // The OTP was already consumed by confirmOtpAndGetToken — going back to
+      // "otp" would leave the user with an invalid confirmation. Reset to "phone"
+      // so they can request a fresh code.
+      setStep("phone");
+      setOtpCode("");
+      setIdToken("");
+      setError("");
+      confirmationRef.current = null;
+      return;
+    }
     router.back();
   };
 
@@ -223,19 +281,20 @@ export default function ForgotPasswordScreen() {
         </View>
 
         {/* Step progress bar */}
-        {step !== "success" && (
-          <View style={s.progressRow}>
-            {STEPS.map((st, i) => (
-              <View
-                key={st}
-                style={[
-                  s.dot,
-                  { backgroundColor: i <= stepIndex ? COLORS.teal : COLORS.border },
-                ]}
-              />
-            ))}
-          </View>
-        )}
+        <View style={s.progressRow}>
+          {STEPS.map((st, i) => (
+            <View
+              key={st}
+              style={[
+                s.dot,
+                {
+                  backgroundColor:
+                    i <= stepIndex ? COLORS.teal : COLORS.border,
+                },
+              ]}
+            />
+          ))}
+        </View>
 
         <ScrollView
           contentContainerStyle={s.scroll}
@@ -359,7 +418,9 @@ export default function ForgotPasswordScreen() {
                   disabled={loading}
                   style={{ marginTop: 14, alignItems: "center" }}
                 >
-                  <Text style={s.resendTxt}>Didn&apos;t get it? Resend code</Text>
+                  <Text style={[s.resendTxt, loading && { color: "#aab" }]}>
+                    Didn&apos;t get it? Resend code
+                  </Text>
                 </Pressable>
               </>
             )}
@@ -393,12 +454,8 @@ export default function ForgotPasswordScreen() {
                 <TextInput
                   style={[
                     inp("cpw"),
-                    confirmPw && newPassword !== confirmPw
-                      ? s.inputErr
-                      : null,
-                    confirmPw && newPassword === confirmPw
-                      ? s.inputOk
-                      : null,
+                    confirmPw && newPassword !== confirmPw ? s.inputErr : null,
+                    confirmPw && newPassword === confirmPw ? s.inputOk : null,
                   ].filter(Boolean)}
                   value={confirmPw}
                   onChangeText={setConfirmPw}

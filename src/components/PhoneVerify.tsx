@@ -1,7 +1,7 @@
 import { confirmOtp, sendOtp } from "@/src/firebase/phoneAuth";
 import { isValidPhone, toE164 } from "@/src/utils/validation";
 import type { FirebaseAuthTypes } from "@react-native-firebase/auth";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -30,19 +30,32 @@ type Props = {
   onVerified: () => void;
 };
 
+function friendlyAuthError(e: any): string {
+  const code: string = e?.code ?? "";
+  if (code === "auth/invalid-phone-number")
+    return "The phone number is invalid. Check the number and try again.";
+  if (code === "auth/too-many-requests")
+    return "Firebase has temporarily blocked requests from this device. Please wait a few minutes and try again.";
+  if (code === "auth/quota-exceeded")
+    return "SMS quota exceeded. Please try again later.";
+  if (code === "auth/network-request-failed")
+    return "Network error. Check your connection and try again.";
+  if (code === "auth/unknown" || code === "auth/internal-error")
+    return "Phone verification is temporarily unavailable. Please try again in a moment.";
+  return "Could not send code. Please try again.";
+}
+
 export function PhoneVerify({ phone, verified, onVerified }: Props) {
   const [status, setStatus] = useState<Status>("idle");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
-  const confirmationRef = useRef<FirebaseAuthTypes.ConfirmationResult | null>(
-    null,
-  );
+  const confirmationRef = useRef<FirebaseAuthTypes.ConfirmationResult | null>(null);
 
   // @react-native-firebase/auth's SMS OTP flow is native-only (Play
   // Integrity / silent push) — there's no web app registered for it, so it
   // can't run in a browser. Skip straight to verified on web; the mobile
   // app is what actually proves phone ownership.
-  useEffect(() => {
+  React.useEffect(() => {
     if (Platform.OS === "web" && !verified) onVerified();
   }, [verified, onVerified]);
 
@@ -56,6 +69,7 @@ export function PhoneVerify({ phone, verified, onVerified }: Props) {
 
   const handleSend = async () => {
     setError("");
+    setCode("");
     if (!isValidPhone(phone)) {
       setError("Enter a valid phone number first");
       return;
@@ -65,7 +79,7 @@ export function PhoneVerify({ phone, verified, onVerified }: Props) {
       confirmationRef.current = await sendOtp(toE164(phone));
       setStatus("sent");
     } catch (e: any) {
-      setError(e?.message ?? "Could not send code. Try again.");
+      setError(friendlyAuthError(e));
       setStatus("idle");
     }
   };
@@ -123,7 +137,9 @@ export function PhoneVerify({ phone, verified, onVerified }: Props) {
             )}
           </Pressable>
           <Pressable onPress={handleSend} disabled={status === "verifying"}>
-            <Text style={st.resend}>Didn&apos;t get it? Resend code</Text>
+            <Text style={[st.resend, status === "verifying" && { color: C.muted }]}>
+              Didn&apos;t get it? Resend code
+            </Text>
           </Pressable>
         </>
       ) : (

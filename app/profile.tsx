@@ -1,7 +1,16 @@
 import { useAuth } from "@/src/context/AuthContext";
 import { auth, db } from "@/src/firebase/firebase";
+import {
+  authenticateWithBiometrics,
+  clearCredentials,
+  ENROLLMENT_FLAG_KEY,
+  getBiometricType,
+  isBiometricAvailable,
+  saveCredentials,
+} from "@/src/utils/biometricAuth";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import * as SecureStore from "expo-secure-store";
 import { Stack, useRouter } from "expo-router";
 import {
   EmailAuthProvider,
@@ -12,6 +21,7 @@ import { doc, getDoc, updateDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -19,6 +29,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -126,6 +137,15 @@ export default function ProfileScreen() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
 
+  // Biometric toggle state
+  const [biometricHardwareAvailable, setBiometricHardwareAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricType, setBiometricType] = useState<"face" | "fingerprint" | "none">("none");
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const [bioPassword, setBioPassword] = useState("");
+  const [bioLoading, setBioLoading] = useState(false);
+  const [bioError, setBioError] = useState("");
+
   useEffect(() => {
     if (!user?.uid) return;
     getDoc(doc(db, "users", user.uid))
@@ -134,6 +154,18 @@ export default function ProfileScreen() {
       })
       .catch(console.error);
   }, [user]);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    (async () => {
+      const available = await isBiometricAvailable();
+      if (!available) return;
+      setBiometricHardwareAvailable(true);
+      setBiometricType(await getBiometricType());
+      const flag = await SecureStore.getItemAsync(ENROLLMENT_FLAG_KEY);
+      setBiometricEnabled(flag === "true");
+    })();
+  }, []);
 
   const handlePhotoUpdate = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -193,6 +225,71 @@ export default function ProfileScreen() {
       }
     } finally {
       setChangingPassword(false);
+    }
+  };
+
+  // ── Biometric handlers ────────────────────────────────────────────────────
+  const biometricLabel = biometricType === "face" ? "Face ID" : "Fingerprint";
+
+  const handleBiometricToggle = async (value: boolean) => {
+    if (value) {
+      setBioPassword("");
+      setBioError("");
+      setShowBiometricModal(true);
+    } else {
+      Alert.alert(`Disable ${biometricLabel}?`, "You can re-enable this anytime from your profile.", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Disable",
+          style: "destructive",
+          onPress: async () => {
+            await clearCredentials();
+            await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "declined");
+            setBiometricEnabled(false);
+          },
+        },
+      ]);
+    }
+  };
+
+  const handleEnableBiometric = async () => {
+    if (!bioPassword) {
+      setBioError("Please enter your password.");
+      return;
+    }
+    if (!user) {
+      setBioError("User session not found. Please sign in again.");
+      return;
+    }
+    setBioLoading(true);
+    setBioError("");
+    try {
+      const ok = await authenticateWithBiometrics(`Confirm with ${biometricLabel} to enable quick sign-in`);
+      if (!ok) {
+        setBioError(`${biometricLabel} verification was cancelled. Please try again.`);
+        setBioLoading(false);
+        return;
+      }
+      // For singers the login identifier is the phone number; email is the fallback.
+      // For admins it is the email directly.
+      const identifier =
+        user.role === "singer"
+          ? (user.phone ?? user.email ?? "")
+          : (user.email ?? "");
+      if (!identifier) {
+        setBioError("Could not determine your account identifier. Please sign in manually.");
+        setBioLoading(false);
+        return;
+      }
+      await saveCredentials(identifier, bioPassword, user.role);
+      await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "true");
+      setBiometricEnabled(true);
+      setShowBiometricModal(false);
+      setBioPassword("");
+    } catch (e: any) {
+      setBioError(`Could not enable ${biometricLabel}: ${e?.message ?? "Unknown error"}.`);
+    } finally {
+      setBioLoading(false);
     }
   };
 
@@ -394,6 +491,30 @@ export default function ProfileScreen() {
               <Ionicons name="chevron-forward" size={18} color={ds.subtext} />
             </TouchableOpacity>
 
+            {/* Biometric login toggle */}
+            {biometricHardwareAvailable && (
+              <View style={s.settingRow}>
+                <View style={s.rowIcon}>
+                  <Ionicons
+                    name={biometricType === "face" ? "scan-outline" : "finger-print-outline"}
+                    size={20}
+                    color={ds.teal}
+                  />
+                </View>
+                <View style={s.rowText}>
+                  <Text style={s.rowLabel}>Quick Sign-In</Text>
+                  <Text style={s.rowValue}>{biometricLabel}</Text>
+                </View>
+                <Switch
+                  value={biometricEnabled}
+                  onValueChange={handleBiometricToggle}
+                  trackColor={{ false: ds.border, true: ds.teal + "80" }}
+                  thumbColor={biometricEnabled ? ds.teal : "#ccc"}
+                  ios_backgroundColor={ds.border}
+                />
+              </View>
+            )}
+
             {/* Manage Singers (admin only) */}
             {isAdmin && (
               <TouchableOpacity
@@ -445,6 +566,61 @@ export default function ProfileScreen() {
           <Text style={s.signOutText}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Enable Biometric Modal */}
+      <Modal
+        visible={showBiometricModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowBiometricModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={s.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={s.modalSheet}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Enable {biometricLabel}</Text>
+              <TouchableOpacity onPress={() => setShowBiometricModal(false)}>
+                <Ionicons name="close" size={24} color={ds.text} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[s.msgText, { color: ds.subtext, marginBottom: 16 }]}>
+              Enter your password to save it securely. {biometricLabel} will unlock it on future sign-ins.
+            </Text>
+
+            {bioError ? (
+              <View style={s.msgBox}>
+                <Ionicons name="warning-outline" size={16} color={ds.red} />
+                <Text style={[s.msgText, { color: ds.red }]}>{bioError}</Text>
+              </View>
+            ) : null}
+
+            <Text style={s.modalLabel}>Password</Text>
+            <TextInput
+              style={s.modalInput}
+              value={bioPassword}
+              onChangeText={setBioPassword}
+              secureTextEntry
+              placeholder="••••••••"
+              placeholderTextColor={ds.subtext}
+            />
+
+            <Pressable
+              style={[s.modalBtn, bioLoading && { opacity: 0.6 }]}
+              onPress={handleEnableBiometric}
+              disabled={bioLoading}
+            >
+              {bioLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={s.modalBtnText}>Enable {biometricLabel}</Text>
+              )}
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Change Password Modal */}
       <Modal

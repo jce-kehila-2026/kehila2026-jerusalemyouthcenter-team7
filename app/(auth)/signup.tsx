@@ -827,7 +827,8 @@ export default function SignupScreen() {
   return (
     <KeyboardAvoidingView
       style={s.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === "android" ? 0 : 0}
     >
       {/* Fixed hero image — sits behind the scrolling sheet */}
       <Animated.View
@@ -851,6 +852,7 @@ export default function SignupScreen() {
         style={s.scrollContainer}
         contentContainerStyle={s.scrollContent}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={Animated.event(

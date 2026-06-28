@@ -9,7 +9,6 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "package": "com.kehila.mobileapp",
       "googleServicesFile": "./GoogleService-Info.plist",
       "bundleIdentifier": "com.kehila.mobileapp",
       "infoPlist": {
@@ -63,7 +62,10 @@
         {
           "microphonePermission": "Allow $(BUNDLE_IDENTIFIER) to access your microphone to record voice messages."
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-local-authentication",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,

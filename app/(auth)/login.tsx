@@ -1,9 +1,24 @@
 import { useAuth, UserRole } from "@/src/context/AuthContext";
 import { COLORS } from "@/src/data/mockData";
+import {
+  authenticateWithBiometrics,
+  clearCredentials,
+  ENROLLMENT_FLAG_KEY,
+  getBiometricType,
+  isBiometricAvailable,
+  loadCredentials,
+  saveCredentials,
+} from "@/src/utils/biometricAuth";
+import { auth, db } from "@/src/firebase/firebase";
+import { Ionicons } from "@expo/vector-icons";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import { Link, useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import * as SecureStore from "expo-secure-store";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Image,
@@ -87,8 +102,32 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricType, setBiometricType] = useState<
+    "face" | "fingerprint" | "none"
+  >("none");
+  const [biometricLoading, setBiometricLoading] = useState(false);
+  const [adminResetLoading, setAdminResetLoading] = useState(false);
+  const [adminResetSent, setAdminResetSent] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    (async () => {
+      try {
+        const enrolled = await SecureStore.getItemAsync(ENROLLMENT_FLAG_KEY);
+        if (enrolled !== "true") return;
+        const available = await isBiometricAvailable();
+        if (!available) return;
+        const type = await getBiometricType();
+        setBiometricType(type);
+        setBiometricAvailable(true);
+      } catch {
+        // biometric button stays hidden
+      }
+    })();
+  }, []);
 
   const accent = role === "admin" ? COLORS.red : COLORS.teal;
 
@@ -96,6 +135,44 @@ export default function LoginScreen() {
     setRole(r);
     setIdentifier("");
     setError("");
+    setAdminResetSent(false);
+  };
+
+  const handleAdminForgotPassword = async () => {
+    const email = identifier.trim();
+    if (!email) {
+      setError("Enter your email address above, then tap 'Forgot password?'");
+      return;
+    }
+    setAdminResetLoading(true);
+    setError("");
+    try {
+      // Firebase's Email Enumeration Protection silently succeeds even for
+      // non-existent emails, giving a false "reset sent" impression. Check
+      // Firestore first so we can surface a real error to the user.
+      const snap = await getDocs(
+        query(
+          collection(db, "users"),
+          where("email", "==", email),
+          where("role", "==", "admin"),
+          limit(1),
+        ),
+      );
+      if (snap.empty) {
+        setError("No admin account found for this email address.");
+        return;
+      }
+      await sendPasswordResetEmail(auth, email);
+      setAdminResetSent(true);
+    } catch (e: any) {
+      if (e?.code === "auth/invalid-email") {
+        setError("Enter a valid email address.");
+      } else {
+        setError("Could not send reset email. Please try again.");
+      }
+    } finally {
+      setAdminResetLoading(false);
+    }
   };
 
   const handleLogin = async () => {
@@ -113,7 +190,52 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (result === true) {
-      router.replace("/(tabs)" as any);
+      try {
+        const canUseBiometric = await isBiometricAvailable();
+        const alreadyEnrolled =
+          await SecureStore.getItemAsync(ENROLLMENT_FLAG_KEY);
+        if (canUseBiometric && alreadyEnrolled === null) {
+          const type = await getBiometricType();
+          const label = type === "face" ? "Face ID" : "Fingerprint";
+          Alert.alert(
+            `Enable ${label}?`,
+            `Sign in faster next time using ${label}. You can change this later in your profile.`,
+            [
+              {
+                text: "Not Now",
+                style: "cancel",
+                onPress: async () => {
+                  await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "declined");
+                  router.replace("/(tabs)" as any);
+                },
+              },
+              {
+                text: "Enable",
+                onPress: async () => {
+                  const ok = await authenticateWithBiometrics(
+                    `Confirm with ${label} to enable quick sign-in`,
+                  );
+                  if (ok) {
+                    await saveCredentials(identifier.trim(), password, role);
+                    await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "true");
+                  } else {
+                    await SecureStore.setItemAsync(
+                      ENROLLMENT_FLAG_KEY,
+                      "declined",
+                    );
+                  }
+                  router.replace("/(tabs)" as any);
+                },
+              },
+            ],
+          );
+        } else {
+          router.replace("/(tabs)" as any);
+        }
+      } catch {
+        // SecureStore or biometric check failed — proceed normally
+        router.replace("/(tabs)" as any);
+      }
     } else if (result === "pending") {
       setError(
         "⏳ Your request is still pending admin approval.\nYou will be able to log in once approved.",
@@ -128,6 +250,44 @@ export default function LoginScreen() {
           ? "No account found for this phone number.\nPlease check your number or sign up."
           : "No admin account found with these credentials.\nCheck your email or role selection.",
       );
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    setBiometricLoading(true);
+    try {
+      const label = biometricType === "face" ? "Face ID" : "Fingerprint";
+      const ok = await authenticateWithBiometrics(`Sign in with ${label}`);
+      if (!ok) {
+        setBiometricLoading(false);
+        return;
+      }
+      const creds = await loadCredentials();
+      if (!creds) {
+        setBiometricLoading(false);
+        return;
+      }
+      setRole(creds.role);
+      const result = await login(creds.identifier, creds.password, creds.role);
+      if (result === true) {
+        router.replace("/(tabs)" as any);
+      } else if (result === "pending") {
+        setError(
+          "⏳ Your request is still pending admin approval.\nYou will be able to log in once approved.",
+        );
+      } else {
+        setError(
+          result === "rejected"
+            ? "❌ Your join request was not approved. Contact the administrator."
+            : "Saved credentials are no longer valid. Please sign in manually.",
+        );
+        await clearCredentials();
+        setBiometricAvailable(false);
+      }
+    } catch {
+      setError("Biometric authentication failed. Please sign in manually.");
+    } finally {
+      setBiometricLoading(false);
     }
   };
 
@@ -253,13 +413,32 @@ export default function LoginScreen() {
             {role === "singer" ? (
               <Pressable
                 style={s.forgotRow}
-                onPress={() =>
-                  router.push("/(auth)/forgot-password" as any)
-                }
+                onPress={() => router.push("/(auth)/forgot-password" as any)}
               >
                 <Text style={s.forgotTxt}>Did you forget your password?</Text>
               </Pressable>
-            ) : null}
+            ) : adminResetSent ? (
+              <View style={s.resetSentBox}>
+                <Text style={s.resetSentTxt}>
+                  ✉ Password reset email sent to {identifier.trim()}.{"\n"}
+                  Check your inbox and follow the link to set a new password.
+                </Text>
+              </View>
+            ) : (
+              <Pressable
+                style={[s.forgotRow, adminResetLoading && { opacity: 0.5 }]}
+                onPress={handleAdminForgotPassword}
+                disabled={adminResetLoading}
+              >
+                {adminResetLoading ? (
+                  <ActivityIndicator size="small" color={COLORS.red} />
+                ) : (
+                  <Text style={[s.forgotTxt, { color: COLORS.red }]}>
+                    Forgot password?
+                  </Text>
+                )}
+              </Pressable>
+            )}
 
             <Pressable
               style={({ pressed }) => [
@@ -277,6 +456,39 @@ export default function LoginScreen() {
                 <Text style={s.btnText}>Sign In</Text>
               )}
             </Pressable>
+
+            {biometricAvailable && (
+              <Pressable
+                style={({ pressed }) => [
+                  s.biometricBtn,
+                  pressed && { opacity: 0.7 },
+                  (biometricLoading || loading) && { opacity: 0.5 },
+                ]}
+                onPress={handleBiometricLogin}
+                disabled={biometricLoading || loading}
+              >
+                {biometricLoading ? (
+                  <ActivityIndicator size="small" color={COLORS.teal} />
+                ) : (
+                  <>
+                    <Ionicons
+                      name={
+                        biometricType === "face"
+                          ? "scan-outline"
+                          : "finger-print-outline"
+                      }
+                      size={22}
+                      color={COLORS.teal}
+                    />
+                    <Text style={s.biometricText}>
+                      {biometricType === "face"
+                        ? "Sign in with Face ID"
+                        : "Sign in with Fingerprint"}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            )}
 
             <View style={s.divider}>
               <View style={s.divLine} />
@@ -423,6 +635,35 @@ const s = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
   },
+
+  biometricBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.teal,
+    backgroundColor: COLORS.tealLight,
+  },
+  biometricText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.teal,
+  },
   forgotRow: { alignItems: "flex-end", marginTop: -8, marginBottom: 16 },
   forgotTxt: { fontSize: 13, fontWeight: "600", color: COLORS.teal },
+
+  resetSentBox: {
+    backgroundColor: "#e6f4ea",
+    borderLeftWidth: 3,
+    borderLeftColor: "#1fa971",
+    borderRadius: 8,
+    padding: 10,
+    marginTop: -8,
+    marginBottom: 16,
+  },
+  resetSentTxt: { color: "#155724", fontSize: 13, fontWeight: "500", lineHeight: 19 },
 });
