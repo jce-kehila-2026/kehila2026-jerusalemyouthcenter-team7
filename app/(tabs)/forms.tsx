@@ -273,11 +273,20 @@ export default function FormsScreen() {
                     </Pressable>
                     <View style={s.badgesRow}>
                       {isAdmin && (
-                        <View
+                        <Pressable
                           style={[
                             s.badge,
                             { backgroundColor: activeColor + "22" },
                           ]}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/form-submissions/[id]",
+                              params: {
+                                id: item.id,
+                                formTitle: safeTitle,
+                              },
+                            } as any)
+                          }
                         >
                           <Text style={[s.badgeText, { color: activeColor }]}>
                             {submissionCounts[item.id] ?? 0} responses
@@ -287,7 +296,7 @@ export default function FormsScreen() {
                             size={12}
                             color={activeColor}
                           />
-                        </View>
+                        </Pressable>
                       )}
                       <View
                         style={[
