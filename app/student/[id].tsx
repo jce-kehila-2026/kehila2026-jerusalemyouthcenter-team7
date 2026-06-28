@@ -1,16 +1,10 @@
 import { useAuth } from "@/src/context/AuthContext";
-import {
-  Group,
-  attendance as mockAttendance,
-  events as mockEvents,
-  groups as mockGroups,
-  Student,
-} from "@/src/data/mockData";
+import { Group, groups as mockGroups, Student } from "@/src/data/mockData";
 import { studentService } from "@/src/data/studentService";
 import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { doc, updateDoc } from "firebase/firestore";
+import { collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -40,6 +34,42 @@ const ds = {
 } as const;
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+type AttendanceStatus =
+  | "on_time"
+  | "late"
+  | "absent"
+  | "emergency"
+  | "school_trip"
+  | "sick";
+
+type EventAttendanceRow = {
+  event_id: string;
+  status: AttendanceStatus;
+  event: {
+    id: string;
+    title: string;
+    date: string;
+  };
+};
+
+const STATUS_LABELS: Record<AttendanceStatus, string> = {
+  on_time: "On Time",
+  late: "Late",
+  absent: "Absent",
+  emergency: "Emergency",
+  school_trip: "School Trip",
+  sick: "Sick",
+};
+
+const STATUS_COLORS: Record<AttendanceStatus, string> = {
+  on_time: "#039899",
+  late: "#cfad5d",
+  absent: "#c56451",
+  emergency: "#dc2626",
+  school_trip: "#8b5cf6",
+  sick: "#888888",
+};
+
 const InfoRow = ({
   icon,
   label,
@@ -122,6 +152,10 @@ export default function StudentDetailScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
+  const [attendedEvents, setAttendedEvents] = useState<EventAttendanceRow[]>(
+    [],
+  );
+  const [attendanceLoading, setAttendanceLoading] = useState(true);
   const { user } = useAuth();
 
   const rawStudent = student as any;
@@ -193,6 +227,81 @@ export default function StudentDetailScreen() {
     [id, user],
   );
 
+  // Raw snapshot data — recombined into attendedEvents whenever either changes
+  const [eventsById, setEventsById] = useState<
+    Map<string, { id: string; title: string; date: string }>
+  >(new Map());
+  const [attendanceDocs, setAttendanceDocs] = useState<
+    { id: string; records: Record<string, string> }[]
+  >([]);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "events"),
+      (snap) => {
+        const map = new Map<
+          string,
+          { id: string; title: string; date: string }
+        >();
+        snap.docs.forEach((d) => {
+          const data = d.data() as any;
+          map.set(d.id, {
+            id: d.id,
+            title: data.title ?? data.name ?? "Untitled Event",
+            date: data.date ?? "",
+          });
+        });
+        setEventsById(map);
+      },
+      (error) => {
+        console.error("Error listening to events:", error);
+      },
+    );
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "attendance"),
+      (snap) => {
+        setAttendanceDocs(
+          snap.docs.map((d) => ({
+            id: d.id,
+            records: (d.data() as any).records ?? {},
+          })),
+        );
+        setAttendanceLoading(false);
+      },
+      (error) => {
+        console.error("Error listening to attendance:", error);
+        setAttendanceLoading(false);
+      },
+    );
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    const rows: EventAttendanceRow[] = [];
+    attendanceDocs.forEach((attDoc) => {
+      const status = attDoc.records[id];
+      if (!status) return; // student has no recorded status for this event
+
+      const event = eventsById.get(attDoc.id);
+      if (!event) return; // event was deleted but attendance doc lingered
+
+      rows.push({
+        event_id: attDoc.id,
+        status: status as AttendanceStatus,
+        event,
+      });
+    });
+
+    // Most recent event first
+    rows.sort((a, b) => b.event.date.localeCompare(a.event.date));
+    setAttendedEvents(rows);
+  }, [id, eventsById, attendanceDocs]);
+
   useEffect(() => {
     fetchStudentData(true);
   }, [fetchStudentData]);
@@ -216,16 +325,6 @@ export default function StudentDetailScreen() {
       </SafeAreaView>
     );
   }
-
-  const studentAttendance = mockAttendance.filter(
-    (a) => String(a.student_id) === student.id,
-  );
-  const attendedEvents = studentAttendance
-    .map((a) => ({
-      ...a,
-      event: mockEvents.find((e) => e.id === a.event_id),
-    }))
-    .filter((a) => a.event !== undefined);
 
   // Access control
   const isAdmin = user?.role === "admin";
@@ -293,12 +392,6 @@ export default function StudentDetailScreen() {
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const statusColors: Record<string, string> = {
-    attended: ds.teal,
-    registered: "#f59e0b",
-    absent: ds.red,
   };
 
   const initials = student.full_name
@@ -620,43 +713,40 @@ export default function StudentDetailScreen() {
             <Text style={s.sectionLabel}>
               Event Attendance ({attendedEvents.length})
             </Text>
-            {attendedEvents.length === 0 ? (
+            {attendanceLoading ? (
+              <View style={s.emptyCard}>
+                <ActivityIndicator color={ds.teal} />
+              </View>
+            ) : attendedEvents.length === 0 ? (
               <View style={s.emptyCard}>
                 <Text style={s.emptyText}>No events recorded</Text>
               </View>
             ) : (
-              attendedEvents.map((a) => (
-                <View key={a.event_id} style={s.attendanceRow}>
-                  <View style={s.attendanceInfo}>
-                    <Text style={s.eventTitle}>{a.event?.title}</Text>
-                    <Text style={s.eventDate}>
-                      {new Date(a.event!.date).toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      s.statusBadge,
-                      {
-                        backgroundColor:
-                          (statusColors[a.status] || ds.subtext) + "20",
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        s.statusText,
-                        { color: statusColors[a.status] || ds.subtext },
-                      ]}
+              attendedEvents.map((a) => {
+                const color = STATUS_COLORS[a.status] || ds.subtext;
+                const label = STATUS_LABELS[a.status] || a.status;
+                return (
+                  <View key={a.event_id} style={s.attendanceRow}>
+                    <View style={s.attendanceInfo}>
+                      <Text style={s.eventTitle}>{a.event.title}</Text>
+                      {!!a.event.date && (
+                        <Text style={s.eventDate}>
+                          {new Date(a.event.date).toLocaleDateString("en-GB", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </Text>
+                      )}
+                    </View>
+                    <View
+                      style={[s.statusBadge, { backgroundColor: color + "20" }]}
                     >
-                      {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
-                    </Text>
+                      <Text style={[s.statusText, { color }]}>{label}</Text>
+                    </View>
                   </View>
-                </View>
-              ))
+                );
+              })
             )}
           </View>
         )}
