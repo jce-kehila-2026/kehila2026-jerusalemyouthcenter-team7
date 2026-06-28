@@ -8,7 +8,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
-  where
+  where,
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
@@ -22,7 +22,10 @@ import {
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 // ── Colors (match ManageAdminsModal exactly) ──────────────────────────────────
 const C = {
@@ -87,6 +90,8 @@ function DetailModal({
   onReject: (r: JoinRequest) => void;
   processing: boolean;
 }) {
+  const insets = useSafeAreaInsets();
+
   if (!request) return null;
 
   const rows: [string, string][] = [
@@ -113,11 +118,8 @@ function DetailModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: C.white }}
-        edges={["top"]}
-      >
-        <View style={dm.header}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: C.white }} edges={[]}>
+        <View style={[dm.header, { paddingTop: insets.top + 14 }]}>
           <Pressable onPress={onClose} hitSlop={12}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </Pressable>
@@ -242,6 +244,7 @@ const dm = StyleSheet.create({
 
 // ── Main component ────────────────────────────────────────────────────────────
 export function JoinRequestsModal({ visible, onClose }: Props) {
+  const insets = useSafeAreaInsets();
   const [requests, setRequests] = useState<JoinRequest[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -446,12 +449,9 @@ export function JoinRequestsModal({ visible, onClose }: Props) {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: C.white }}
-        edges={["top"]}
-      >
+      <SafeAreaView style={{ flex: 1, backgroundColor: C.white }} edges={[]}>
         {/* Header — identical to ManageAdminsModal */}
-        <View style={s.header}>
+        <View style={[s.header, { paddingTop: insets.top + 14 }]}>
           <Pressable onPress={handleClose} hitSlop={12}>
             <Ionicons name="close" size={24} color="#fff" />
           </Pressable>
