@@ -1,13 +1,13 @@
 import { AppColors, Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useAuth } from "@/src/context/AuthContext";
 import { ForcePasswordChangeModal } from "@/src/components/ForcePasswordChangeModal";
+import { useAuth } from "@/src/context/AuthContext";
 import { messageService } from "@/src/data/messageService";
 import { notificationService } from "@/src/data/notificationService";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { Tabs } from "expo-router";
+
 import React, { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -145,7 +145,15 @@ const gh = StyleSheet.create({
 
 // ── Tab Icon ──────────────────────────────────────────────────────────────────
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
-function TabIcon({ name, color, size }: { name: IoniconsName; color: string; size: number }) {
+function TabIcon({
+  name,
+  color,
+  size,
+}: {
+  name: IoniconsName;
+  color: string;
+  size: number;
+}) {
   return <Ionicons name={name} size={size} color={color} />;
 }
 
@@ -181,12 +189,12 @@ export default function TabLayout() {
           headerShown: true,
           header: () => {
             const titles: Record<string, string> = {
-              index:         "Dashboard",
-              students:      "Students",
-              events:        "Events",
-              forms:         "Forms",
-              library:       "Library",
-              messages:      "Messages",
+              index: "Dashboard",
+              students: "Singers",
+              events: "Events",
+              forms: "Forms",
+              library: "Library",
+              messages: "Messages",
               notifications: "Notifications",
             };
             return <GlobalHeader title={titles[route.name] ?? "Kehila"} />;
@@ -196,6 +204,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="index"
           options={{
+            tabBarLabel: "Dashboard",
             tabBarIcon: ({ color, size }) => (
               <TabIcon name="grid-outline" color={color} size={size} />
             ),
@@ -204,6 +213,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="students"
           options={{
+            tabBarLabel: "Singers",
             tabBarIcon: ({ color, size }) => (
               <TabIcon name="people-outline" color={color} size={size} />
             ),
@@ -225,8 +235,14 @@ export default function TabLayout() {
             ),
           }}
         />
-        <Tabs.Screen name="messages"      options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="notifications" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen
+          name="messages"
+          options={{ href: null, headerShown: false }}
+        />
+        <Tabs.Screen
+          name="notifications"
+          options={{ href: null, headerShown: false }}
+        />
         <Tabs.Screen
           name="library"
           options={{
@@ -235,12 +251,30 @@ export default function TabLayout() {
             ),
           }}
         />
-        <Tabs.Screen name="explore"          options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="Join-requests"    options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="admin"            options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="student-events"   options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="student-calender" options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="calendar"         options={{ href: null, headerShown: false }} />
+        <Tabs.Screen
+          name="explore"
+          options={{ href: null, headerShown: false }}
+        />
+        <Tabs.Screen
+          name="Join-requests"
+          options={{ href: null, headerShown: false }}
+        />
+        <Tabs.Screen
+          name="admin"
+          options={{ href: null, headerShown: false }}
+        />
+        <Tabs.Screen
+          name="student-events"
+          options={{ href: null, headerShown: false }}
+        />
+        <Tabs.Screen
+          name="student-calender"
+          options={{ href: null, headerShown: false }}
+        />
+        <Tabs.Screen
+          name="calendar"
+          options={{ href: null, headerShown: false }}
+        />
       </Tabs>
 
       <ForcePasswordChangeModal
