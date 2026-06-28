@@ -1403,7 +1403,7 @@ export default function DashboardScreen() {
                   color={AMBER}
                 />
               </View>
-              <Text style={st.adminQuickLabel}>{"Upload\nMusic"}</Text>
+              <Text style={st.adminQuickLabel}>{"Upload\nFiles"}</Text>
             </Pressable>
 
             <Pressable
@@ -1566,29 +1566,6 @@ export default function DashboardScreen() {
         />
 
         {/* ── E: My Upcoming Events ──────────────────────────────────── */}
-        <SectionCard>
-          <SectionHeader
-            title="My Upcoming Events"
-            action="View all →"
-            onAction={() => router.push("/(tabs)/events" as any)}
-          />
-          {myUpcomingEvents.length === 0 ? (
-            <View style={st.emptyInCard}>
-              <Ionicons name="calendar-outline" size={36} color={MUTED} />
-              <Text style={st.emptyText}>No registered events yet</Text>
-            </View>
-          ) : (
-            myUpcomingEvents.slice(0, 3).map((e, i) => (
-              <View key={e.id}>
-                {i > 0 && <View style={st.rowDivider} />}
-                <EventRow
-                  event={e}
-                  onPress={() => router.push(`/event/${e.id}` as any)}
-                />
-              </View>
-            ))
-          )}
-        </SectionCard>
 
         <View style={{ height: 32 }} />
       </ScrollView>

@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             getUserData(request.auth.uid).role == "admin";
+    }
+    function isSinger() {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             getUserData(request.auth.uid).role == "singer";
+    }
+
+    match /users/{uid} {
+      allow read: if true;
+      allow create: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (request.auth.uid == uid &&
+         request.resource.data.role == resource.data.role)
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /join_requests/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /messages/{docId} {
+      allow read:           if isSignedIn();
+      allow create:         if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    match /notifications/{docId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    match /message_students/{docId}   { allow read, write: if isSignedIn(); }
+    match /message_groups/{docId}     { allow read, write: if isSignedIn(); }
+    match /statistics_reports/{docId} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /rejection/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /events/{eventId} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /attendance/{docId} {
+      allow read:   if isSignedIn();
+      allow create, update: if isAdmin() ||
+        (isSinger() && request.resource.data.uid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /rsvps/{docId} {
+      allow read:   if isSignedIn();
+      allow create, update: if isAdmin() ||
+        (isSinger() && request.resource.data.uid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /library/{docId} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /forms/{docId} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /chat_groups/{groupId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /form_submissions/{docId} {
+      allow create:               if isSignedIn();
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /groups/{docId} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /voice_types/{docId} {
+      allow read:  if true;
+      allow write: if isAdmin();
+    }
+
+    match /achievements/{docId} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /leaderboard/{uid} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /leaderboard_config/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /event_students/{docId} { allow read, write: if isSignedIn(); }
+  }
+}
