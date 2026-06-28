@@ -126,6 +126,7 @@ export default function LibraryScreen({ autoUpload = false }) {
 
   // ── Real-time listener for Years/Groups ──────────────────────────────
   useEffect(() => {
+    if (!user) return;
     const q = query(collection(db, "groups"), orderBy("year_id"));
     const unsub = onSnapshot(
       q,
@@ -148,7 +149,7 @@ export default function LibraryScreen({ autoUpload = false }) {
       },
     );
     return unsub;
-  }, []);
+  }, [user?.uid]);
 
   const loadMaterials = async () => {
     try {

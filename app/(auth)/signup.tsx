@@ -57,6 +57,35 @@ const formatBirthDate = (text: string) => {
 const hasDigits = (text: string) => /\d/.test(text);
 const stripDigits = (text: string) => text.replace(/[0-9]/g, "");
 
+// Errors that are shown inline below the relevant field — suppress the top errBox for these
+function isInlineFieldError(err: string): boolean {
+  return (
+    err === "Full name is required" ||
+    err === "Full name cannot contain numbers" ||
+    err === "Phone number is required" ||
+    err === "Email is required" ||
+    err === "Enter a valid email address" ||
+    err === "Date of birth is required" ||
+    err === "Enter a valid date of birth (DD/MM/YYYY)" ||
+    err === "Age is required" ||
+    err === "Age must be a number" ||
+    err.startsWith("Age must be between") ||
+    err === "Address is required" ||
+    err === "Neighborhood is required" ||
+    err === "School name is required" ||
+    err === "Year joined is required" ||
+    err === "Year must be a valid number" ||
+    err === "Parent name is required" ||
+    err === "Parent name cannot contain numbers" ||
+    err === "Parent phone number is required" ||
+    err === "Medical situation is required" ||
+    err === "Password is required" ||
+    err === "Password must be at least 6 characters" ||
+    err === "Passwords do not match" ||
+    err.startsWith("Enter a valid 9-digit")
+  );
+}
+
 const isValidBirthDate = (text: string): boolean => {
   const m = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!m) return false;
@@ -357,10 +386,10 @@ export default function SignupScreen() {
     }
     if (step === 2) {
       if (!form.school_name.trim()) return "School name is required";
-      if (!form.shirt_size) return "Please select your shirt size";
-      if (!form.voice_type) return "Please select your voice type";
       if (!form.year_joined.trim()) return "Year joined is required";
       if (isNaN(Number(form.year_joined))) return "Year must be a valid number";
+      if (!form.shirt_size) return "Please select your shirt size";
+      if (!form.voice_type) return "Please select your voice type";
     }
     if (step === 3) {
       if (!form.parent_relation) return "Please select parent / guardian";
@@ -380,10 +409,36 @@ export default function SignupScreen() {
     return null;
   };
 
+  const touchCurrentStep = () => {
+    if (step === 1)
+      setTouched((p) => ({
+        ...p,
+        full_name: true,
+        phone: true,
+        email: true,
+        birth_date: true,
+        age: true,
+        address: true,
+        neighborhood: true,
+      }));
+    else if (step === 2)
+      setTouched((p) => ({ ...p, school_name: true, year_joined: true }));
+    else if (step === 3)
+      setTouched((p) => ({
+        ...p,
+        parent_name: true,
+        parent_phone: true,
+        medical_situation: true,
+        password: true,
+        confirm: true,
+      }));
+  };
+
   const next = () => {
+    touchCurrentStep();
     const err = validate();
     if (err) {
-      setError(err);
+      setError(isInlineFieldError(err) ? "" : err);
       return;
     }
     setError("");
@@ -397,9 +452,10 @@ export default function SignupScreen() {
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
+    touchCurrentStep();
     const err = validate();
     if (err) {
-      setError(err);
+      setError(isInlineFieldError(err) ? "" : err);
       return;
     }
     setError("");
@@ -475,6 +531,11 @@ export default function SignupScreen() {
             placeholder="Your full name"
             placeholderTextColor="#aab"
           />
+          {touched.full_name && !form.full_name.trim() ? (
+            <Text style={s.fieldErrTxt}>⚠ Full name is required</Text>
+          ) : touched.full_name && hasDigits(form.full_name) ? (
+            <Text style={s.fieldErrTxt}>⚠ Full name cannot contain numbers</Text>
+          ) : null}
 
           <FL text="Phone Number" req />
           <Text style={s.hint}>This is your login identifier</Text>
@@ -504,7 +565,9 @@ export default function SignupScreen() {
               maxLength={9}
             />
           </View>
-          {phoneInvalid ? (
+          {touched.phone && !form.phone.trim() ? (
+            <Text style={s.fieldErrTxt}>⚠ Phone number is required</Text>
+          ) : phoneInvalid ? (
             <Text style={s.fieldErrTxt}>
               ⚠ Enter a 9-digit mobile number starting with 5, e.g. 501234567
             </Text>
@@ -526,6 +589,11 @@ export default function SignupScreen() {
             keyboardType="email-address"
             autoCapitalize="none"
           />
+          {touched.email && !form.email.trim() ? (
+            <Text style={s.fieldErrTxt}>⚠ Email is required</Text>
+          ) : touched.email && !isValidEmail(form.email) ? (
+            <Text style={s.fieldErrTxt}>⚠ Enter a valid email address</Text>
+          ) : null}
 
           <FL text="Date of Birth" req />
           <TextInput
@@ -537,11 +605,16 @@ export default function SignupScreen() {
               setFocused(null);
               setTouched((p) => ({ ...p, birth_date: true }));
             }}
-            placeholder="00/00/0000"
+            placeholder="DD/MM/YYYY"
             placeholderTextColor="#aab"
             keyboardType="number-pad"
             maxLength={10}
           />
+          {touched.birth_date && !form.birth_date.trim() ? (
+            <Text style={s.fieldErrTxt}>⚠ Date of birth is required</Text>
+          ) : touched.birth_date && !isValidBirthDate(form.birth_date) ? (
+            <Text style={s.fieldErrTxt}>⚠ Enter a valid date (DD/MM/YYYY)</Text>
+          ) : null}
 
           <FL text="Age" req />
           <Text style={s.hint}>Must be between {MIN_AGE} and {MAX_AGE}</Text>
@@ -561,6 +634,11 @@ export default function SignupScreen() {
             keyboardType="number-pad"
             maxLength={2}
           />
+          {touched.age && !form.age.trim() ? (
+            <Text style={s.fieldErrTxt}>⚠ Age is required</Text>
+          ) : touched.age && (isNaN(Number(form.age)) || Number(form.age) < MIN_AGE || Number(form.age) > MAX_AGE) ? (
+            <Text style={s.fieldErrTxt}>⚠ Age must be between {MIN_AGE} and {MAX_AGE}</Text>
+          ) : null}
 
           <FL text="Gender" req />
           <Pills
@@ -596,6 +674,9 @@ export default function SignupScreen() {
             placeholder="Street name"
             placeholderTextColor="#aab"
           />
+          {touched.address && !form.address.trim() ? (
+            <Text style={s.fieldErrTxt}>⚠ Address is required</Text>
+          ) : null}
 
           <FL text="Neighborhood" req />
           <TextInput
@@ -610,6 +691,9 @@ export default function SignupScreen() {
             placeholder="e.g. Katamon"
             placeholderTextColor="#aab"
           />
+          {touched.neighborhood && !form.neighborhood.trim() ? (
+            <Text style={s.fieldErrTxt}>⚠ Neighborhood is required</Text>
+          ) : null}
         </>
       );
 
@@ -625,6 +709,9 @@ export default function SignupScreen() {
             placeholder="Your school name"
             placeholderTextColor="#aab"
           />
+          {touched.school_name && !form.school_name.trim() ? (
+            <Text style={s.fieldErrTxt}>⚠ School name is required</Text>
+          ) : null}
 
           <FL text="Year Joined Jerusalem Youth Chorus" req />
           <TextInput
@@ -634,6 +721,9 @@ export default function SignupScreen() {
             placeholderTextColor="#aab"
             keyboardType="number-pad"
           />
+          {touched.year_joined && (!form.year_joined.trim() || isNaN(Number(form.year_joined))) ? (
+            <Text style={s.fieldErrTxt}>⚠ Enter a valid year (e.g. 2024)</Text>
+          ) : null}
 
           <FL text="Shirt Size" req />
           <Pills
@@ -700,6 +790,11 @@ export default function SignupScreen() {
             placeholder="Parent full name"
             placeholderTextColor="#aab"
           />
+          {touched.parent_name && !form.parent_name.trim() ? (
+            <Text style={s.fieldErrTxt}>⚠ Parent name is required</Text>
+          ) : touched.parent_name && hasDigits(form.parent_name) ? (
+            <Text style={s.fieldErrTxt}>⚠ Parent name cannot contain numbers</Text>
+          ) : null}
           <FL text="Parent Phone Number" req />
           <View style={s.phoneRow}>
             <View style={s.phonePrefix}>
@@ -727,7 +822,9 @@ export default function SignupScreen() {
               maxLength={9}
             />
           </View>
-          {parentPhoneInvalid ? (
+          {touched.parent_phone && !form.parent_phone.trim() ? (
+            <Text style={s.fieldErrTxt}>⚠ Parent phone number is required</Text>
+          ) : parentPhoneInvalid ? (
             <Text style={s.fieldErrTxt}>
               ⚠ Enter a 9-digit mobile number starting with 5, e.g. 501234567
             </Text>
@@ -744,6 +841,9 @@ export default function SignupScreen() {
             multiline
             numberOfLines={3}
           />
+          {touched.medical_situation && !form.medical_situation.trim() ? (
+            <Text style={s.fieldErrTxt}>⚠ Medical situation is required</Text>
+          ) : null}
 
           <FL text="Password" req />
           <TextInput
@@ -753,6 +853,11 @@ export default function SignupScreen() {
             placeholderTextColor="#aab"
             secureTextEntry
           />
+          {touched.password && !form.password ? (
+            <Text style={s.fieldErrTxt}>⚠ Password is required</Text>
+          ) : touched.password && form.password.length < 6 ? (
+            <Text style={s.fieldErrTxt}>⚠ Password must be at least 6 characters</Text>
+          ) : null}
 
           <FL text="Confirm Password" req />
           <TextInput
@@ -768,7 +873,9 @@ export default function SignupScreen() {
             placeholderTextColor="#aab"
             secureTextEntry
           />
-          {form.confirm && form.password === form.confirm ? (
+          {touched.confirm && form.confirm && form.password !== form.confirm ? (
+            <Text style={s.fieldErrTxt}>⚠ Passwords do not match</Text>
+          ) : form.confirm && form.password === form.confirm ? (
             <Text style={s.matchTxt}>✓ Passwords match</Text>
           ) : null}
         </>
@@ -827,8 +934,7 @@ export default function SignupScreen() {
   return (
     <KeyboardAvoidingView
       style={s.container}
-      behavior="padding"
-      keyboardVerticalOffset={Platform.OS === "android" ? 0 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       {/* Fixed hero image — sits behind the scrolling sheet */}
       <Animated.View
@@ -958,7 +1064,7 @@ const s = StyleSheet.create({
     borderTopRightRadius: 28,
     overflow: "hidden",
     padding: 24,
-    paddingBottom: 40,
+    paddingBottom: 120,
   },
 
   badge: {

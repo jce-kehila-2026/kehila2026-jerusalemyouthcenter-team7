@@ -61,6 +61,7 @@ export default function FormsScreen() {
   >({});
 
   useEffect(() => {
+    if (!user) return;
     setLoading(true);
     const q = query(collection(db, "forms"));
     const unsub = onSnapshot(
@@ -92,7 +93,7 @@ export default function FormsScreen() {
       },
     );
     return unsub;
-  }, [isAdmin]);
+  }, [isAdmin, user?.uid]);
 
   const visibleForms = formsList.filter((f) => {
     if (isAdmin) return true;

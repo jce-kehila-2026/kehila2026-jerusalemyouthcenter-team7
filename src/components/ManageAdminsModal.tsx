@@ -70,6 +70,13 @@ type AdminForm = {
   staff_type: string;
 };
 
+const formatBirthDate = (text: string) => {
+  const digits = text.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+};
+
 const JOB_OPTIONS = ["Music Teacher", "Educational Supervisor"] as const;
 const STAFF_TYPE_OPTIONS = ["Administrative", "Educational"] as const;
 
@@ -404,9 +411,13 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
           <TextInput
             style={s.input}
             value={form.birthday}
-            onChangeText={setField("birthday")}
+            onChangeText={(text) =>
+              setForm((p) => ({ ...p, birthday: formatBirthDate(text) }))
+            }
             placeholder="DD/MM/YYYY"
             placeholderTextColor={C.muted}
+            keyboardType="number-pad"
+            maxLength={10}
           />
 
           <FieldLabel text="Job Position" req />
