@@ -211,62 +211,112 @@ function EventRow({
 
 // ── Admin sub-components ──────────────────────────────────────────────────────
 
-function AdminHeroCard({ fullName }: { fullName: string }) {
-  const firstName = fullName.split(" ")[0];
-  const initial = fullName.charAt(0).toUpperCase();
+function AdminHeroCard({
+  adminName,
+  singerCount,
+  nextEvent,
+  topSinger,
+  topStreakStudent,
+}: {
+  adminName: string;
+  singerCount: number;
+  nextEvent: { title: string; date: string } | null;
+  topSinger: { name: string; points: number } | null;
+  topStreakStudent: { name: string; streak: number } | null;
+}) {
+  const now = new Date();
+  let daysAway: number | null = null;
+  if (nextEvent) {
+    daysAway = Math.max(
+      0,
+      Math.floor(
+        (new Date(nextEvent.date).getTime() - now.getTime()) / 86400000,
+      ),
+    );
+  }
 
-  const hour = new Date().getHours();
-  const greeting =
-    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const nextEventText = nextEvent
+    ? daysAway === 0
+      ? `${nextEvent.title} · Today!`
+      : daysAway === 1
+        ? `${nextEvent.title} · Tomorrow`
+        : `${nextEvent.title} · in ${daysAway} days`
+    : "No upcoming events";
 
-  const date = new Date();
-  const dayName = date.toLocaleDateString("en-US", { weekday: "long" });
-  const monthDay = date.toLocaleDateString("en-US", {
-    month: "long",
+  const dateStr = now.toLocaleDateString("en-GB", {
+    weekday: "long",
     day: "numeric",
+    month: "long",
   });
 
   return (
-    <View style={st.adminHeroCard}>
-      {/* Decorative background music notes */}
-      <Text style={st.adminHeroDecor1} pointerEvents="none">
-        ♪
-      </Text>
-      <Text style={st.adminHeroDecor2} pointerEvents="none">
-        ♫
-      </Text>
-
-      {/* Top row: text left, avatar right */}
-      <View style={st.adminHeroRow}>
+    <View style={st.adminHero}>
+      {/* Top row — greeting + singers pill */}
+      <View style={st.adminHeroTop}>
         <View style={{ flex: 1 }}>
-          <View style={st.adminRoleBadge}>
-            <Ionicons name="shield-checkmark" size={10} color={TEAL} />
-            <Text style={st.adminRoleBadgeText}>ADMIN</Text>
-          </View>
-          <Text style={st.adminHeroGreeting}>{greeting},</Text>
-          <Text style={st.adminHeroName}>{firstName}!</Text>
+          <Text style={st.adminHeroSub}>Welcome back 👋</Text>
+          <Text style={st.adminHeroName}>{adminName.split(" ")[0]}</Text>
+          <Text style={st.adminHeroDate}>{dateStr}</Text>
         </View>
-        <View style={st.adminAvatarCircle}>
-          <Text style={st.adminAvatarText}>{initial}</Text>
+        <View style={st.adminSingersPill}>
+          <Ionicons name="people" size={14} color="#fff" />
+          <Text style={st.adminSingersPillText}>{singerCount} singers</Text>
         </View>
       </View>
 
-      {/* Divider */}
       <View style={st.adminHeroDivider} />
 
-      {/* Bottom: date + org label */}
-      <View style={st.adminHeroFooter}>
-        <View style={st.adminHeroDateRow}>
-          <Ionicons
-            name="calendar-outline"
-            size={12}
-            color="rgba(255,255,255,0.5)"
-          />
-          <Text style={st.adminHeroDateText}>
-            {dayName}, {monthDay}
-          </Text>
+      {/* Live stat chips */}
+      <View style={st.adminHeroChips}>
+        <View style={st.adminHeroChip}>
+          <View style={st.adminHeroChipIcon}>
+            <Ionicons name="calendar-outline" size={13} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={st.adminHeroChipLabel}>Next Event</Text>
+            <Text style={st.adminHeroChipValue} numberOfLines={1}>
+              {nextEventText}
+            </Text>
+          </View>
         </View>
-        <Text style={st.adminHeroOrg}>Jerusalem Youth Center</Text>
+
+        <View style={[st.adminHeroChip, { marginTop: 10 }]}>
+          <View
+            style={[
+              st.adminHeroChipIcon,
+              { backgroundColor: "rgba(207,173,93,0.4)" },
+            ]}
+          >
+            <Ionicons name="trophy-outline" size={13} color="#FFD93D" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={st.adminHeroChipLabel}>Top Singer This Week</Text>
+            <Text style={st.adminHeroChipValue} numberOfLines={1}>
+              {topSinger
+                ? `${topSinger.name.split(" ")[0]} · ${topSinger.points} pts`
+                : "No rankings yet"}
+            </Text>
+          </View>
+        </View>
+
+        <View style={[st.adminHeroChip, { marginTop: 10 }]}>
+          <View
+            style={[
+              st.adminHeroChipIcon,
+              { backgroundColor: "rgba(255,107,53,0.35)" },
+            ]}
+          >
+            <Ionicons name="flame-outline" size={13} color="#FF6B35" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={st.adminHeroChipLabel}>Highest Streak</Text>
+            <Text style={st.adminHeroChipValue} numberOfLines={1}>
+              {topStreakStudent
+                ? `${topStreakStudent.name.split(" ")[0]} · ${topStreakStudent.streak} sessions`
+                : "No streaks yet"}
+            </Text>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -1078,6 +1128,10 @@ export default function DashboardScreen() {
   const [customAchievements, setCustomAchievements] = useState<
     CustomAchievement[]
   >([]);
+  const [topStreakStudent, setTopStreakStudent] = useState<{
+    name: string;
+    streak: number;
+  } | null>(null);
   const [latestLibraryFile, setLatestLibraryFile] = useState<{
     id: string;
     name: string;
@@ -1150,6 +1204,23 @@ export default function DashboardScreen() {
 
         // ── Admin-specific achievement/form counts are handled by a
         // live onSnapshot listener in a separate effect below ───────
+
+        // ── Admin: highest streak student ────────────────────────────
+        if (isAdmin && singers.status === "fulfilled") {
+          let highestStreak = 0;
+          let highestStreakName = "";
+          singers.value.docs.forEach((d) => {
+            const data = d.data() as any;
+            const s = data.streak ?? 0;
+            if (s > highestStreak) {
+              highestStreak = s;
+              highestStreakName = data.full_name ?? data.name ?? "Unknown";
+            }
+          });
+          if (highestStreak > 0) {
+            setTopStreakStudent({ name: highestStreakName, streak: highestStreak });
+          }
+        }
 
         // ── Singer-specific achievement data ────────────────────────
         if (!isAdmin) {
@@ -1294,15 +1365,17 @@ export default function DashboardScreen() {
     };
   }, [user?.uid, isAdmin]);
 
-  // Live leaderboard subscription — singer only
+  // Live leaderboard subscription — all roles (admin needs top singer)
   useEffect(() => {
-    if (!user?.uid || user?.role !== "singer") return;
+    if (!user?.uid) return;
     const unsub = leaderboardService.subscribe((entries) => {
       setLeaderboard(entries);
-      const rank = entries.findIndex((e) => e.uid === user.uid);
-      setMyRank(rank >= 0 ? rank + 1 : null);
-      const myEntry = entries.find((e) => e.uid === user.uid);
-      setMyPoints(myEntry?.points ?? 0);
+      if (user?.role === "singer") {
+        const rank = entries.findIndex((e) => e.uid === user.uid);
+        setMyRank(rank >= 0 ? rank + 1 : null);
+        const myEntry = entries.find((e) => e.uid === user.uid);
+        setMyPoints(myEntry?.points ?? 0);
+      }
     });
     return unsub;
   }, [user?.uid, user?.role]);
@@ -1378,8 +1451,18 @@ export default function DashboardScreen() {
           contentContainerStyle={st.scroll}
           showsVerticalScrollIndicator={false}
         >
-          {/* ── Greeting ─────────────────────────────────────────────── */}
-          <AdminHeroCard fullName={user?.full_name ?? "Admin"} />
+          {/* ── Admin Hero Card ──────────────────────────────────────── */}
+          <AdminHeroCard
+            adminName={user?.full_name ?? "Admin"}
+            singerCount={singerCount}
+            nextEvent={upcomingEvents[0] ?? null}
+            topSinger={
+              leaderboard.length > 0
+                ? { name: leaderboard[0].name, points: leaderboard[0].points }
+                : null
+            }
+            topStreakStudent={topStreakStudent}
+          />
 
           {/* ── Section 1: Action Items ──────────────────────────────── */}
           <AdminActionItems
@@ -1653,123 +1736,88 @@ const st = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 16,
   },
-  dashGreeting: { flex: 1 },
-  dashWelcome: { fontSize: 12, color: MUTED, fontWeight: "500" },
-  dashName: { fontSize: 20, fontWeight: "800", color: DARK, marginTop: 2 },
-  dashDate: { fontSize: 11, color: MUTED, marginTop: 2 },
   dashIcons: { flexDirection: "row", alignItems: "center", gap: 8 },
 
   // ── Admin Hero Card
-  adminHeroCard: {
-    backgroundColor: DARK,
-    borderRadius: 22,
-    padding: 20,
-    paddingBottom: 16,
-    marginBottom: 14,
-    shadowColor: DARK,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 16,
-    elevation: 8,
-    overflow: "hidden" as const,
+  adminHero: {
+    backgroundColor: TEAL,
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 12,
+    shadowColor: TEAL,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  adminHeroDecor1: {
-    position: "absolute" as const,
-    top: 6,
-    right: 58,
-    fontSize: 72,
-    color: "rgba(3,152,153,0.08)",
-    pointerEvents: "none" as const,
-  },
-  adminHeroDecor2: {
-    position: "absolute" as const,
-    bottom: 4,
-    right: 14,
-    fontSize: 52,
-    color: "rgba(3,152,153,0.06)",
-    pointerEvents: "none" as const,
-  },
-  adminHeroRow: {
+  adminHeroTop: {
     flexDirection: "row" as const,
     alignItems: "flex-start" as const,
     justifyContent: "space-between" as const,
   },
-  adminRoleBadge: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 4,
-    backgroundColor: TEAL + "22",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: TEAL + "44",
-    alignSelf: "flex-start" as const,
-    marginBottom: 10,
-  },
-  adminRoleBadgeText: {
-    fontSize: 10,
-    fontWeight: "800" as const,
-    color: TEAL,
-    letterSpacing: 1.2,
-  },
-  adminHeroGreeting: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.55)",
-    fontWeight: "500" as const,
-    marginBottom: 2,
+  adminHeroSub: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 12,
+    fontWeight: "600" as const,
   },
   adminHeroName: {
-    fontSize: 34,
-    fontWeight: "900" as const,
     color: "#fff",
-    lineHeight: 38,
-  },
-  adminAvatarCircle: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: TEAL,
-    alignItems: "center" as const,
-    justifyContent: "center" as const,
-    borderWidth: 2.5,
-    borderColor: "rgba(255,255,255,0.18)",
-    shadowColor: TEAL,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  adminAvatarText: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: "900" as const,
-    color: "#fff",
+    marginTop: 2,
   },
-  adminHeroDivider: {
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    marginVertical: 14,
+  adminHeroDate: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 11,
+    marginTop: 3,
   },
-  adminHeroFooter: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    justifyContent: "space-between" as const,
-  },
-  adminHeroDateRow: {
+  adminSingersPill: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: 5,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
   },
-  adminHeroDateText: {
+  adminSingersPillText: {
+    color: "#fff",
     fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
+    fontWeight: "800" as const,
+  },
+  adminHeroDivider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    marginVertical: 14,
+  },
+  adminHeroChips: {
+    gap: 0,
+  },
+  adminHeroChip: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 10,
+  },
+  adminHeroChipIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  adminHeroChipLabel: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 10,
     fontWeight: "600" as const,
   },
-  adminHeroOrg: {
-    fontSize: 10,
-    color: TEAL + "aa",
+  adminHeroChipValue: {
+    color: "#fff",
+    fontSize: 13,
     fontWeight: "700" as const,
-    letterSpacing: 0.5,
+    marginTop: 1,
   },
   dashIconBtn: { padding: 4 },
   singerActionsBar: {
