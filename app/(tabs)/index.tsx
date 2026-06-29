@@ -211,6 +211,67 @@ function EventRow({
 
 // ── Admin sub-components ──────────────────────────────────────────────────────
 
+function AdminHeroCard({ fullName }: { fullName: string }) {
+  const firstName = fullName.split(" ")[0];
+  const initial = fullName.charAt(0).toUpperCase();
+
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  const date = new Date();
+  const dayName = date.toLocaleDateString("en-US", { weekday: "long" });
+  const monthDay = date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+  });
+
+  return (
+    <View style={st.adminHeroCard}>
+      {/* Decorative background music notes */}
+      <Text style={st.adminHeroDecor1} pointerEvents="none">
+        ♪
+      </Text>
+      <Text style={st.adminHeroDecor2} pointerEvents="none">
+        ♫
+      </Text>
+
+      {/* Top row: text left, avatar right */}
+      <View style={st.adminHeroRow}>
+        <View style={{ flex: 1 }}>
+          <View style={st.adminRoleBadge}>
+            <Ionicons name="shield-checkmark" size={10} color={TEAL} />
+            <Text style={st.adminRoleBadgeText}>ADMIN</Text>
+          </View>
+          <Text style={st.adminHeroGreeting}>{greeting},</Text>
+          <Text style={st.adminHeroName}>{firstName}!</Text>
+        </View>
+        <View style={st.adminAvatarCircle}>
+          <Text style={st.adminAvatarText}>{initial}</Text>
+        </View>
+      </View>
+
+      {/* Divider */}
+      <View style={st.adminHeroDivider} />
+
+      {/* Bottom: date + org label */}
+      <View style={st.adminHeroFooter}>
+        <View style={st.adminHeroDateRow}>
+          <Ionicons
+            name="calendar-outline"
+            size={12}
+            color="rgba(255,255,255,0.5)"
+          />
+          <Text style={st.adminHeroDateText}>
+            {dayName}, {monthDay}
+          </Text>
+        </View>
+        <Text style={st.adminHeroOrg}>Jerusalem Youth Center</Text>
+      </View>
+    </View>
+  );
+}
+
 function AdminActionItems({
   pendingRequests,
   upcomingThisWeek,
@@ -1318,11 +1379,7 @@ export default function DashboardScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* ── Greeting ─────────────────────────────────────────────── */}
-          <View style={st.dashGreeting}>
-            <Text style={st.dashWelcome}>Welcome back</Text>
-            <Text style={st.dashName}>{user?.full_name ?? "Admin"}</Text>
-            <Text style={st.dashDate}>{todayString()}</Text>
-          </View>
+          <AdminHeroCard fullName={user?.full_name ?? "Admin"} />
 
           {/* ── Section 1: Action Items ──────────────────────────────── */}
           <AdminActionItems
@@ -1601,6 +1658,119 @@ const st = StyleSheet.create({
   dashName: { fontSize: 20, fontWeight: "800", color: DARK, marginTop: 2 },
   dashDate: { fontSize: 11, color: MUTED, marginTop: 2 },
   dashIcons: { flexDirection: "row", alignItems: "center", gap: 8 },
+
+  // ── Admin Hero Card
+  adminHeroCard: {
+    backgroundColor: DARK,
+    borderRadius: 22,
+    padding: 20,
+    paddingBottom: 16,
+    marginBottom: 14,
+    shadowColor: DARK,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 16,
+    elevation: 8,
+    overflow: "hidden" as const,
+  },
+  adminHeroDecor1: {
+    position: "absolute" as const,
+    top: 6,
+    right: 58,
+    fontSize: 72,
+    color: "rgba(3,152,153,0.08)",
+    pointerEvents: "none" as const,
+  },
+  adminHeroDecor2: {
+    position: "absolute" as const,
+    bottom: 4,
+    right: 14,
+    fontSize: 52,
+    color: "rgba(3,152,153,0.06)",
+    pointerEvents: "none" as const,
+  },
+  adminHeroRow: {
+    flexDirection: "row" as const,
+    alignItems: "flex-start" as const,
+    justifyContent: "space-between" as const,
+  },
+  adminRoleBadge: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 4,
+    backgroundColor: TEAL + "22",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: TEAL + "44",
+    alignSelf: "flex-start" as const,
+    marginBottom: 10,
+  },
+  adminRoleBadgeText: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: TEAL,
+    letterSpacing: 1.2,
+  },
+  adminHeroGreeting: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.55)",
+    fontWeight: "500" as const,
+    marginBottom: 2,
+  },
+  adminHeroName: {
+    fontSize: 34,
+    fontWeight: "900" as const,
+    color: "#fff",
+    lineHeight: 38,
+  },
+  adminAvatarCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: TEAL,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    borderWidth: 2.5,
+    borderColor: "rgba(255,255,255,0.18)",
+    shadowColor: TEAL,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  adminAvatarText: {
+    fontSize: 22,
+    fontWeight: "900" as const,
+    color: "#fff",
+  },
+  adminHeroDivider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    marginVertical: 14,
+  },
+  adminHeroFooter: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+  },
+  adminHeroDateRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 5,
+  },
+  adminHeroDateText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+    fontWeight: "600" as const,
+  },
+  adminHeroOrg: {
+    fontSize: 10,
+    color: TEAL + "aa",
+    fontWeight: "700" as const,
+    letterSpacing: 0.5,
+  },
   dashIconBtn: { padding: 4 },
   singerActionsBar: {
     flexDirection: "row" as const,
