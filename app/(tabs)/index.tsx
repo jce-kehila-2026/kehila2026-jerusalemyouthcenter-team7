@@ -707,7 +707,7 @@ function SingerShortcuts({
     },
     {
       icon: "musical-notes-outline" as const,
-      label: latestLibraryFile ? latestLibraryFile.name : "No Uploads Yet",
+      label: latestLibraryFile ? latestLibraryFile.name : "Uploads File",
       sublabel: latestLibraryFile
         ? `Latest · ${latestLibraryFile.ext}`
         : "Nothing yet",
@@ -2277,7 +2277,7 @@ const st = StyleSheet.create({
   lbViewAll: { fontSize: 12, fontWeight: "700" as const, color: TEAL },
   lbPodiumWrap: {
     paddingHorizontal: 10,
-    paddingTop: 4,
+    paddingTop: 20,
     backgroundColor: "#fafbff",
   },
   lbPodiumRow: {

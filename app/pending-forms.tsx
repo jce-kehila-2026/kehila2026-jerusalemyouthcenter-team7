@@ -108,7 +108,7 @@ export default function PendingFormsScreen() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={s.safe} edges={["bottom"]}>
+    <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
       {/* ── Header ───────────────────────────────────────────────────── */}
       <View style={s.header}>
         <Pressable style={s.backBtn} onPress={() => router.back()} hitSlop={10}>
