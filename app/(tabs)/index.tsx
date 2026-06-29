@@ -710,7 +710,7 @@ function SingerShortcuts({
       label: latestLibraryFile ? latestLibraryFile.name : "Uploads File",
       sublabel: latestLibraryFile
         ? `Latest · ${latestLibraryFile.ext}`
-        : "Nothing yet",
+        : "Tap to view library",
       onPress: onLatestFile,
       bg: "#7c5cbf",
       decor: "🎶",
