@@ -57,7 +57,7 @@ function RoleToggle({
         </Text>
       </Pressable>
       <Pressable
-        style={[rt.pill, role === "admin" && { backgroundColor: COLORS.red }]}
+        style={[rt.pill, role === "admin" && { backgroundColor: "#C9A24E" }]}
         onPress={() => onChange("admin")}
       >
         <Text style={rt.icon}>🛡️</Text>
@@ -124,7 +124,7 @@ export default function LoginScreen() {
     })();
   }, []);
 
-  const accent = role === "admin" ? COLORS.red : COLORS.teal;
+  const accent = role === "admin" ? "#C9A24E" : COLORS.teal;
 
   const handleRoleChange = (r: UserRole) => {
     setRole(r);
@@ -310,7 +310,7 @@ export default function LoginScreen() {
                 s.badge,
                 {
                   backgroundColor:
-                    role === "admin" ? COLORS.redLight : COLORS.tealLight,
+                    role === "admin" ? "#FBF2E0" : COLORS.tealLight,
                 },
               ]}
             >
