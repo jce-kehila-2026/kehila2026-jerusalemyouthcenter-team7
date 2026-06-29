@@ -261,7 +261,7 @@ function AdminHeroCard({
           <Text style={st.adminHeroName}>{adminName}</Text>
           <Text style={st.adminHeroDate}>{dateStr}</Text>
         </View>
-        <View style={{ gap: 6 }}>
+        <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
           <View style={st.adminSingersPill}>
             <Ionicons name="people" size={13} color="#fff" />
             <Text style={st.adminSingersPillText}>{singerCount} singers</Text>
