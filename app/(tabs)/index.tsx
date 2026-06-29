@@ -255,7 +255,7 @@ function AdminHeroCard({
       <View style={st.adminHeroTop}>
         <View style={{ flex: 1 }}>
           <Text style={st.adminHeroSub}>Welcome back 👋</Text>
-          <Text style={st.adminHeroName}>{adminName.split(" ")[0]}</Text>
+          <Text style={st.adminHeroName}>{adminName}</Text>
           <Text style={st.adminHeroDate}>{dateStr}</Text>
         </View>
         <View style={st.adminSingersPill}>
@@ -266,56 +266,54 @@ function AdminHeroCard({
 
       <View style={st.adminHeroDivider} />
 
-      {/* Live stat chips */}
+      {/* Live stat chips — side by side */}
       <View style={st.adminHeroChips}>
         <View style={st.adminHeroChip}>
           <View style={st.adminHeroChipIcon}>
-            <Ionicons name="calendar-outline" size={13} color="#fff" />
+            <Ionicons name="calendar-outline" size={14} color="#fff" />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={st.adminHeroChipLabel}>Next Event</Text>
-            <Text style={st.adminHeroChipValue} numberOfLines={1}>
-              {nextEventText}
-            </Text>
-          </View>
+          <Text style={st.adminHeroChipLabel}>Next Event</Text>
+          <Text style={st.adminHeroChipValue} numberOfLines={2}>
+            {nextEventText}
+          </Text>
         </View>
 
-        <View style={[st.adminHeroChip, { marginTop: 10 }]}>
+        <View style={st.adminHeroChipSep} />
+
+        <View style={st.adminHeroChip}>
           <View
             style={[
               st.adminHeroChipIcon,
               { backgroundColor: "rgba(207,173,93,0.4)" },
             ]}
           >
-            <Ionicons name="trophy-outline" size={13} color="#FFD93D" />
+            <Ionicons name="trophy-outline" size={14} color="#FFD93D" />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={st.adminHeroChipLabel}>Top Singer This Week</Text>
-            <Text style={st.adminHeroChipValue} numberOfLines={1}>
-              {topSinger
-                ? `${topSinger.name.split(" ")[0]} · ${topSinger.points} pts`
-                : "No rankings yet"}
-            </Text>
-          </View>
+          <Text style={st.adminHeroChipLabel}>Top Singer</Text>
+          <Text style={st.adminHeroChipValue} numberOfLines={2}>
+            {topSinger
+              ? `${topSinger.name.split(" ")[0]}\n${topSinger.points} pts`
+              : "No rankings\nyet"}
+          </Text>
         </View>
 
-        <View style={[st.adminHeroChip, { marginTop: 10 }]}>
+        <View style={st.adminHeroChipSep} />
+
+        <View style={st.adminHeroChip}>
           <View
             style={[
               st.adminHeroChipIcon,
               { backgroundColor: "rgba(255,107,53,0.35)" },
             ]}
           >
-            <Ionicons name="flame-outline" size={13} color="#FF6B35" />
+            <Ionicons name="flame-outline" size={14} color="#FF6B35" />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={st.adminHeroChipLabel}>Highest Streak</Text>
-            <Text style={st.adminHeroChipValue} numberOfLines={1}>
-              {topStreakStudent
-                ? `${topStreakStudent.name.split(" ")[0]} · ${topStreakStudent.streak} sessions`
-                : "No streaks yet"}
-            </Text>
-          </View>
+          <Text style={st.adminHeroChipLabel}>Top Streak</Text>
+          <Text style={st.adminHeroChipValue} numberOfLines={2}>
+            {topStreakStudent
+              ? `${topStreakStudent.name.split(" ")[0]}\n${topStreakStudent.streak} sessions`
+              : "No streaks\nyet"}
+          </Text>
         </View>
       </View>
     </View>
@@ -1762,7 +1760,7 @@ const st = StyleSheet.create({
   },
   adminHeroName: {
     color: "#fff",
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: "900" as const,
     marginTop: 2,
   },
@@ -1793,12 +1791,19 @@ const st = StyleSheet.create({
     marginVertical: 14,
   },
   adminHeroChips: {
-    gap: 0,
+    flexDirection: "row" as const,
+    alignItems: "flex-start" as const,
   },
   adminHeroChip: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 10,
+    flex: 1,
+    alignItems: "flex-start" as const,
+    gap: 5,
+  },
+  adminHeroChipSep: {
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignSelf: "stretch" as const,
+    marginHorizontal: 12,
   },
   adminHeroChipIcon: {
     width: 28,
@@ -1815,9 +1820,9 @@ const st = StyleSheet.create({
   },
   adminHeroChipValue: {
     color: "#fff",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700" as const,
-    marginTop: 1,
+    lineHeight: 16,
   },
   dashIconBtn: { padding: 4 },
   singerActionsBar: {
