@@ -515,6 +515,24 @@ export default function StudentsListScreen() {
               </Text>
             </View>
             <View style={s.actionsRow}>
+              {presence && (
+                <View style={s.presenceInline}>
+                  <View
+                    style={[
+                      s.presenceDot,
+                      { backgroundColor: presence.isOnline ? "#22c55e" : ds.border },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      s.presenceText,
+                      { color: presence.isOnline ? "#22c55e" : ds.muted },
+                    ]}
+                  >
+                    {presence.label}
+                  </Text>
+                </View>
+              )}
               <Pressable
                 hitSlop={8}
                 onPress={() =>
@@ -544,24 +562,6 @@ export default function StudentsListScreen() {
                 <Text style={s.lbPointsValue}>{lbPoints}</Text>
                 <Text style={s.lbPointsLabel}>pts</Text>
               </View>
-            </View>
-          )}
-          {presence && (
-            <View style={[s.presenceStrip, { borderTopColor: ds.border }]}>
-              <View
-                style={[
-                  s.presenceDot,
-                  { backgroundColor: presence.isOnline ? "#22c55e" : ds.border },
-                ]}
-              />
-              <Text
-                style={[
-                  s.presenceText,
-                  { color: presence.isOnline ? "#22c55e" : ds.muted },
-                ]}
-              >
-                {presence.label}
-              </Text>
             </View>
           )}
         </View>
@@ -965,7 +965,16 @@ const s = StyleSheet.create({
   },
   avatarText: { fontWeight: "700" },
   cardTitle: { marginLeft: 12, fontWeight: "600", color: ds.text, flex: 1 },
-  actionsRow: { marginLeft: 8 },
+  actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginLeft: 8,
+  },
+  presenceInline: {
+    alignItems: "center",
+    gap: 3,
+  },
 
   // ── Leaderboard strip on student card
   lbStrip: {
@@ -1030,15 +1039,7 @@ const s = StyleSheet.create({
   lbSummaryName: { flex: 1, fontSize: 11, fontWeight: "700", color: ds.text },
   lbSummaryPts: { fontSize: 10, fontWeight: "800", color: "#a0842a" },
 
-  // ── Presence strip on student card
-  presenceStrip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    marginTop: 8,
-    paddingTop: 7,
-  },
+  // ── Presence indicator on student card
   presenceDot: {
     width: 8,
     height: 8,
