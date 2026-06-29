@@ -1,118 +1,138 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function getUserData(uid) {
-      return get(/databases/$(database)/documents/users/$(uid)).data;
-    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
     function isSignedIn() {
       return request.auth != null;
     }
+
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    // Removed the exists() preflight — if the user doc is missing, getUserData()
+    // returns null and the role comparison is false, which is the same outcome.
+    // The exists() calls inside function bodies caused the CLI "Invalid variable
+    // name: request" warnings on the path interpolation $(request.auth.uid).
     function isAdmin() {
-      return isSignedIn() &&
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             getUserData(request.auth.uid).role == "admin";
-            
+      return isSignedIn() && getUserData(request.auth.uid).role == "admin";
     }
+
     function isSinger() {
-      return isSignedIn() &&
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             getUserData(request.auth.uid).role == "singer";
+      return isSignedIn() && getUserData(request.auth.uid).role == "singer";
     }
+
+    // ── Collections ────────────────────────────────────────────────────────────
+
     match /users/{uid} {
-      allow read: if true;
+      allow read:   if true;
       allow create: if isSignedIn() && (request.auth.uid == uid || isAdmin());
       allow update: if isSignedIn() && (request.auth.uid == uid || isAdmin());
       allow delete: if isAdmin();
     }
- 
+
     match /join_requests/{docId} {
-      allow read: if true;
+      allow read:  if true;
       allow write: if isAdmin();
     }
-   match /messages/{docId} {
-  allow read: if isSignedIn();
 
-  // כל משתמש מחובר יכול לשלוח הודעה
-  allow create: if isSignedIn();
-
-  // מאפשר React וסימון הודעה כנקראה
-  allow update: if isSignedIn();
-
-  // רק בעל ההודעה או אדמין יכולים למחוק
-  allow delete: if isAdmin() ||
-                resource.data.sender_id == request.auth.uid;
-}
+    match /messages/{docId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null &&
+                       (request.auth.uid == resource.data.sender_id ||
+                        request.auth.uid == resource.data.receiver_id ||
+                        isAdmin());
+    }
 
     match /notifications/{docId} {
-      allow read:   if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();   // lets a user mark their own as read
-      allow delete: if isAdmin();
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null &&
+                       (request.auth.uid == resource.data.target_uid || isAdmin());
     }
-    // Domain 5 junction / report collections — add if your code uses them
-    match /message_students/{docId}   { allow read, write: if isSignedIn(); }
-    match /message_groups/{docId}     { allow read, write: if isSignedIn(); }
+
+    match /message_students/{docId} { allow read, write: if isSignedIn(); }
+    match /message_groups/{docId}   { allow read, write: if isSignedIn(); }
+
     match /statistics_reports/{docId} {
       allow read:  if isSignedIn();
       allow write: if isAdmin();
     }
+
     match /rejection/{docId} {
-      allow read: if true;
+      allow read:  if true;
       allow write: if isAdmin();
     }
+
     match /events/{eventId} {
       allow read:  if isSignedIn();
       allow write: if isAdmin();
     }
-   match /attendance/{docId} {
-  allow read: if isSignedIn();
-  allow create, update: if isSignedIn();
-  allow delete: if isAdmin();
-}
-  match /rsvps/{docId} {
-  allow read: if isSignedIn();
-  allow create, update: if isSignedIn();
-  allow delete: if isAdmin();
-}
-    
+
+    match /attendance/{docId} {
+      allow read:           if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete:         if isAdmin();
+    }
+
+    match /rsvps/{docId} {
+      allow read:           if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete:         if isAdmin();
+    }
+
     match /library/{docId} {
       allow read:  if isSignedIn();
       allow write: if isAdmin();
     }
-   
+
     match /forms/{docId} {
       allow read:  if isSignedIn();
       allow write: if isAdmin();
     }
+
     match /chat_groups/{groupId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isSignedIn();
     }
+
+    // Students can create and read only their own submissions; admins have full access.
     match /form_submissions/{docId} {
-      allow create:              if isSignedIn();
-      allow read, update, delete: if isAdmin();
+      allow create: if isSignedIn();
+      allow read:   if isSignedIn() &&
+                       (resource.data.student_id == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
     }
+
     match /groups/{docId} {
       allow read:  if isSignedIn();
       allow write: if isAdmin();
     }
+
     match /voice_types/{docId} {
       allow read:  if true;
       allow write: if isAdmin();
     }
+
     match /achievements/{docId} {
       allow read:  if isSignedIn();
       allow write: if isAdmin();
     }
+
     match /leaderboard/{uid} {
-  allow read, write: if isSignedIn();
-}
+      allow read, write: if isSignedIn();
+    }
 
-match /leaderboard_config/{docId} {
-  allow read, write: if isSignedIn();
-}
+    match /leaderboard_config/{docId} {
+      allow read, write: if isSignedIn();
+    }
 
-match /event_students/{docId} {
-  allow read, write: if isSignedIn();
-}
-}
+    match /event_students/{docId} {
+      allow read, write: if isSignedIn();
+    }
+  }
 }
