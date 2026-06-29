@@ -261,7 +261,7 @@ function AdminHeroCard({
 
       {/* Main shield */}
       <View style={st.adminDecorShield} pointerEvents="none">
-        <Ionicons name="shield-half-outline" size={110} color="rgba(3,152,153,0.28)" />
+        <Ionicons name="shield-half-outline" size={110} color="rgba(255,255,255,0.11)" />
       </View>
 
       {/* Small people icon — top-left corner */}
@@ -1796,25 +1796,25 @@ const st = StyleSheet.create({
 
   // ── Admin Hero Card
   adminHero: {
-    backgroundColor: "#0B1E33",
+    backgroundColor: TEAL,
     borderRadius: 20,
     padding: 18,
     marginBottom: 12,
-    shadowColor: "#0B1E33",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 14,
-    elevation: 8,
+    shadowColor: TEAL,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
     overflow: "hidden" as const,
   },
   adminDecorGlow: {
     position: "absolute" as const,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: "rgba(3,152,153,0.18)",
-    bottom: -50,
-    right: -35,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    bottom: -40,
+    right: -30,
     pointerEvents: "none" as const,
   },
   adminDecorShield: {
@@ -1835,7 +1835,7 @@ const st = StyleSheet.create({
     top: 12,
     right: 175,
     fontSize: 26,
-    color: "rgba(3,152,153,0.3)",
+    color: "rgba(255,255,255,0.09)",
     pointerEvents: "none" as const,
   },
   adminDecorStar1: {
@@ -1876,7 +1876,7 @@ const st = StyleSheet.create({
     height: 60,
     borderRadius: 30,
     borderWidth: 1.5,
-    borderColor: "rgba(3,152,153,0.35)",
+    borderColor: "rgba(255,255,255,0.1)",
     bottom: -20,
     left: -16,
     pointerEvents: "none" as const,
