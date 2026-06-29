@@ -397,7 +397,7 @@ export default function StudentDetailScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
-          <Text style={s.pageTitle}>Student Profile</Text>
+          <Text style={s.pageTitle}>Singer Profile</Text>
         </View>
         {isAdmin && (
           <TouchableOpacity
