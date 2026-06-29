@@ -1,3 +1,4 @@
+import { presenceService } from "@/src/data/presenceService";
 import { JoinRequestsModal } from "@/src/components/JoinRequestsModal";
 import {
   CustomAchievement,
@@ -214,12 +215,14 @@ function EventRow({
 function AdminHeroCard({
   adminName,
   singerCount,
+  onlineCount,
   nextEvent,
   topSinger,
   topStreakStudent,
 }: {
   adminName: string;
   singerCount: number;
+  onlineCount: number;
   nextEvent: { title: string; date: string } | null;
   topSinger: { name: string; points: number } | null;
   topStreakStudent: { name: string; streak: number } | null;
@@ -258,9 +261,23 @@ function AdminHeroCard({
           <Text style={st.adminHeroName}>{adminName}</Text>
           <Text style={st.adminHeroDate}>{dateStr}</Text>
         </View>
-        <View style={st.adminSingersPill}>
-          <Ionicons name="people" size={14} color="#fff" />
-          <Text style={st.adminSingersPillText}>{singerCount} singers</Text>
+        <View style={{ gap: 6 }}>
+          <View style={st.adminSingersPill}>
+            <Ionicons name="people" size={13} color="#fff" />
+            <Text style={st.adminSingersPillText}>{singerCount} singers</Text>
+          </View>
+          <View
+            style={[
+              st.adminSingersPill,
+              {
+                backgroundColor: "rgba(34,197,94,0.25)",
+                borderColor: "rgba(34,197,94,0.4)",
+              },
+            ]}
+          >
+            <View style={st.onlineDot} />
+            <Text style={st.adminSingersPillText}>{onlineCount} online</Text>
+          </View>
         </View>
       </View>
 
@@ -1130,6 +1147,7 @@ export default function DashboardScreen() {
     name: string;
     streak: number;
   } | null>(null);
+  const [onlineSingerCount, setOnlineSingerCount] = useState(0);
   const [latestLibraryFile, setLatestLibraryFile] = useState<{
     id: string;
     name: string;
@@ -1363,6 +1381,18 @@ export default function DashboardScreen() {
     };
   }, [user?.uid, isAdmin]);
 
+  // Presence tracking — all roles
+  useEffect(() => {
+    if (!user?.uid) return;
+    return presenceService.startTracking(user.uid);
+  }, [user?.uid]);
+
+  // Online singer count — admin only
+  useEffect(() => {
+    if (!user?.uid || !isAdmin) return;
+    return presenceService.subscribeOnlineCount(setOnlineSingerCount);
+  }, [user?.uid, isAdmin]);
+
   // Live leaderboard subscription — all roles (admin needs top singer)
   useEffect(() => {
     if (!user?.uid) return;
@@ -1453,6 +1483,7 @@ export default function DashboardScreen() {
           <AdminHeroCard
             adminName={user?.full_name ?? "Admin"}
             singerCount={singerCount}
+            onlineCount={onlineSingerCount}
             nextEvent={upcomingEvents[0] ?? null}
             topSinger={
               leaderboard.length > 0
@@ -1784,6 +1815,12 @@ const st = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "800" as const,
+  },
+  onlineDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#22c55e",
   },
   adminHeroDivider: {
     height: 1,
