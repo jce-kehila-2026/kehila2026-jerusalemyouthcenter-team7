@@ -658,7 +658,6 @@ function SingerBadgesRow({
 // ── Singer smart shortcuts component ─────────────────────────────────────────
 
 function SingerShortcuts({
-  firstPendingForm,
   nextUnregisteredEvent,
   latestLibraryFile,
   unreadMessages,
@@ -671,7 +670,6 @@ function SingerShortcuts({
   onVoiceGroup,
   onLatestNotif,
 }: {
-  firstPendingForm: { id: string; title: string } | null;
   nextUnregisteredEvent: { id: string | number; title: string } | null;
   latestLibraryFile: { id: string; name: string; ext: string } | null;
   unreadMessages: number;
@@ -699,13 +697,13 @@ function SingerShortcuts({
     },
     {
       icon: "document-text-outline" as const,
-      label: firstPendingForm ? firstPendingForm.title : "Pending Forms",
-      sublabel: firstPendingForm ? "Tap to fill now" : "All caught up ✓",
+      label: "Pending Forms",
+      sublabel: "Tap to view pending",
       onPress: onPendingForm,
       bg: "#b89a3e",
       decor: "📋",
-      badge: firstPendingForm ? "!" : (null as string | null),
-      disabled: !firstPendingForm,
+      badge: null as string | null,
+      disabled: false,
     },
     {
       icon: "musical-notes-outline" as const,
@@ -717,7 +715,7 @@ function SingerShortcuts({
       bg: "#7c5cbf",
       decor: "🎶",
       badge: latestLibraryFile ? "NEW" : (null as string | null),
-      disabled: !latestLibraryFile,
+      disabled: false,
     },
     {
       icon: "chatbubbles-outline" as const,
@@ -1019,9 +1017,6 @@ export default function DashboardScreen() {
   const [customAchievements, setCustomAchievements] = useState<
     CustomAchievement[]
   >([]);
-  const [singerForms, setSingerForms] = useState<
-    { id: string; title: string; status: string }[]
-  >([]);
   const [latestLibraryFile, setLatestLibraryFile] = useState<{
     id: string;
     name: string;
@@ -1097,7 +1092,7 @@ export default function DashboardScreen() {
 
         // ── Singer-specific achievement data ────────────────────────
         if (!isAdmin) {
-          const [formSubs, userDoc, attDocs, formsSnap, libSnap] =
+          const [formSubs, userDoc, attDocs, libSnap] =
             await Promise.allSettled([
               getDocs(
                 query(
@@ -1107,7 +1102,6 @@ export default function DashboardScreen() {
               ),
               getDoc(doc(db, "users", user.uid)),
               getDocs(collection(db, "attendance")),
-              getDocs(collection(db, "forms")),
               getDocs(
                 query(
                   collection(db, "library"),
@@ -1162,22 +1156,6 @@ export default function DashboardScreen() {
               else break;
             }
             setSingerStreak(streak);
-          }
-
-          // ── Singer forms (pending vs submitted) ──────────────────
-          if (
-            formSubs.status === "fulfilled" &&
-            formsSnap.status === "fulfilled"
-          ) {
-            const submittedIds = new Set(
-              formSubs.value.docs.map((d) => d.data().form_id as string),
-            );
-            const forms = formsSnap.value.docs.map((d) => ({
-              id: d.id,
-              title: (d.data() as any).title ?? "Form",
-              status: submittedIds.has(d.id) ? "submitted" : "pending",
-            }));
-            setSingerForms(forms);
           }
 
           // ── Latest library file ──────────────────────────────────
@@ -1502,8 +1480,6 @@ export default function DashboardScreen() {
         ),
       )
     : null;
-  const firstPendingForm =
-    singerForms.find((f) => f.status === "pending") ?? null;
   const nextUnregisteredEvent =
     singerUpcomingEvents.find((e) => !myEventIds.includes(e.id)) ?? null;
   const latestNotifItem = notifList[0] ?? null;
@@ -1545,16 +1521,12 @@ export default function DashboardScreen() {
 
         {/* ── D: 6 Smart Shortcuts ───────────────────────────────────── */}
         <SingerShortcuts
-          firstPendingForm={firstPendingForm}
           nextUnregisteredEvent={nextUnregisteredEvent}
           latestLibraryFile={latestLibraryFile}
           unreadMessages={unreadMessages}
           voiceType={user?.voice_type ?? null}
           latestNotif={latestNotifItem}
-          onPendingForm={() =>
-            firstPendingForm &&
-            router.push(`/form/${firstPendingForm.id}` as any)
-          }
+          onPendingForm={() => router.push("/pending-forms" as any)}
           onNextEvent={() =>
             nextUnregisteredEvent &&
             router.push(`/event/${nextUnregisteredEvent.id}` as any)

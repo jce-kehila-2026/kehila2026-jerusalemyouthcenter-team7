@@ -52,7 +52,6 @@ export default function FormsScreen() {
   const userRole = user?.role || "student";
   const isAdmin = userRole === "admin" || userRole === "staff";
   const router = useRouter();
-
   const [formsList, setFormsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [formToDelete, setFormToDelete] = useState<string | null>(null);
