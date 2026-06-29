@@ -29,11 +29,20 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
-    match /messages/{docId} {
-      allow read:           if isSignedIn();
-      allow create:         if isSignedIn();
-      allow update, delete: if isAdmin();
-    }
+   match /messages/{docId} {
+  allow read: if isSignedIn();
+
+  // כל משתמש מחובר יכול לשלוח הודעה
+  allow create: if isSignedIn();
+
+  // מאפשר React וסימון הודעה כנקראה
+  allow update: if isSignedIn();
+
+  // רק בעל ההודעה או אדמין יכולים למחוק
+  allow delete: if isAdmin() ||
+                resource.data.sender_id == request.auth.uid;
+}
+
     match /notifications/{docId} {
       allow read:   if isSignedIn();
       allow create: if isSignedIn();
