@@ -254,6 +254,33 @@ function AdminHeroCard({
 
   return (
     <View style={st.adminHero}>
+      {/* Decorative illustration — behind content */}
+
+      {/* Soft glow circle behind the shield */}
+      <View style={st.adminDecorGlow} pointerEvents="none" />
+
+      {/* Main shield */}
+      <View style={st.adminDecorShield} pointerEvents="none">
+        <Ionicons name="shield-half-outline" size={110} color="rgba(3,152,153,0.28)" />
+      </View>
+
+      {/* Small people icon — top-left corner */}
+      <View style={st.adminDecorPeople} pointerEvents="none">
+        <Ionicons name="people-outline" size={22} color="rgba(255,255,255,0.13)" />
+      </View>
+
+      {/* Music note — choir context */}
+      <Text style={st.adminDecorNote} pointerEvents="none">♪</Text>
+
+      {/* Scattered sparkles */}
+      <Text style={st.adminDecorStar1} pointerEvents="none">✦</Text>
+      <Text style={st.adminDecorStar2} pointerEvents="none">✦</Text>
+      <Text style={st.adminDecorStar3} pointerEvents="none">·</Text>
+      <Text style={st.adminDecorStar4} pointerEvents="none">·</Text>
+
+      {/* Thin accent ring bottom-left */}
+      <View style={st.adminDecorRing} pointerEvents="none" />
+
       {/* Top row — greeting + singers pill */}
       <View style={st.adminHeroTop}>
         <View style={{ flex: 1 }}>
@@ -1769,15 +1796,90 @@ const st = StyleSheet.create({
 
   // ── Admin Hero Card
   adminHero: {
-    backgroundColor: TEAL,
+    backgroundColor: "#0B1E33",
     borderRadius: 20,
     padding: 18,
     marginBottom: 12,
-    shadowColor: TEAL,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowColor: "#0B1E33",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 8,
+    overflow: "hidden" as const,
+  },
+  adminDecorGlow: {
+    position: "absolute" as const,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: "rgba(3,152,153,0.18)",
+    bottom: -50,
+    right: -35,
+    pointerEvents: "none" as const,
+  },
+  adminDecorShield: {
+    position: "absolute" as const,
+    bottom: -18,
+    right: -14,
+    pointerEvents: "none" as const,
+  },
+  adminDecorPeople: {
+    position: "absolute" as const,
+    top: 16,
+    left: 16,
+    pointerEvents: "none" as const,
+    opacity: 0,  // hidden — reserved position, uncomment opacity to show
+  },
+  adminDecorNote: {
+    position: "absolute" as const,
+    top: 12,
+    right: 175,
+    fontSize: 26,
+    color: "rgba(3,152,153,0.3)",
+    pointerEvents: "none" as const,
+  },
+  adminDecorStar1: {
+    position: "absolute" as const,
+    bottom: 30,
+    right: 78,
+    fontSize: 11,
+    color: "rgba(255,255,255,0.3)",
+    pointerEvents: "none" as const,
+  },
+  adminDecorStar2: {
+    position: "absolute" as const,
+    top: 24,
+    right: 168,
+    fontSize: 7,
+    color: "rgba(255,255,255,0.22)",
+    pointerEvents: "none" as const,
+  },
+  adminDecorStar3: {
+    position: "absolute" as const,
+    bottom: 16,
+    right: 100,
+    fontSize: 18,
+    color: "rgba(255,255,255,0.18)",
+    pointerEvents: "none" as const,
+  },
+  adminDecorStar4: {
+    position: "absolute" as const,
+    top: 44,
+    right: 152,
+    fontSize: 14,
+    color: "rgba(255,255,255,0.15)",
+    pointerEvents: "none" as const,
+  },
+  adminDecorRing: {
+    position: "absolute" as const,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    borderColor: "rgba(3,152,153,0.35)",
+    bottom: -20,
+    left: -16,
+    pointerEvents: "none" as const,
   },
   adminHeroTop: {
     flexDirection: "row" as const,
