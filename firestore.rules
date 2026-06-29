@@ -55,8 +55,16 @@ service cloud.firestore {
       allow read:  if isSignedIn();
       allow write: if isAdmin();
     }
-    match /attendance/{docId} { allow read, write: if isSignedIn(); }
-    match /rsvps/{docId}      { allow read, write: if isSignedIn(); }
+   match /attendance/{docId} {
+  allow read: if isSignedIn();
+  allow create, update: if isSignedIn();
+  allow delete: if isAdmin();
+}
+  match /rsvps/{docId} {
+  allow read: if isSignedIn();
+  allow create, update: if isSignedIn();
+  allow delete: if isAdmin();
+}
     
     match /library/{docId} {
       allow read:  if isSignedIn();
@@ -87,20 +95,15 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     match /leaderboard/{uid} {
-      allow read, write: if request.auth != null;
-    }
-    match /leaderboard_config/{docId} {
-      allow read, write: if request.auth != null;
-    }
-    match /messages/{msgId} {
-      allow read, write: if request.auth != null;
-    }
-    match /chat_groups/{groupId} {
-      allow read, write: if request.auth != null;
-    } 
-    match /notifications/{notifId} {
-      allow read, write: if request.auth != null;
-    }
-    match /event_students/{docId} { allow read, write: if isSignedIn(); }
-  }
+  allow read, write: if isSignedIn();
+}
+
+match /leaderboard_config/{docId} {
+  allow read, write: if isSignedIn();
+}
+
+match /event_students/{docId} {
+  allow read, write: if isSignedIn();
+}
+}
 }
