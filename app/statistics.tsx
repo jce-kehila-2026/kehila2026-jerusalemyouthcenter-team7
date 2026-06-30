@@ -496,11 +496,12 @@ type YearFilter = "all" | string;
 type GroupFilter = "all" | "g1" | "g2" | "g3" | "g4";
 
 // Hardcoded base — always present regardless of what's in Firestore.
+const _CY = new Date().getFullYear();
 const BASE_YEAR_OPTS: { value: YearFilter; label: string }[] = [
   { value: "all", label: "All Years" },
-  { value: "1", label: "Year 1" },
-  { value: "2", label: "Year 2" },
-  { value: "3", label: "Year 3" },
+  { value: "1", label: String(_CY) },
+  { value: "2", label: String(_CY - 1) },
+  { value: "3", label: String(_CY - 2) },
 ];
 
 const GROUP_OPTS: { value: GroupFilter; label: string }[] = [
@@ -533,7 +534,7 @@ export default function StatisticsScreen() {
           .filter((g) => typeof g.year_id === "number" && g.year_id > 3)
           .map((g) => ({
             value: String(g.year_id) as YearFilter,
-            label: g.name ?? `Year ${g.year_id}`,
+            label: g.name ?? String(_CY - (g.year_id! - 1)),
           }));
         setExtraYears(dynamic);
       },
