@@ -83,14 +83,11 @@ export const studentService = {
     return await updateDoc(studentRef, updateData);
   },
 
-  async addStudent(studentData: Omit<Student, "id">) {
-    return addDoc(collection(db, "users"), {
-      ...studentData,
-      role: "singer",
-    });
-  },
-
-  async createGroup(name: string, memberIds: string[]): Promise<string> {
+  async createGroup(
+    name: string,
+    memberIds: string[],
+    yearId: number,
+  ): Promise<string> {
     const ref = await addDoc(collection(db, "groups"), {
       name,
       member_ids: memberIds,
