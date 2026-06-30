@@ -28,6 +28,19 @@ import {
   View,
 } from "react-native";
 
+const isValidEmail = (text: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.trim());
+
+// Errors that are shown inline below the relevant field — suppress the top errBox for these
+function isInlineFieldError(err: string): boolean {
+  return (
+    err === "Phone number is required" ||
+    err === "Email is required" ||
+    err === "Enter a valid phone number" ||
+    err === "Enter a valid email address" ||
+    err === "Password is required"
+  );
+}
+
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 // login-bg.jpg is 1600x900 — derive hero height from its own aspect ratio so
 // the full photo is visible (no cropping) instead of a fixed screen fraction.
@@ -99,6 +112,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
+  const [touched, setTouched] = useState<{ id?: boolean; pass?: boolean }>({});
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState<
     "face" | "fingerprint" | "none"
@@ -130,15 +144,28 @@ export default function LoginScreen() {
     setRole(r);
     setIdentifier("");
     setError("");
+    setTouched({});
+  };
+
+  const validate = (): string | null => {
+    if (!identifier.trim())
+      return role === "singer" ? "Phone number is required" : "Email is required";
+    if (role === "singer") {
+      if (identifier.replace(/\D/g, "").length < 5)
+        return "Enter a valid phone number";
+    } else if (!isValidEmail(identifier)) {
+      return "Enter a valid email address";
+    }
+    if (!password) return "Password is required";
+    return null;
   };
 
   const handleLogin = async () => {
-    if (role === "singer") {
-      const phoneDigits = identifier.replace(/\D/g, "");
-      if (phoneDigits.length < 5) {
-        setError("Please enter a valid phone number.");
-        return;
-      }
+    setTouched({ id: true, pass: true });
+    const err = validate();
+    if (err) {
+      setError(isInlineFieldError(err) ? "" : err);
+      return;
     }
 
     setError("");
@@ -342,8 +369,20 @@ export default function LoginScreen() {
               keyboardType={role === "singer" ? "phone-pad" : "email-address"}
               autoCapitalize="none"
               onFocus={() => setFocused("id")}
-              onBlur={() => setFocused(null)}
+              onBlur={() => {
+                setFocused(null);
+                setTouched((t) => ({ ...t, id: true }));
+              }}
             />
+            {touched.id && !identifier.trim() ? (
+              <Text style={s.fieldErrTxt}>
+                ⚠ {role === "singer" ? "Phone number is required" : "Email is required"}
+              </Text>
+            ) : touched.id && role === "singer" && identifier.replace(/\D/g, "").length < 5 ? (
+              <Text style={s.fieldErrTxt}>⚠ Enter a valid phone number</Text>
+            ) : touched.id && role === "admin" && !isValidEmail(identifier) ? (
+              <Text style={s.fieldErrTxt}>⚠ Enter a valid email address</Text>
+            ) : null}
 
             <Text style={s.label}>Password</Text>
             <TextInput
@@ -354,8 +393,14 @@ export default function LoginScreen() {
               placeholderTextColor="#aab"
               secureTextEntry
               onFocus={() => setFocused("pass")}
-              onBlur={() => setFocused(null)}
+              onBlur={() => {
+                setFocused(null);
+                setTouched((t) => ({ ...t, pass: true }));
+              }}
             />
+            {touched.pass && !password ? (
+              <Text style={s.fieldErrTxt}>⚠ Password is required</Text>
+            ) : null}
 
             <Pressable
               style={({ pressed }) => [
@@ -502,6 +547,13 @@ const s = StyleSheet.create({
     marginBottom: 14,
   },
   errText: { color: COLORS.red, fontSize: 13, fontWeight: "500" },
+  fieldErrTxt: {
+    fontSize: 12,
+    color: COLORS.red,
+    marginTop: -10,
+    marginBottom: 12,
+    fontWeight: "600",
+  },
 
   label: {
     fontSize: 12,
