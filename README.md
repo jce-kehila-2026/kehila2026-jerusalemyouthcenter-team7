@@ -292,6 +292,20 @@ npx expo start
 - Navigate to Student Details using route parameters
 - Return to previous screens using router navigation
 
+### Forms Management
+
+- Create, edit, and delete dynamic forms (Admin)
+- Real-time database integration for form generation
+- Manage, view, and track user form submissions
+- Dedicated "Pending Forms" view to notify students of incomplete surveys
+
+### Profile & Authentication
+
+- Interactive user profile with personalized avatar rendering
+- Manage personal information display
+- Implement robust Sign-Out functionality
+- Secure Password Change capabilities from within the profile screen
+
 ### User Permissions
 - Admins can edit student information
 - Admins can manage groups and voice types
