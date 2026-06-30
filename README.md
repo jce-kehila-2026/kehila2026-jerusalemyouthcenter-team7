@@ -12,7 +12,7 @@ This project is developed for the Jerusalem Youth Center, an organization that w
 | Hadeel Shehadeh  | Full Stack Developer :Student Management Module (UI + Firebase Integration)                    |
 | Afnan Rabeih     | Full Stack Developer : Authentication (Login & Signup) (UI + Firebase Integration)             |
 | Mahmoud Masri    | Full Stack Developer :Forms Module (UI + Firebase Integration)                                 |
-| George Abo Saeed | Full Stack Developer : Dashboard, Notifications & Statistics (UI + Firebase Integration)       |
+| George Abu Said | Full Stack Developer : Dashboard, Notifications & Statistics (UI + Firebase Integration)       |
 
 ---
 
@@ -63,7 +63,6 @@ mobile-app/
 │   ├── index.tsx                       # Entry point — redirect by role
 │   ├── attendance.js                   # Attendance screen
 │   ├── event-detail.tsx                # Event detail screen
-│   ├── add-student.tsx                 # Add student screen
 │   ├── create-form.tsx                 # Create form screen
 │   ├── profile.tsx                     # Profile screen
 │   ├── statistics.tsx                  # Statistics screen
@@ -148,6 +147,9 @@ mobile-app/
 | `attendance` | Attendance records per event                                                         |
 | `library`    | Music library — files (Firebase Storage) + YouTube links                             |
 | `forms`      | Forms and surveys                                                                    |
+| `voice-types`| Stores available voice types - name                                                  |
+| `groups`     | Stores choir groups (years) - name, year_id, program_id                              |
+
 
 ---
 
@@ -234,6 +236,68 @@ npx expo start
 - Filter by year group (Admin only)
 - Students see only their group's materials + All Groups
 
+### Student Management
+
+- Display all registered choir students
+- Search students by name
+- Filter students by Year Group
+- Filter students by Voice Type
+- Display student rankings (Leaderboard)
+- Navigate to individual student profiles
+- Role-based student visibility (Admin / Singer)
+
+### Student Details
+
+- View complete student profile
+- Display personal, contact, and parent information
+- Display attendance history
+- Edit student information (Admin only)
+- Change student's assigned group
+- Save profile updates to Firestore
+- Automatic loading state and error handling
+
+### Group & Voice Management
+
+- Add new choir year groups
+- Delete custom year groups
+- Add custom voice types
+- Delete custom voice types
+- Prevent duplicate years and voice types
+- Prevent deletion of default year groups (Year 1–3)
+- Prevent deletion of default voice types (Soprano, Alto, Tenor, Bass)
+ 
+### Student Service Layer
+
+- Retrieve all singers from Firestore
+- Retrieve a single student by ID
+- Retrieve choir groups from Firestore
+- Update student's assigned group
+- Automatically synchronize student's year with selected group
+- Create, update, and delete groups
+- Centralized Firestore database operations
+
+### Firestore Integration
+
+- Real-time updates using onSnapshot
+- Query students by role
+- Sort groups using year_id
+- Retrieve documents using getDoc and getDocs
+- Create documents using addDoc
+- Update documents using updateDoc
+- Delete documents using deleteDoc 
+
+### Navigation
+
+- Navigate between Students List and Student Details
+- Navigate to Student Details using route parameters
+- Return to previous screens using router navigation
+
+### User Permissions
+- Admins can edit student information
+- Admins can manage groups and voice types
+- Admins can approve or reject join requests
+- Singers can only access information permitted by their role
+- Role-based UI rendering throughout the application
 ---
 
 ## Security
@@ -247,11 +311,32 @@ npx expo start
 
 ## Test Plan
 
-| TC    | Module     | Description                         | Status |
-| ----- | ---------- | ----------------------------------- | ------ |
-| TC-01 | Events     | Add new event with valid data       | Pass   |
-| TC-02 | Attendance | Mark and save attendance            | Pass   |
-| TC-03 | Calendar   | Event dots appear on correct dates  | Pass   |
-| TC-04 | Library    | Admin uploads file to Music Library | Pass   |
+| TC    |   Module          | Description                                 | Status |
+| ----- | ----------        | -----------------------------------         | ------ |
+| TC-01 |   Events          | Add new event with valid data               | Pass   |
+| TC-02 |   Attendance      | Mark and save attendance                    | Pass   |
+| TC-03 |   Calendar        | Event dots appear on correct dates          | Pass   |
+| TC-04 |   Library         | Admin uploads file to Music Library         | Pass   |
+| TC-05 |	Students List   | Display all singers from Firestore          | Pass   |
+| TC-06 |	Students List   | Search students by full name	              | Pass   | 
+| TC-07 |	Students List   | Filter students by year group	              | Pass   |
+| TC-08 |	Students List   | Filter students by voice type	              | Pass   | 
+| TC-09 |	Student Details | Display selected student's profile          | Pass   |
+| TC-10 |	Student Details	| Edit and save student information	          | Pass   |
+| TC-11 |	Student Details	| Change student's assigned group	          | Pass   |
+| TC-12 |	Group Management| Add new year group	                      | Pass   |
+| TC-13 |	Group Management| Prevent duplicate year groups	              | Pass   |
+| TC-14 |	Group Management| Delete custom year groups	                  | Pass   |
+| TC-15 | 	Voice Management| Add custom voice type	                      | Pass   |
+| TC-16 |	Voice Management| Prevent duplicate voice types	              | Pass   |
+| TC-17 |	Voice Management| Delete custom voice types	                  | Pass   |
+| TC-18 |	Student Service	| Retrieve all students	                      | Pass   |
+| TC-19 |	Student Service	| Retrieve student by ID	                  | Pass   |
+| TC-20 |	Student Service	| Update student's group assignment	          | Pass   | 
+| TC-21 |	Firestore	    | Real-time updates using onSnapshot          | Pass   |
+| TC-22 |	Navigation	    | Open Student Details from Students List     | Pass   |
+| TC-23 |	Permissions	    | Admin-only editing and management actions	  | Pass   |
+| TC-24 |	Error Handling	| Display loading and handle Firestore errors | Pass   |
 
 ---
+
