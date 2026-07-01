@@ -83,13 +83,6 @@ export const studentService = {
     return await updateDoc(studentRef, updateData);
   },
 
-  async addStudent(studentData: Omit<Student, "id">) {
-    return addDoc(collection(db, "users"), {
-      ...studentData,
-      role: "singer",
-    });
-  },
-
   async createGroup(
     name: string,
     memberIds: string[],
