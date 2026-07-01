@@ -1,6 +1,6 @@
 import { useAuth } from "@/src/context/AuthContext";
-import { db } from "@/src/firebase/firebase";
 import { leaderboardService } from "@/src/data/leaderboardService";
+import { db } from "@/src/firebase/firebase";
 import {
   getFormTemplate,
   submitStudentForm,

@@ -1,4 +1,4 @@
-import { db } from "@/backend/firebase";
+import { db } from "@/src/firebase/firebase";
 import { StudentSignupPayload, useAuth } from "@/src/context/AuthContext";
 import { PhoneVerify } from "@/src/components/PhoneVerify";
 import { COLORS } from "@/src/data/mockData";
@@ -8,7 +8,7 @@ import {
 } from "@/src/utils/validation";
 import { Link, useRouter } from "expo-router";
 import { collection, getDocs } from "firebase/firestore";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -276,6 +276,7 @@ export default function SignupScreen() {
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
   const [phoneVerified, setPhoneVerified] = useState(false);
+  const onPhoneVerified = useCallback(() => setPhoneVerified(true), []);
   const [voiceTypes, setVoiceTypes] = useState<
     { label: string; value: string }[]
   >([]);
@@ -576,7 +577,7 @@ export default function SignupScreen() {
             <PhoneVerify
               phone={form.phone}
               verified={phoneVerified}
-              onVerified={() => setPhoneVerified(true)}
+              onVerified={onPhoneVerified}
             />
           ) : null}
 

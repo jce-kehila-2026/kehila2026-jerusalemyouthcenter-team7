@@ -1,5 +1,6 @@
 import { COLORS } from "@/src/data/mockData";
 import { db } from "@/src/firebase/firebase";
+import { getApp } from "firebase/app";
 import { confirmOtpAndGetToken, sendOtp } from "@/src/firebase/phoneAuth";
 import { isValidIsraeliLocalMobile, toE164 } from "@/src/utils/validation";
 import type { FirebaseAuthTypes } from "@react-native-firebase/auth";
@@ -104,14 +105,20 @@ export default function ForgotPasswordScreen() {
         (v, i, arr) => arr.indexOf(v) === i,
       );
 
+      console.log("[ForgotPassword] handleSendCode received phone:", fullPhone);
+      console.log("[ForgotPassword] checking Firestore phone formats:", phoneFormats);
+
       let found = false;
       for (const fmt of phoneFormats) {
+        console.log("[ForgotPassword] querying collection=users phone==", fmt);
         const snap = await getDocs(
           query(collection(db, "users"), where("phone", "==", fmt), limit(1)),
         );
+        console.log("[ForgotPassword] query result count:", snap.size);
         if (!snap.empty) { found = true; break; }
       }
       if (!found) {
+        console.warn("[ForgotPassword] no Firestore user found for phone:", fullPhone);
         setError("No account found for this phone number.");
         setLoading(false);
         return;
@@ -180,14 +187,21 @@ export default function ForgotPasswordScreen() {
     setError("");
     setLoading(true);
     try {
-      const functions = getFunctions();
+      const functions = getFunctions(getApp(), "us-central1");
       const resetUserPassword = httpsCallable(functions, "resetUserPassword");
+
+      console.log("[ForgotPassword] handleResetPassword calling Cloud Function");
+      console.log("[ForgotPassword] phone used for OTP:", fullPhone);
+      console.log("[ForgotPassword] idToken present:", !!idToken, "length:", idToken.length);
 
       // On web the OTP was skipped, so idToken is empty. The Cloud Function
       // will reject unauthenticated calls — web users see a clear message.
       await resetUserPassword({ idToken, newPassword });
+
+      console.log("[ForgotPassword] Cloud Function succeeded");
       setStep("success");
     } catch (e: any) {
+      console.error("[ForgotPassword] Cloud Function error — code:", e?.code, "message:", e?.message);
       // Firebase Functions v2 serializes HttpsError code into e.code
       // ("functions/not-found") but the human message may not reach the client.
       // Map known codes to user-friendly strings.

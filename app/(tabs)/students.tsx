@@ -30,6 +30,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, UserType } from "../../src/context/AuthContext";
 import { leaderboardService, LeaderboardEntry } from "../../src/data/leaderboardService";
+import { presenceService } from "../../src/data/presenceService";
 import { Group, Student } from "../../src/data/mockData";
 
 // ── Design System ─────────────────────────────────────────────────────────────
@@ -109,6 +110,9 @@ export default function StudentsListScreen() {
   >([{ label: "All", value: null }]);
 
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
+  const [presenceMap, setPresenceMap] = useState<
+    Record<string, { is_online: boolean; last_seen: string | null }>
+  >({});
 
   // ── Live leaderboard subscription (admin only — for student card rank strips)
   useEffect(() => {
@@ -117,6 +121,12 @@ export default function StudentsListScreen() {
       setLeaderboardData(entries);
     });
     return unsub;
+  }, [user?.role]);
+
+  // ── Live presence subscription — admin only
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+    return presenceService.subscribePresence(setPresenceMap);
   }, [user?.role]);
 
   // ── Join Requests state ───────────────────────────────────────────────────
@@ -451,6 +461,26 @@ export default function StudentsListScreen() {
     }
   };
 
+  // ── Presence helper ───────────────────────────────────────────────────────
+  const formatPresence = (uid: string): { label: string; isOnline: boolean } => {
+    const entry = presenceMap[uid];
+    if (!entry) return { label: "Never seen", isOnline: false };
+    if (entry.is_online) return { label: "Online now", isOnline: true };
+    if (!entry.last_seen) return { label: "Never seen", isOnline: false };
+    const diff = Math.floor((Date.now() - new Date(entry.last_seen).getTime()) / 1000);
+    if (diff < 60) return { label: "Just now", isOnline: false };
+    if (diff < 3600) return { label: `${Math.floor(diff / 60)}m ago`, isOnline: false };
+    if (diff < 86400) return { label: `${Math.floor(diff / 3600)}h ago`, isOnline: false };
+    if (diff < 604800) return { label: `${Math.floor(diff / 86400)}d ago`, isOnline: false };
+    return {
+      label: new Date(entry.last_seen).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+      }),
+      isOnline: false,
+    };
+  };
+
   // ── Card render ───────────────────────────────────────────────────────────
   const renderStudent = ({ item }: { item: StudentWithGroup }) => {
     const groupColor = getGroupColor(item.group_name);
@@ -470,6 +500,7 @@ export default function StudentsListScreen() {
       : null;
     const lbPoints = lbEntry?.points ?? 0;
     const rankEmoji = lbRank === 1 ? "🥇" : lbRank === 2 ? "🥈" : lbRank === 3 ? "🥉" : null;
+    const presence = user?.role === "admin" ? formatPresence(item.id) : null;
 
     return (
       <Pressable
@@ -513,6 +544,24 @@ export default function StudentsListScreen() {
               </Text>
             </View>
             <View style={s.actionsRow}>
+              {presence && (
+                <View style={s.presenceInline}>
+                  <View
+                    style={[
+                      s.presenceDot,
+                      { backgroundColor: presence.isOnline ? "#22c55e" : ds.border },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      s.presenceText,
+                      { color: presence.isOnline ? "#22c55e" : ds.muted },
+                    ]}
+                  >
+                    {presence.label}
+                  </Text>
+                </View>
+              )}
               <Pressable
                 hitSlop={8}
                 onPress={() =>
@@ -959,7 +1008,16 @@ const s = StyleSheet.create({
   },
   avatarText: { fontWeight: "700" },
   cardTitle: { marginLeft: 12, fontWeight: "600", color: ds.text, flex: 1 },
-  actionsRow: { marginLeft: 8 },
+  actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginLeft: 8,
+  },
+  presenceInline: {
+    alignItems: "center",
+    gap: 3,
+  },
 
   // ── Leaderboard strip on student card
   lbStrip: {
@@ -1023,4 +1081,15 @@ const s = StyleSheet.create({
   lbSummaryEmoji: { fontSize: 14 },
   lbSummaryName: { flex: 1, fontSize: 11, fontWeight: "700", color: ds.text },
   lbSummaryPts: { fontSize: 10, fontWeight: "800", color: "#a0842a" },
+
+  // ── Presence indicator on student card
+  presenceDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  presenceText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
 });

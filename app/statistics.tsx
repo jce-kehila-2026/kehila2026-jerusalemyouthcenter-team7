@@ -7,9 +7,11 @@ import {
   STAT_YEARS,
   YEARLY_TOTALS,
 } from "@/src/data/statsData";
+import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -486,16 +488,21 @@ const fc = StyleSheet.create({
 });
 
 // ── Filter types ───────────────────────────────────────────────────────────────
-type YearFilter = "all" | "2023" | "2024" | "2025" | "2026";
+// "all" | a year_id as a string (e.g. "1", "2", "3", "4"...). Years 1-3 are
+// always available; anything beyond that is fetched live from the real
+// `groups` collection in Firestore (the same source manage-years.tsx uses),
+// so newly added program years show up here automatically.
+type YearFilter = "all" | string;
 type GroupFilter = "all" | "g1" | "g2" | "g3" | "g4";
 
-const YEAR_OPTS: { value: YearFilter; label: string }[] = [
+// Hardcoded base — always present regardless of what's in Firestore.
+const BASE_YEAR_OPTS: { value: YearFilter; label: string }[] = [
   { value: "all", label: "All Years" },
-  { value: "2023", label: "2023" },
-  { value: "2024", label: "2024" },
-  { value: "2025", label: "2025" },
-  { value: "2026", label: "2026" },
+  { value: "1", label: "Year 1" },
+  { value: "2", label: "Year 2" },
+  { value: "3", label: "Year 3" },
 ];
+
 const GROUP_OPTS: { value: GroupFilter; label: string }[] = [
   { value: "all", label: "All Groups" },
   ...STAT_GROUPS.map((g) => ({ value: g.id as GroupFilter, label: g.name })),
@@ -507,17 +514,57 @@ export default function StatisticsScreen() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
-  const [selYear, setSelYear] = useState<YearFilter>("2026");
+  const [selYear, setSelYear] = useState<YearFilter>("all");
   const [selGroup, setSelGroup] = useState<GroupFilter>("all");
+
+  // Live years beyond 1-3, fetched from the real `groups` collection —
+  // same source as Manage Years & Voices, so adding a year there makes
+  // it show up here automatically without any code changes.
+  const [extraYears, setExtraYears] = useState<
+    { value: YearFilter; label: string }[]
+  >([]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      query(collection(db, "groups"), orderBy("year_id")),
+      (snap) => {
+        const dynamic = snap.docs
+          .map((d) => d.data() as { name?: string; year_id?: number })
+          .filter((g) => typeof g.year_id === "number" && g.year_id > 3)
+          .map((g) => ({
+            value: String(g.year_id) as YearFilter,
+            label: g.name ?? `Year ${g.year_id}`,
+          }));
+        setExtraYears(dynamic);
+      },
+      (error) => console.error("Error listening to groups:", error),
+    );
+    return unsub;
+  }, []);
+
+  const YEAR_OPTS = useMemo(
+    () => [...BASE_YEAR_OPTS, ...extraYears],
+    [extraYears],
+  );
 
   const fullW = width - 32;
   const halfW = (width - 40) / 2;
 
   // ── Derived data ──────────────────────────────────────────────────────────
+  // Maps a program-year filter (e.g. "1") onto the matching mock groupId
+  // ("g1"), so picking "Year 1" here filters students the same way picking
+  // it in the Group row does. Years beyond what exists in the mock dataset
+  // (4+) simply match nothing yet — there's no fabricated data for them.
+  const selectedYearGroupId = selYear === "all" ? null : `g${selYear}`;
+
   const filteredStudents = useMemo(() => {
-    if (selGroup === "all") return STAT_STUDENTS;
-    return STAT_STUDENTS.filter((s) => s.groupId === selGroup);
-  }, [selGroup]);
+    let result = STAT_STUDENTS;
+    if (selGroup !== "all")
+      result = result.filter((s) => s.groupId === selGroup);
+    if (selectedYearGroupId)
+      result = result.filter((s) => s.groupId === selectedYearGroupId);
+    return result;
+  }, [selGroup, selectedYearGroupId]);
 
   const genderData = useMemo(() => {
     const f = filteredStudents.filter((s) => s.gender === "female").length;
@@ -539,34 +586,29 @@ export default function StatisticsScreen() {
     [],
   );
 
+  // Note: trend/sessions/hours below are tracked by real calendar year
+  // (program-wide growth over time), which is a different axis from the
+  // "Year 1 / Year 2 / Year 3" cohort filter above. There's no per-cohort
+  // breakdown for this historical data, so these three always show the
+  // full multi-year view regardless of which program year is selected —
+  // only the Group filter (Year 1/2/3/Alumni cohorts) affects them.
   const { trendValues, trendLabels } = useMemo(() => {
     const gKey = selGroup === "all" ? "all" : selGroup;
-    if (selYear === "all") {
-      const vals = Array.from(STAT_YEARS).map((y) => {
-        const e = MONTHLY_ATTENDANCE.find(
-          (m) => m.year === y && m.groupId === gKey,
-        );
-        if (!e) return 0;
-        const active = e.rates.filter((r) => r > 0);
-        return active.length
-          ? Math.round(active.reduce((a, b) => a + b, 0) / active.length)
-          : 0;
-      });
-      return {
-        trendValues: vals,
-        trendLabels: Array.from(STAT_YEARS).map(String),
-      };
-    }
-    const y = parseInt(selYear, 10);
-    const e = MONTHLY_ATTENDANCE.find(
-      (m) => m.year === y && m.groupId === gKey,
-    );
-    const rates = e ? e.rates : new Array(12).fill(0);
+    const vals = Array.from(STAT_YEARS).map((y) => {
+      const e = MONTHLY_ATTENDANCE.find(
+        (m) => m.year === y && m.groupId === gKey,
+      );
+      if (!e) return 0;
+      const active = e.rates.filter((r) => r > 0);
+      return active.length
+        ? Math.round(active.reduce((a, b) => a + b, 0) / active.length)
+        : 0;
+    });
     return {
-      trendValues: rates.filter((r) => r > 0),
-      trendLabels: MONTH_SHORT.filter((_, i) => rates[i] > 0),
+      trendValues: vals,
+      trendLabels: Array.from(STAT_YEARS).map(String),
     };
-  }, [selYear, selGroup]);
+  }, [selGroup]);
 
   const avgAttendance = useMemo(() => {
     if (!trendValues.length) return 0;
@@ -586,19 +628,17 @@ export default function StatisticsScreen() {
   );
 
   const sessionData = useMemo(() => {
-    const y = selYear === "all" ? 2025 : parseInt(selYear, 10);
-    const raw = SESSIONS_PER_MONTH[y] ?? SESSIONS_PER_MONTH[2025];
+    const raw = SESSIONS_PER_MONTH[2025];
     return {
       values: raw.filter((v) => v > 0),
       labels: MONTH_SHORT.filter((_, i) => raw[i] > 0),
     };
-  }, [selYear]);
+  }, []);
 
-  const totalHours = useMemo(() => {
-    if (selYear === "all")
-      return Object.values(YEARLY_TOTALS).reduce((acc, v) => acc + v.hours, 0);
-    return YEARLY_TOTALS[parseInt(selYear, 10)]?.hours ?? 0;
-  }, [selYear]);
+  const totalHours = useMemo(
+    () => Object.values(YEARLY_TOTALS).reduce((acc, v) => acc + v.hours, 0),
+    [],
+  );
 
   const fPct =
     genderData.total > 0
@@ -656,7 +696,7 @@ export default function StatisticsScreen() {
             accent={COLORS.teal}
             label="Avg Attendance"
             main={`${avgAttendance}%`}
-            sub={selYear === "all" ? "all years" : selYear}
+            sub="across all years"
           />
         </View>
 
@@ -680,14 +720,7 @@ export default function StatisticsScreen() {
 
         {/* Attendance Trend */}
         <View style={{ marginTop: 16 }}>
-          <BrandCard
-            barColor={COLORS.teal}
-            title={
-              selYear === "all"
-                ? "Yearly avg attendance (%)"
-                : `Monthly attendance — ${selYear} (%)`
-            }
-          >
+          <BrandCard barColor={COLORS.teal} title="Yearly avg attendance (%)">
             <AreaTrendChart
               values={trendValues}
               labels={trendLabels}

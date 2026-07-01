@@ -195,27 +195,6 @@ export default function StudentDetailScreen() {
         ]);
         setStudent(foundStudent);
         setGroups(allGroups.length > 0 ? allGroups : mockGroups);
-
-        // // Auto-alignment: If user is admin, ensure standard groups exist in Firestore
-        // if (user?.role === "admin") {
-        //   (async () => {
-        //     try {
-        //       // Ensure Year 1, Year 2, and Year 3 exist in the "groups" collection
-        //       await setDoc(doc(db, "groups", "Year 1"), { name: "Year 1", year_id: 1, program_id: 1 });
-        //       await setDoc(doc(db, "groups", "Year 2"), { name: "Year 2", year_id: 2, program_id: 2 });
-        //       await setDoc(doc(db, "groups", "Year 3"), { name: "Year 3", year_id: 3, program_id: 1 });
-
-        //       // Try to delete Year 4 to clean up the DB
-        //       try {
-        //         await deleteDoc(doc(db, "groups", "Year 4"));
-        //       } catch (delErr) {
-        //         console.log("Could not delete Year 4:", delErr);
-        //       }
-        //     } catch (err) {
-        //       console.log("Failed to auto-write groups collection. This is normal if the rules block client writes to groups:", err);
-        //     }
-        //   })();
-        // }
       } catch (error) {
         console.error("Error fetching student details:", error);
         setStudent(null);
@@ -418,7 +397,7 @@ export default function StudentDetailScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.orgLabel}>🎵 Jerusalem Youth Chorus</Text>
-          <Text style={s.pageTitle}>Student Profile</Text>
+          <Text style={s.pageTitle}>Singer Profile</Text>
         </View>
         {isAdmin && (
           <TouchableOpacity
