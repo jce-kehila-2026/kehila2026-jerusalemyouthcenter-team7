@@ -133,6 +133,7 @@ export default function StudentsListScreen() {
   const [joinRequestsVisible, setJoinRequestsVisible] = useState(false);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [joinRequestsLoading, setJoinRequestsLoading] = useState(false);
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
 
   // ── Real-time groups listener → dynamic year filter chips ─────────────────
   useEffect(() => {
@@ -283,16 +284,23 @@ export default function StudentsListScreen() {
   };
 
   // ── Open Join Requests modal when arriving with ?action=join-requests ────
+  // Only re-trigger on the `action` param itself (a one-shot URL flag cleared
+  // right after handling) and the primitive `user?.role` — not `fetchJoinRequests`
+  // or `router`, which are recreated every render and would cause this to refire
+  // on every render while the flag is still set.
   useEffect(() => {
     if (action === "join-requests" && user?.role === "admin") {
       fetchJoinRequests();
       setJoinRequestsVisible(true);
       router.setParams({ action: "" });
     }
-  }, [action]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [action, user?.role]);
 
   // ── Approve handler ───────────────────────────────────────────────────────
   const handleApprove = async (request: JoinRequest) => {
+    if (processingRequestId) return;
+    setProcessingRequestId(request.uid);
     try {
       console.log("APPROVE: approving", request.full_name, request.uid);
       await updateDoc(doc(db, "users", request.uid), {
@@ -308,18 +316,16 @@ export default function StudentsListScreen() {
     } catch (e: any) {
       console.error("APPROVE ERROR:", e.message);
       Alert.alert("Error", "Could not approve the request. Please try again.");
+    } finally {
+      setProcessingRequestId(null);
     }
   };
 
   // ── Reject handler ────────────────────────────────────────────────────────
   const handleReject = (request: JoinRequest) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to reject ${request.full_name}'s join request?`,
-    );
-
-    if (!confirmed) return;
-
-    (async () => {
+    const performReject = async () => {
+      if (processingRequestId) return;
+      setProcessingRequestId(request.uid);
       try {
         console.log("REJECT: rejecting", request.full_name, request.uid);
         const phoneDigits = request.phone.replace(/\D/g, "");
@@ -341,9 +347,32 @@ export default function StudentsListScreen() {
         setJoinRequests((prev) => prev.filter((r) => r.uid !== request.uid));
       } catch (e: any) {
         console.error("REJECT ERROR:", e.message);
-        window.alert("Could not reject the request. Please try again.");
+        Alert.alert("Error", "Could not reject the request. Please try again.");
+      } finally {
+        setProcessingRequestId(null);
       }
-    })();
+    };
+
+    if (Platform.OS === "web") {
+      // Alert.alert is a no-op on web (react-native-web), so its buttons'
+      // onPress never fires there — fall back to window.confirm.
+      if (
+        window.confirm(
+          `Are you sure you want to reject ${request.full_name}'s join request?`,
+        )
+      ) {
+        performReject();
+      }
+    } else {
+      Alert.alert(
+        "Reject Request",
+        `Are you sure you want to reject ${request.full_name}'s join request?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Reject", style: "destructive", onPress: performReject },
+        ],
+      );
+    }
   };
 
   // ── Filtering ─────────────────────────────────────────────────────────────
@@ -775,16 +804,30 @@ export default function StudentsListScreen() {
                       <Pressable
                         style={[s.actionBtn, { backgroundColor: ds.teal }]}
                         onPress={() => handleApprove(req)}
+                        disabled={processingRequestId === req.uid}
                       >
-                        <Ionicons name="checkmark" size={15} color="#fff" />
-                        <Text style={s.actionBtnText}>Approve</Text>
+                        {processingRequestId === req.uid ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <>
+                            <Ionicons name="checkmark" size={15} color="#fff" />
+                            <Text style={s.actionBtnText}>Approve</Text>
+                          </>
+                        )}
                       </Pressable>
                       <Pressable
                         style={[s.actionBtn, { backgroundColor: ds.red }]}
                         onPress={() => handleReject(req)}
+                        disabled={processingRequestId === req.uid}
                       >
-                        <Ionicons name="close" size={15} color="#fff" />
-                        <Text style={s.actionBtnText}>Reject</Text>
+                        {processingRequestId === req.uid ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <>
+                            <Ionicons name="close" size={15} color="#fff" />
+                            <Text style={s.actionBtnText}>Reject</Text>
+                          </>
+                        )}
                       </Pressable>
                     </View>
                   </View>

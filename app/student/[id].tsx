@@ -203,7 +203,7 @@ export default function StudentDetailScreen() {
         setInitialLoading(false);
       }
     },
-    [id, user],
+    [id],
   );
 
   // Raw snapshot data — recombined into attendedEvents whenever either changes

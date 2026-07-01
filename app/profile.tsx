@@ -264,6 +264,10 @@ export default function ProfileScreen() {
       setBioError("Please enter your password.");
       return;
     }
+    if (!user) {
+      setBioError("User session not found. Please sign in again.");
+      return;
+    }
     setBioLoading(true);
     setBioError("");
     try {
@@ -277,9 +281,21 @@ export default function ProfileScreen() {
         setBioLoading(false);
         return;
       }
+      // For singers the login identifier is the phone number; email is the fallback.
+      // For admins it is the email directly.
       const identifier =
-        user?.role === "singer" ? (user?.phone ?? "") : (user?.email ?? "");
-      await saveCredentials(identifier, bioPassword, user?.role);
+        user.role === "singer"
+          ? (user.phone ?? user.email ?? "")
+          : (user.email ?? "");
+      if (!identifier) {
+        setBioError(
+          "Could not determine your account identifier. Please sign in manually.",
+        );
+        setBioLoading(false);
+        return;
+      }
+      await saveCredentials(identifier, bioPassword, user.role);
+
       await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "true");
       setBiometricEnabled(true);
       setShowBiometricModal(false);

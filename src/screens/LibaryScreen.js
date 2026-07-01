@@ -126,6 +126,7 @@ export default function LibraryScreen({ autoUpload = false }) {
 
   // ── Real-time listener for Years/Groups ──────────────────────────────
   useEffect(() => {
+    if (!user) return;
     const q = query(collection(db, "groups"), orderBy("year_id"));
     const unsub = onSnapshot(
       q,
@@ -148,7 +149,7 @@ export default function LibraryScreen({ autoUpload = false }) {
       },
     );
     return unsub;
-  }, []);
+  }, [user?.uid]);
 
   const loadMaterials = async () => {
     try {
@@ -204,7 +205,7 @@ export default function LibraryScreen({ autoUpload = false }) {
     if (autoUpload && isAdmin) {
       handlePickFile();
     }
-  }, [autoUpload]);
+  }, [autoUpload, isAdmin]);
 
   const handleUploadFile = async () => {
     if (!pendingFile) return;
@@ -522,7 +523,7 @@ export default function LibraryScreen({ autoUpload = false }) {
             <Text style={s.confirmMsg}>
               This will permanently remove{"\n"}
               <Text style={{ color: COLORS.text, fontWeight: "700" }}>
-                "{deleteTarget?.name}"
+                &quot;{deleteTarget?.name}&quot;
               </Text>
             </Text>
             <View style={{ flexDirection: "row", gap: 10 }}>

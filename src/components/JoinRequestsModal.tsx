@@ -16,6 +16,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -291,74 +292,99 @@ export function JoinRequestsModal({ visible, onClose }: Props) {
 
   // ── Approve ───────────────────────────────────────────────────────────────
   const handleApprove = (req: JoinRequest) => {
-    Alert.alert(
-      "Approve Singer",
-      `Approve ${req.full_name}? They will be able to log in immediately.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Approve",
-          onPress: async () => {
-            setProcessingId(req.uid);
-            setSelected(null);
-            try {
-              await updateDoc(doc(db, "users", req.uid), {
-                role: "singer",
-                status: "approved",
-                year_id: 1,
-              });
-            } catch (e: any) {
-              console.error("Approve error:", e.message);
-              Alert.alert("Error", e.message || "Could not approve request.");
-            } finally {
-              setProcessingId(null);
-            }
-          },
-        },
-      ],
-    );
+    const performApprove = async () => {
+      setProcessingId(req.uid);
+      setSelected(null);
+      try {
+        await updateDoc(doc(db, "users", req.uid), {
+          role: "singer",
+          status: "approved",
+          year_id: 1,
+        });
+      } catch (e: any) {
+        console.error("Approve error:", e.message);
+        Alert.alert("Error", e.message || "Could not approve request.");
+      } finally {
+        setProcessingId(null);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      // Alert.alert is a no-op on web (react-native-web), so its buttons'
+      // onPress never fires there — fall back to window.confirm.
+      if (
+        window.confirm(
+          `Approve ${req.full_name}? They will be able to log in immediately.`,
+        )
+      ) {
+        performApprove();
+      }
+    } else {
+      Alert.alert(
+        "Approve Singer",
+        `Approve ${req.full_name}? They will be able to log in immediately.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Approve", onPress: performApprove },
+        ],
+      );
+    }
   };
 
   // ── Reject ────────────────────────────────────────────────────────────────
   const handleReject = (req: JoinRequest) => {
-    Alert.alert(
-      "Reject Request",
-      `Reject ${req.full_name}? They will not be able to log in and cannot re-register.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reject",
-          style: "destructive",
-          onPress: async () => {
-            setProcessingId(req.uid);
-            try {
-              const phoneDigits = req.phone?.replace(/\D/g, "") ?? "";
+    const performReject = async () => {
+      setProcessingId(req.uid);
+      try {
+        const phoneDigits = req.phone?.replace(/\D/g, "") ?? "";
 
-              if (phoneDigits) {
-                await setDoc(doc(db, "rejection", phoneDigits), {
-                  uid: req.uid,
-                  full_name: req.full_name,
-                  phone: req.phone,
-                  rejectedAt: serverTimestamp(),
-                });
-              }
+        // Mirror to join_requests/{phoneDigits} — AuthContext's login and
+        // signup flows check this collection to block rejected phones.
+        if (phoneDigits) {
+          await setDoc(doc(db, "join_requests", phoneDigits), {
+            uid: req.uid,
+            full_name: req.full_name,
+            phone: req.phone,
+            email: req.email ?? null,
+            status: "rejected",
+            rejectedAt: serverTimestamp(),
+          });
+        }
 
-              await updateDoc(doc(db, "users", req.uid), {
-                role: "rejected",
-                status: "rejected",
-              });
+        await updateDoc(doc(db, "users", req.uid), {
+          role: "rejected",
+          status: "rejected",
+        });
 
-              setSelected(null);
-            } catch (e: any) {
-              console.error("Reject error:", e.message);
-              Alert.alert("Error", e.message || "Could not reject request.");
-            } finally {
-              setProcessingId(null);
-            }
-          },
-        },
-      ],
-    );
+        setSelected(null);
+      } catch (e: any) {
+        console.error("Reject error:", e.message);
+        Alert.alert("Error", e.message || "Could not reject request.");
+      } finally {
+        setProcessingId(null);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      // Alert.alert is a no-op on web (react-native-web), so its buttons'
+      // onPress never fires there — fall back to window.confirm.
+      if (
+        window.confirm(
+          `Reject ${req.full_name}? They will not be able to log in and cannot re-register.`,
+        )
+      ) {
+        performReject();
+      }
+    } else {
+      Alert.alert(
+        "Reject Request",
+        `Reject ${req.full_name}? They will not be able to log in and cannot re-register.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Reject", style: "destructive", onPress: performReject },
+        ],
+      );
+    }
   };
 
   // ── Card (matches ManageAdminsModal adminCard) ────────────────────────────

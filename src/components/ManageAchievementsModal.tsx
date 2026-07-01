@@ -14,7 +14,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -424,7 +424,8 @@ export function ManageAchievementsModal({ visible, onClose }: Props) {
                 <Text style={{ fontSize: 36 }}>🏅</Text>
                 <Text style={s.emptyText}>No custom achievements yet.</Text>
                 <Text style={[s.emptyText, { fontSize: 12 }]}>
-                  Tap "Add New Achievement" to create your first one.
+                  Tap &&quot;Add New Achievement&rdquo; to create your first
+                  one.
                 </Text>
               </View>
             ) : (
@@ -515,7 +516,7 @@ export function ManageAchievementsModal({ visible, onClose }: Props) {
                           No achievements defined yet.
                         </Text>
                         <Text style={[s.emptyText, { fontSize: 12 }]}>
-                          Go to the "Manage" tab to create some first.
+                          Go to the &quot;Manage&quot; tab to create some first.
                         </Text>
                       </View>
                     ) : (

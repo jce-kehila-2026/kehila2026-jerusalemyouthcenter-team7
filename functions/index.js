@@ -1,5 +1,5 @@
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
-const { onRequest } = require("firebase-functions/v2/https");
+const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
 const { google } = require("googleapis");
 const path = require("path");
 const admin = require("firebase-admin");
@@ -283,4 +283,105 @@ exports.deleteGoogleCalendarEvent = onRequest(async (req, res) => {
     console.error("deleteGoogleCalendarEvent error:", err);
     res.status(500).json({ error: "Failed to delete Google Calendar event" });
   }
+});
+
+// Generates all plausible Firestore storage variants for a Firebase phone
+// auth E.164 phone number (e.g. "+972501234567").
+function phoneVariants(e164) {
+  const digits = e164.replace(/\D/g, ""); // "972501234567"
+  const local = digits.startsWith("972") ? `0${digits.slice(3)}` : digits;
+  return [
+    e164,           // "+972501234567"  — what signup stores
+    local,          // "0501234567"     — legacy entries without country code
+    `+${digits}`,   // "+972501234567"  — same as e164 but derived independently
+    digits,         // "972501234567"   — no + prefix, stored by some older paths
+  ].filter((v, i, arr) => arr.indexOf(v) === i); // dedupe
+}
+
+// Callable function invoked by the app after a successful phone OTP
+// verification. Accepts the phone-auth idToken (proof of phone ownership)
+// and the desired new password, then updates the singer's Firebase Auth
+// password via the Admin SDK — something impossible from the client alone.
+exports.resetUserPassword = onCall(async (request) => {
+  const { idToken, newPassword } = request.data || {};
+
+  if (!idToken || typeof idToken !== "string") {
+    throw new HttpsError("invalid-argument", "Missing verification token.");
+  }
+  if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
+    throw new HttpsError("invalid-argument", "Password must be at least 6 characters.");
+  }
+
+  // Verify the phone-auth idToken — this proves the OTP was correctly entered.
+  let decoded;
+  try {
+    decoded = await admin.auth().verifyIdToken(idToken);
+  } catch (e) {
+    throw new HttpsError("unauthenticated", "Verification token is invalid or expired.");
+  }
+
+  const phoneNumber = decoded.phone_number;
+  console.log("[resetUserPassword] decoded phone_number:", phoneNumber);
+  if (!phoneNumber) {
+    throw new HttpsError("unauthenticated", "Token does not contain a phone number.");
+  }
+
+  // Build email variants the same way the login flow does: strip all
+  // non-digits then append "@kehila.app". This mirrors AuthContext.login()
+  // exactly, so whichever email format was used at signup will be matched.
+  const digits = phoneNumber.replace(/\D/g, ""); // e.g. "972525031005"
+  const emailVariants = [`${digits}@kehila.app`];
+  // Also try local 0-prefix format for accounts created before the +972 prefix was enforced.
+  if (digits.startsWith("972")) {
+    emailVariants.push(`0${digits.slice(3)}@kehila.app`);
+  }
+  console.log("[resetUserPassword] email variants to try:", emailVariants);
+
+  let uid = null;
+
+  // Primary lookup: find the Firebase Auth user by email (matches login flow).
+  for (const email of emailVariants) {
+    try {
+      const userRecord = await admin.auth().getUserByEmail(email);
+      uid = userRecord.uid;
+      console.log("[resetUserPassword] found Auth user by email:", email, "uid:", uid);
+      break;
+    } catch (e) {
+      console.log("[resetUserPassword] Auth email lookup failed for:", email, "code:", e.code);
+    }
+  }
+
+  // Fallback: search Firestore users collection by phone field variants.
+  if (!uid) {
+    const phoneVariantList = phoneVariants(phoneNumber);
+    console.log("[resetUserPassword] falling back to Firestore phone variants:", phoneVariantList);
+    for (const variant of phoneVariantList) {
+      console.log("[resetUserPassword] querying collection=users phone==", variant);
+      const snap = await db
+        .collection("users")
+        .where("phone", "==", variant)
+        .limit(1)
+        .get();
+      console.log("[resetUserPassword] query result count:", snap.size);
+      if (!snap.empty) {
+        const docData = snap.docs[0].data();
+        // Prefer the uid field; fall back to the document ID (should be
+        // identical, but the field can be missing on manually-created docs).
+        uid = docData.uid || snap.docs[0].id;
+        console.log("[resetUserPassword] found user in Firestore uid:", uid, "stored phone:", docData.phone);
+        break;
+      }
+    }
+  }
+
+  if (!uid) {
+    console.error("[resetUserPassword] no user found for phone:", phoneNumber, "digits:", digits);
+    throw new HttpsError("not-found", "No account found for this phone number.");
+  }
+
+  // Update the singer's Firebase Auth password.
+  console.log("[resetUserPassword] updating password for uid:", uid);
+  await admin.auth().updateUser(uid, { password: newPassword });
+  console.log("[resetUserPassword] password updated successfully for uid:", uid);
+  return { success: true };
 });

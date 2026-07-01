@@ -187,6 +187,7 @@ export default function TabLayout() {
             paddingBottom: 4,
           },
           headerShown: true,
+
           header: () => {
             const titles: Record<string, string> = {
               index: "Dashboard",

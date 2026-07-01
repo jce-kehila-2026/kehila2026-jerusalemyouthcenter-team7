@@ -25,7 +25,6 @@ import {
 import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     Image,
     KeyboardAvoidingView,
@@ -143,7 +142,6 @@ export default function MessagesScreen() {
 
   // Rich media
   const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState<any>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [uploading, setUploading] = useState(false);
 
@@ -275,6 +273,9 @@ export default function MessagesScreen() {
       setThreadMessages(msgs);
     });
     return unsub;
+    // Depend on activeConv?.otherPartyId (not the whole object) so switching
+    // back to the same conversation doesn't tear down and resubscribe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConv?.otherPartyId, currentUid]);
 
   // ── Load groups on mount for every user (singers need their groups too) ──
@@ -321,6 +322,9 @@ export default function MessagesScreen() {
       setGroupThreadMessages(msgs);
     });
     return unsub;
+    // Depend on activeGroupChat?.id (not the whole object), same reasoning
+    // as the per-conversation listener above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeGroupChat?.id, currentUid]);
 
   // ── Auto-open chat when arriving from students screen via URL params ───────
@@ -344,6 +348,11 @@ export default function MessagesScreen() {
       setSearch("");
     }
     router.setParams({ studentId: "", studentName: "" });
+    // One-shot deep-link handler keyed on studentId, which this clears right
+    // after handling. allStudents/conversations are live Firestore-backed
+    // state that update frequently — depending on them would re-trigger this
+    // (re-opening/resetting the conversation) on unrelated data changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
   // ── Search state ──────────────────────────────────────────────────────────
@@ -529,7 +538,6 @@ export default function MessagesScreen() {
         Audio.RecordingOptionsPresets.HIGH_QUALITY,
       );
       recordingRef.current = rec;
-      setRecording(rec);
       setIsRecording(true);
       setRecordingDuration(0);
       recordingTimer.current = setInterval(
@@ -548,7 +556,6 @@ export default function MessagesScreen() {
     recordingRef.current = null;
     if (recordingTimer.current) clearInterval(recordingTimer.current);
     setIsRecording(false);
-    setRecording(null);
     const dur = recordingDuration;
     setRecordingDuration(0);
 
@@ -1924,7 +1931,7 @@ export default function MessagesScreen() {
                       >
                         <View style={{ flex: 1 }}>
                           <Text style={styles.gmDeleteLabel}>
-                            Delete "{pendingDeleteGroup.name}"?
+                            Delete &quot;{pendingDeleteGroup.name}&quot;?
                           </Text>
                           <Text style={styles.gmDeleteSub}>
                             This cannot be undone.

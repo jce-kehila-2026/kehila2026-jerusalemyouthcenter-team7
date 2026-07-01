@@ -391,11 +391,14 @@ export default function EventsScreen() {
     { key: "all_voices", label: "All" },
   ]);
 
+  // One-shot URL flag, cleared right after handling — `router` is recreated
+  // every render and isn't a meaningful re-trigger condition here.
   useEffect(() => {
     if (action === "add") {
       setAddVisible(true);
       router.setParams({ action: "" });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [action]);
 
   // ── Data loading — direct Firestore, no backend service ────────────────
@@ -1185,8 +1188,9 @@ export default function EventsScreen() {
               On Google Calendar (web)
             </Text>
             <Text style={s.icsStep}>
-              1. Next to "Other calendars", tap +{"\n"}2. Choose "From URL"
-              {"\n"}3. Paste the link, then "Add calendar"
+              1. Next to &quot;Other calendars&quot;, tap +{"\n"}
+              2. Choose &quot;From URL&quot;{"\n"}
+              3. Paste the link, then &quot;Add calendar&quot;
             </Text>
             <Text style={[s.label, { marginTop: sp(2) }]}>
               On iPhone (Apple Calendar)

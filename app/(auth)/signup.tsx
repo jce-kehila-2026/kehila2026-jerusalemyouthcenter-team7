@@ -1,5 +1,6 @@
-import { db } from "@/backend/firebase";
+import { db } from "@/src/firebase/firebase";
 import { StudentSignupPayload, useAuth } from "@/src/context/AuthContext";
+import { PhoneVerify } from "@/src/components/PhoneVerify";
 import { COLORS } from "@/src/data/mockData";
 import {
   isValidEmail,
@@ -7,7 +8,7 @@ import {
 } from "@/src/utils/validation";
 import { Link, useRouter } from "expo-router";
 import { collection, getDocs } from "firebase/firestore";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -274,6 +275,8 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const onPhoneVerified = useCallback(() => setPhoneVerified(true), []);
   const [voiceTypes, setVoiceTypes] = useState<
     { label: string; value: string }[]
   >([]);
@@ -303,12 +306,17 @@ export default function SignupScreen() {
 
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  const set = (k: keyof FormState) => (v: string) =>
+  const set = (k: keyof FormState) => (v: string) => {
+    // Editing the phone after verifying it invalidates the OTP proof —
+    // it was only ever proof of ownership for the exact number sent.
+    if (k === "phone") setPhoneVerified(false);
     setForm((p) => ({ ...p, [k]: v }));
+  };
 
   // "+972" is fixed in the UI — the user only ever types the local part, so
   // we rebuild the full E.164-ish value from just the digits they entered.
   const setPhoneLocal = (k: "phone" | "parent_phone") => (text: string) => {
+    if (k === "phone") setPhoneVerified(false);
     const digits = text.replace(/\D/g, "").slice(0, 9);
     setForm((p) => ({ ...p, [k]: digits ? `${PHONE_PREFIX}${digits}` : "" }));
   };
@@ -361,6 +369,8 @@ export default function SignupScreen() {
       if (!form.phone.trim()) return "Phone number is required";
       if (!isValidIsraeliLocalMobile(localPhoneDigits(form.phone)))
         return "Enter a valid 9-digit mobile number starting with 5, e.g. +972501234567";
+      if (!phoneVerified)
+        return "Please verify your phone number with the code we sent you";
       if (!form.email.trim()) return "Email is required";
       if (!isValidEmail(form.email)) return "Enter a valid email address";
       if (!form.birth_date.trim()) return "Date of birth is required";
@@ -453,6 +463,7 @@ export default function SignupScreen() {
     setLoading(true);
 
     const payload: StudentSignupPayload = {
+      phoneVerified,
       full_name: form.full_name.trim(),
       email: form.email.trim(),
       phone: form.phone.trim(),
@@ -561,6 +572,13 @@ export default function SignupScreen() {
             <Text style={s.fieldErrTxt}>
               ⚠ Enter a 9-digit mobile number starting with 5, e.g. 501234567
             </Text>
+          ) : null}
+          {!phoneInvalid && form.phone.trim() ? (
+            <PhoneVerify
+              phone={form.phone}
+              verified={phoneVerified}
+              onVerified={onPhoneVerified}
+            />
           ) : null}
 
           <FL text="Email" req />

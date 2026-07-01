@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "410116734350",
+    "project_id": "fullstack-team-7",
+    "storage_bucket": "fullstack-team-7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:410116734350:android:30af936d6194df541af8df",
+        "android_client_info": {
+          "package_name": "com.kehila.mobileapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "410116734350-80ohm36qjcgr9ro50hfmtidi30rm5brd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kehila.mobileapp",
+            "certificate_hash": "2ce76c96a386c8e4238c227244984fde07feadd9"
+          }
+        },
+        {
+          "client_id": "410116734350-d4c9t8othr13ofv44qqf2mshprbt9o07.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBbnGmIxo0_G7D1bpCSl1rUrJWbsbh0BfQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "410116734350-d4c9t8othr13ofv44qqf2mshprbt9o07.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
