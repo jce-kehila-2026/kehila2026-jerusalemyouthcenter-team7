@@ -6,6 +6,7 @@ import {
   isValidEmail,
   isValidIsraeliLocalMobile,
 } from "@/src/utils/validation";
+import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import { collection, getDocs } from "firebase/firestore";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -275,6 +276,8 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [phoneVerified, setPhoneVerified] = useState(false);
   const onPhoneVerified = useCallback(() => setPhoneVerified(true), []);
   const [voiceTypes, setVoiceTypes] = useState<
@@ -847,13 +850,22 @@ export default function SignupScreen() {
           ) : null}
 
           <FL text="Password" req />
-          <TextInput
-            style={inp("password")}
-            {...fld("password")}
-            placeholder="Minimum 6 characters"
-            placeholderTextColor="#aab"
-            secureTextEntry
-          />
+          <View style={s.pwWrap}>
+            <TextInput
+              style={[inp("password"), { marginBottom: 0, paddingRight: 46 }]}
+              {...fld("password")}
+              placeholder="Minimum 6 characters"
+              placeholderTextColor="#aab"
+              secureTextEntry={!showPass}
+            />
+            <Pressable style={s.eyeBtn} onPress={() => setShowPass((p) => !p)}>
+              <Ionicons
+                name={showPass ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color="#aab"
+              />
+            </Pressable>
+          </View>
           {touched.password && !form.password ? (
             <Text style={s.fieldErrTxt}>⚠ Password is required</Text>
           ) : touched.password && form.password.length < 6 ? (
@@ -861,19 +873,29 @@ export default function SignupScreen() {
           ) : null}
 
           <FL text="Confirm Password" req />
-          <TextInput
-            style={[
-              inp("confirm"),
-              form.confirm && form.password !== form.confirm
-                ? s.inputErr
-                : null,
-              form.confirm && form.password === form.confirm ? s.inputOk : null,
-            ].filter(Boolean)}
-            {...fld("confirm")}
-            placeholder="••••••••"
-            placeholderTextColor="#aab"
-            secureTextEntry
-          />
+          <View style={s.pwWrap}>
+            <TextInput
+              style={[
+                inp("confirm"),
+                form.confirm && form.password !== form.confirm
+                  ? s.inputErr
+                  : null,
+                form.confirm && form.password === form.confirm ? s.inputOk : null,
+                { marginBottom: 0, paddingRight: 46 },
+              ].filter(Boolean)}
+              {...fld("confirm")}
+              placeholder="••••••••"
+              placeholderTextColor="#aab"
+              secureTextEntry={!showConfirm}
+            />
+            <Pressable style={s.eyeBtn} onPress={() => setShowConfirm((p) => !p)}>
+              <Ionicons
+                name={showConfirm ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color="#aab"
+              />
+            </Pressable>
+          </View>
           {touched.confirm && form.confirm && form.password !== form.confirm ? (
             <Text style={s.fieldErrTxt}>⚠ Passwords do not match</Text>
           ) : form.confirm && form.password === form.confirm ? (
@@ -1254,4 +1276,6 @@ const s = StyleSheet.create({
     elevation: 5,
   },
   successBtnTxt: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  pwWrap: { position: "relative", marginBottom: 14 },
+  eyeBtn: { position: "absolute", right: 12, top: 13, padding: 2 },
 });
