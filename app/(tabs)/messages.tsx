@@ -125,7 +125,7 @@ export default function MessagesScreen() {
     studentName: string;
   }>();
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "super-admin";
   const currentUid = user?.uid ?? "";
 
   const [loading, setLoading] = useState(true);
@@ -193,7 +193,7 @@ export default function MessagesScreen() {
       try {
         const [singers, adminSnap] = await Promise.all([
           studentService.getAllStudents(),
-          getDocs(query(collection(db, "users"), where("role", "==", "admin"))),
+          getDocs(query(collection(db, "users"), where("role", "in", ["admin", "super-admin"]))),
         ]);
         const admins: Student[] = adminSnap.docs.map((d) => {
           const data = d.data() as any;

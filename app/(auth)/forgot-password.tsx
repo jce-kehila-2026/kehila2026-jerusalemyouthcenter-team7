@@ -1,5 +1,6 @@
 import { COLORS } from "@/src/data/mockData";
 import { db } from "@/src/firebase/firebase";
+import { Ionicons } from "@expo/vector-icons";
 import { getApp } from "firebase/app";
 import { confirmOtpAndGetToken, sendOtp } from "@/src/firebase/phoneAuth";
 import { isValidIsraeliLocalMobile, toE164 } from "@/src/utils/validation";
@@ -39,6 +40,8 @@ export default function ForgotPasswordScreen() {
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
   const [idToken, setIdToken] = useState("");
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
 
   const confirmationRef = useRef<FirebaseAuthTypes.ConfirmationResult | null>(null);
 
@@ -453,32 +456,51 @@ export default function ForgotPasswordScreen() {
                 {error ? <ErrorBox msg={error} /> : null}
 
                 <Text style={s.label}>New Password</Text>
-                <TextInput
-                  style={inp("pw")}
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  onFocus={() => setFocused("pw")}
-                  onBlur={() => setFocused(null)}
-                  placeholder="Minimum 6 characters"
-                  placeholderTextColor="#aab"
-                  secureTextEntry
-                />
+                <View style={s.pwWrap}>
+                  <TextInput
+                    style={[inp("pw"), { marginBottom: 0, paddingRight: 46 }]}
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    onFocus={() => setFocused("pw")}
+                    onBlur={() => setFocused(null)}
+                    placeholder="Minimum 6 characters"
+                    placeholderTextColor="#aab"
+                    secureTextEntry={!showNewPw}
+                  />
+                  <Pressable style={s.eyeBtn} onPress={() => setShowNewPw((p) => !p)}>
+                    <Ionicons
+                      name={showNewPw ? "eye-off-outline" : "eye-outline"}
+                      size={20}
+                      color="#aab"
+                    />
+                  </Pressable>
+                </View>
 
                 <Text style={s.label}>Confirm Password</Text>
-                <TextInput
-                  style={[
-                    inp("cpw"),
-                    confirmPw && newPassword !== confirmPw ? s.inputErr : null,
-                    confirmPw && newPassword === confirmPw ? s.inputOk : null,
-                  ].filter(Boolean)}
-                  value={confirmPw}
-                  onChangeText={setConfirmPw}
-                  onFocus={() => setFocused("cpw")}
-                  onBlur={() => setFocused(null)}
-                  placeholder="••••••••"
-                  placeholderTextColor="#aab"
-                  secureTextEntry
-                />
+                <View style={s.pwWrap}>
+                  <TextInput
+                    style={[
+                      inp("cpw"),
+                      confirmPw && newPassword !== confirmPw ? s.inputErr : null,
+                      confirmPw && newPassword === confirmPw ? s.inputOk : null,
+                      { marginBottom: 0, paddingRight: 46 },
+                    ].filter(Boolean)}
+                    value={confirmPw}
+                    onChangeText={setConfirmPw}
+                    onFocus={() => setFocused("cpw")}
+                    onBlur={() => setFocused(null)}
+                    placeholder="••••••••"
+                    placeholderTextColor="#aab"
+                    secureTextEntry={!showConfirmPw}
+                  />
+                  <Pressable style={s.eyeBtn} onPress={() => setShowConfirmPw((p) => !p)}>
+                    <Ionicons
+                      name={showConfirmPw ? "eye-off-outline" : "eye-outline"}
+                      size={20}
+                      color="#aab"
+                    />
+                  </Pressable>
+                </View>
                 {confirmPw && newPassword === confirmPw ? (
                   <Text style={s.matchTxt}>✓ Passwords match</Text>
                 ) : null}
@@ -653,6 +675,8 @@ const s = StyleSheet.create({
     marginTop: -10,
     marginBottom: 12,
   },
+  pwWrap: { position: "relative", marginBottom: 16 },
+  eyeBtn: { position: "absolute", right: 12, top: 13, padding: 2 },
 
   // ── Success screen ────────────────────────────────────────────────────────
   successWrap: {

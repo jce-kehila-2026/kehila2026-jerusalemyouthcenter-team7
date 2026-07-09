@@ -116,6 +116,7 @@ export default function LoginScreen() {
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
   const [touched, setTouched] = useState<{ id?: boolean; pass?: boolean }>({});
+  const [showPass, setShowPass] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState<
     "face" | "fingerprint" | "none"
@@ -441,19 +442,28 @@ export default function LoginScreen() {
             ) : null}
 
             <Text style={s.label}>Password</Text>
-            <TextInput
-              style={inp("pass")}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              placeholderTextColor="#aab"
-              secureTextEntry
-              onFocus={() => setFocused("pass")}
-              onBlur={() => {
-                setFocused(null);
-                setTouched((t) => ({ ...t, pass: true }));
-              }}
-            />
+            <View style={s.pwWrap}>
+              <TextInput
+                style={[inp("pass"), { marginBottom: 0, paddingRight: 46 }]}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                placeholderTextColor="#aab"
+                secureTextEntry={!showPass}
+                onFocus={() => setFocused("pass")}
+                onBlur={() => {
+                  setFocused(null);
+                  setTouched((t) => ({ ...t, pass: true }));
+                }}
+              />
+              <Pressable style={s.eyeBtn} onPress={() => setShowPass((p) => !p)}>
+                <Ionicons
+                  name={showPass ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color="#aab"
+                />
+              </Pressable>
+            </View>
             {touched.pass && !password ? (
               <Text style={s.fieldErrTxt}>⚠ Password is required</Text>
             ) : null}
@@ -721,4 +731,6 @@ const s = StyleSheet.create({
     marginBottom: 16,
   },
   resetSentTxt: { color: "#155724", fontSize: 13, fontWeight: "500", lineHeight: 19 },
+  pwWrap: { position: "relative", marginBottom: 16 },
+  eyeBtn: { position: "absolute", right: 12, top: 13, padding: 2 },
 });

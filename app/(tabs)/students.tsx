@@ -289,7 +289,7 @@ export default function StudentsListScreen() {
   // or `router`, which are recreated every render and would cause this to refire
   // on every render while the flag is still set.
   useEffect(() => {
-    if (action === "join-requests" && user?.role === "admin") {
+    if (action === "join-requests" && (user?.role === "admin" || user?.role === "super-admin")) {
       fetchJoinRequests();
       setJoinRequestsVisible(true);
       router.setParams({ action: "" });
@@ -500,7 +500,7 @@ export default function StudentsListScreen() {
       : null;
     const lbPoints = lbEntry?.points ?? 0;
     const rankEmoji = lbRank === 1 ? "🥇" : lbRank === 2 ? "🥈" : lbRank === 3 ? "🥉" : null;
-    const presence = user?.role === "admin" ? formatPresence(item.id) : null;
+    const presence = (user?.role === "admin" || user?.role === "super-admin") ? formatPresence(item.id) : null;
 
     return (
       <Pressable
@@ -617,7 +617,7 @@ export default function StudentsListScreen() {
         </View>
 
         {/* Filters */}
-        {user?.role === "admin" && (
+        {(user?.role === "admin" || user?.role === "super-admin") && (
           <View style={s.filterSection}>
             <Text style={s.filterLabel}>Year</Text>
             <View style={s.filterRow}>
@@ -678,7 +678,7 @@ export default function StudentsListScreen() {
         )}
 
         {/* Top Singers Summary — admin only */}
-        {user?.role === "admin" && leaderboardData.length > 0 && (
+        {(user?.role === "admin" || user?.role === "super-admin") && leaderboardData.length > 0 && (
           <View style={s.lbSummaryRow}>
             <Text style={s.lbSummaryTitle}>🏆 Top Singers</Text>
             <View style={s.lbSummaryChips}>
@@ -724,7 +724,7 @@ export default function StudentsListScreen() {
       </View>
 
       {/* FAB */}
-      {user?.role === "admin" && (
+      {(user?.role === "admin" || user?.role === "super-admin") && (
         <Pressable
           style={s.fab}
           onPress={() => {

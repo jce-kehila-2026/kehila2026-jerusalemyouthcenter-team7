@@ -18,6 +18,7 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -30,7 +31,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -95,12 +95,16 @@ type Props = { visible: boolean; onClose: () => void };
 // ── Component ─────────────────────────────────────────────────────────────────
 export function ManageAdminsModal({ visible, onClose }: Props) {
   const { user: currentUser } = useAuth();
-  const [view, setView] = useState<"list" | "form">("list");
+  const isSuperAdmin = currentUser?.role === "super-admin";
+  const router = useRouter();
+
+  const [view, setView] = useState<"list" | "form" | "detail">("list");
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [form, setForm] = useState<AdminForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [selectedAdmin, setSelectedAdmin] = useState<AdminUser | null>(null);
 
   // ── Live admin list via onSnapshot ─────────────────────────────────────────
   useEffect(() => {
@@ -138,12 +142,28 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
 
   const handleClose = () => {
     setView("list");
+    setSelectedAdmin(null);
     resetForm();
     onClose();
   };
 
   const setField = (k: keyof AdminForm) => (v: string) =>
     setForm((p) => ({ ...p, [k]: v }));
+
+  const handleOpenDetail = (admin: AdminUser) => {
+    setSelectedAdmin(admin);
+    setView("detail");
+  };
+
+  const handleMessage = (admin: AdminUser) => {
+    onClose();
+    setTimeout(() => {
+      router.push({
+        pathname: "/(tabs)/messages",
+        params: { studentId: admin.uid, studentName: admin.full_name },
+      } as any);
+    }, 300);
+  };
 
   // ── Create admin (fresh secondary app each time so the current admin
   //    session is never affected, matches old working implementation) ─────────
@@ -212,9 +232,9 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
     }
   };
 
-  // ── Delete admin (double confirmation matches old working implementation) ──
+  // ── Delete admin ──────────────────────────────────────────────────────────
   const handleDelete = (admin: AdminUser) => {
-    const currentUserId = currentUser?.uid || (currentUser as any)?.id; // Robust check for current user's UID
+    const currentUserId = currentUser?.uid || (currentUser as any)?.id;
     if (currentUserId === admin.uid) {
       Alert.alert("Action Denied", "You cannot delete your own admin account.");
       return;
@@ -222,10 +242,9 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
 
     const performDelete = async () => {
       try {
-        console.log("ADMIN DELETE START:", admin.uid);
         await deleteDoc(doc(db, "users", admin.uid));
-        console.log("ADMIN DELETE SUCCESS:", admin.uid);
-        // The list updates automatically because of the onSnapshot listener
+        setView("list");
+        setSelectedAdmin(null);
       } catch (e: any) {
         console.error("ADMIN DELETE ERROR:", e.message);
         const msg =
@@ -237,7 +256,6 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
     };
 
     if (Platform.OS === "web") {
-      // Native Alert.alert doesn't always work on Web browsers
       if (
         window.confirm(
           `Are you sure you want to permanently remove ${admin.full_name}?`,
@@ -246,7 +264,6 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
         performDelete();
       }
     } else {
-      // Use a small timeout to ensure the Alert appears correctly over the Modal on Mobile
       setTimeout(() => {
         Alert.alert(
           "Confirm Deletion",
@@ -273,16 +290,20 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
           <Ionicons name="close" size={24} color="#fff" />
         </Pressable>
         <Text style={s.headerTitle}>Manage Admins</Text>
-        <Pressable
-          style={s.addChip}
-          onPress={() => {
-            resetForm();
-            setView("form");
-          }}
-        >
-          <Ionicons name="add" size={18} color={C.teal} />
-          <Text style={s.addChipText}>Add</Text>
-        </Pressable>
+        {isSuperAdmin ? (
+          <Pressable
+            style={s.addChip}
+            onPress={() => {
+              resetForm();
+              setView("form");
+            }}
+          >
+            <Ionicons name="add" size={18} color={C.teal} />
+            <Text style={s.addChipText}>Add</Text>
+          </Pressable>
+        ) : (
+          <View style={{ width: 60 }} />
+        )}
       </View>
 
       <ScrollView
@@ -303,7 +324,11 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
           </View>
         ) : (
           admins.map((admin) => (
-            <View key={admin.uid} style={s.adminCard}>
+            <Pressable
+              key={admin.uid}
+              style={s.adminCard}
+              onPress={() => handleOpenDetail(admin)}
+            >
               <View style={s.adminAvatar}>
                 <Text style={s.adminInitial}>
                   {admin.full_name.charAt(0).toUpperCase()}
@@ -319,19 +344,87 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
                   <Text style={s.adminMeta}>📞 {admin.phone}</Text>
                 ) : null}
               </View>
-              <TouchableOpacity
-                onPress={() => handleDelete(admin)}
-                hitSlop={20}
-                style={{ padding: 10 }}
-              >
-                <Ionicons name="trash-outline" size={20} color={C.red} />
-              </TouchableOpacity>
-            </View>
+              {currentUser?.uid !== admin.uid && (
+                <Pressable
+                  hitSlop={12}
+                  onPress={() => handleMessage(admin)}
+                >
+                  <Ionicons name="chatbubbles-outline" size={24} color={C.teal} />
+                </Pressable>
+              )}
+            </Pressable>
           ))
         )}
       </ScrollView>
     </>
   );
+
+  // ── Detail view ───────────────────────────────────────────────────────────
+  const renderDetail = () => {
+    if (!selectedAdmin) return null;
+    const admin = selectedAdmin;
+    const isSelf = currentUser?.uid === admin.uid;
+
+    return (
+      <>
+        <View style={s.header}>
+          <Pressable onPress={() => { setView("list"); setSelectedAdmin(null); }} hitSlop={12}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </Pressable>
+          <Text style={s.headerTitle}>Admin Profile</Text>
+          <View style={{ width: 60 }} />
+        </View>
+
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 48 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* ── Avatar Hero ─────────────────────────────────────────────── */}
+          <View style={s.detailHero}>
+            <View style={s.detailAvatar}>
+              <Text style={s.detailAvatarInitial}>
+                {admin.full_name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <Text style={s.detailName}>{admin.full_name}</Text>
+            {admin.staff_type ? (
+              <View style={s.staffChip}>
+                <Text style={s.staffChipText}>{admin.staff_type}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* ── Info Card ────────────────────────────────────────────────── */}
+          <View style={s.infoCard}>
+            <DetailRow icon="mail-outline" label="Email" value={admin.email} />
+            {admin.phone ? (
+              <DetailRow icon="call-outline" label="Phone" value={admin.phone} />
+            ) : null}
+            {admin.birthday ? (
+              <DetailRow icon="calendar-outline" label="Birthday" value={admin.birthday} />
+            ) : null}
+            {admin.job ? (
+              <DetailRow icon="briefcase-outline" label="Job" value={admin.job} isLast />
+            ) : null}
+          </View>
+
+          {/* ── Actions ──────────────────────────────────────────────────── */}
+          {isSuperAdmin && !isSelf && (
+            <View style={s.actionsBox}>
+              <Pressable
+                style={s.deleteBtn}
+                onPress={() => handleDelete(admin)}
+              >
+                <Ionicons name="trash-outline" size={20} color={C.red} />
+                <Text style={s.deleteBtnText}>Remove Admin</Text>
+              </Pressable>
+            </View>
+          )}
+        </ScrollView>
+      </>
+    );
+  };
 
   // ── Form view ─────────────────────────────────────────────────────────────
   const renderForm = () => (
@@ -472,7 +565,7 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
         style={{ flex: 1, backgroundColor: C.white }}
         edges={["top"]}
       >
-        {view === "list" ? renderList() : renderForm()}
+        {view === "list" ? renderList() : view === "detail" ? renderDetail() : renderForm()}
       </SafeAreaView>
     </Modal>
   );
@@ -485,6 +578,29 @@ function FieldLabel({ text, req }: { text: string; req?: boolean }) {
       {text}
       {req ? <Text style={{ color: C.red }}> *</Text> : null}
     </Text>
+  );
+}
+
+// ── DetailRow helper ──────────────────────────────────────────────────────────
+function DetailRow({
+  icon,
+  label,
+  value,
+  isLast,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  isLast?: boolean;
+}) {
+  return (
+    <View style={[s.detailRow, !isLast && s.detailRowBorder]}>
+      <Ionicons name={icon as any} size={20} color={C.teal} style={{ marginRight: 12 }} />
+      <View>
+        <Text style={s.detailRowLabel}>{label}</Text>
+        <Text style={s.detailRowValue}>{value}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -521,7 +637,7 @@ const s = StyleSheet.create({
   emptyBox: { alignItems: "center", paddingTop: 64, gap: 12 },
   emptyText: { color: C.muted, fontSize: 15 },
 
-  // Admin card
+  // Admin card (list)
   adminCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -550,14 +666,71 @@ const s = StyleSheet.create({
   },
   adminEmail: { fontSize: 13, color: C.sub },
   adminMeta: { fontSize: 12, color: C.muted, marginTop: 2 },
-  staffBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    marginTop: 6,
+
+  // Detail view
+  detailHero: {
+    alignItems: "center",
+    paddingVertical: 28,
+    backgroundColor: C.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    marginBottom: 16,
   },
-  staffBadgeText: { fontSize: 11, fontWeight: "700" },
+  detailAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: C.tealLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  detailAvatarInitial: { fontSize: 36, fontWeight: "700", color: C.teal },
+  detailName: { fontSize: 20, fontWeight: "700", color: C.dark, marginBottom: 8 },
+  staffChip: {
+    backgroundColor: C.tealLight,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  staffChipText: { fontSize: 12, fontWeight: "700", color: C.teal },
+
+  infoCard: {
+    marginHorizontal: 16,
+    backgroundColor: C.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+  },
+  detailRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  detailRowLabel: { fontSize: 11, fontWeight: "700", color: C.muted, textTransform: "uppercase", letterSpacing: 0.6 },
+  detailRowValue: { fontSize: 15, color: C.dark, marginTop: 2 },
+
+  actionsBox: {
+    marginHorizontal: 16,
+    gap: 12,
+  },
+  deleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 14,
+    paddingVertical: 14,
+    borderWidth: 1.5,
+    borderColor: C.red,
+  },
+  deleteBtnText: { color: C.red, fontSize: 15, fontWeight: "700" },
 
   // Error
   errorBox: {
