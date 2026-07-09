@@ -104,7 +104,7 @@ function MusicTrace() {
 
 export default function LibraryScreen({ autoUpload = false }) {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "super-admin";
 
   const [materials, setMaterials] = useState([]);
   const [dynamicFilters, setDynamicFilters] = useState(BASE_FILTERS);

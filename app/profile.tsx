@@ -315,7 +315,7 @@ export default function ProfileScreen() {
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const isSinger = user?.role === "singer";
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "super-admin";
 
   const profileName = fullData?.full_name || user?.full_name || "Unknown User";
   const profileRole = isAdmin ? "ADMIN" : "SINGER";

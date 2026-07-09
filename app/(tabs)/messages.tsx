@@ -125,7 +125,7 @@ export default function MessagesScreen() {
     studentName: string;
   }>();
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "super-admin";
   const currentUid = user?.uid ?? "";
 
   const [loading, setLoading] = useState(true);

@@ -1150,7 +1150,7 @@ function SingerLeaderboard({
 export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "super-admin";
 
   const [loading, setLoading] = useState(true);
   const [singerCount, setSingerCount] = useState(0);

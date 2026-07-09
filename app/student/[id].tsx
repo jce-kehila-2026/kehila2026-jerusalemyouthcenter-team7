@@ -306,7 +306,7 @@ export default function StudentDetailScreen() {
   }
 
   // Access control
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "super-admin";
   const isOwnProfile = user?.uid === student.id;
   const canViewAll = isAdmin || isOwnProfile;
 

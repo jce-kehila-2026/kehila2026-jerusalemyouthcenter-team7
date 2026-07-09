@@ -25,7 +25,7 @@ import React, {
 import { auth, db } from "../firebase/firebase";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-export type UserRole = "singer" | "admin";
+export type UserRole = "singer" | "admin" | "super-admin";
 
 export type UserType = {
   uid: string;
@@ -106,10 +106,10 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
           const snap = await getDoc(doc(db, "users", fb.uid));
           if (snap.exists()) {
             const d = snap.data();
-            const userRole = d.role;
+            const userRole = (d.role ?? "").trim();
 
-            // Only allow singer and admin roles to have an active session
-            if (userRole !== "singer" && userRole !== "admin") {
+            // Only allow singer, admin, and super-admin roles to have an active session
+            if (userRole !== "singer" && userRole !== "admin" && userRole !== "super-admin") {
               console.log("AUTH: blocking session restore for role:", userRole);
               if (!isSigningUpRef.current) {
                 await signOut(auth);
@@ -191,7 +191,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
 
       if (snap.exists()) {
         const d = snap.data();
-        const userRole = d.role;
+        const userRole = (d.role ?? "").trim();
 
         if (userRole === "join-request") {
           console.log("LOGIN: user pending admin approval");
@@ -205,7 +205,9 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
           return "rejected";
         }
 
-        if (userRole !== role) {
+        // Super-admin logs in via the "admin" toggle — treat it as a match.
+        const isSuperAdminLoginAsAdmin = role === "admin" && userRole === "super-admin";
+        if (userRole !== role && !isSuperAdminLoginAsAdmin) {
           console.log(`LOGIN: role mismatch expected=${role} got=${userRole}`);
           await signOut(auth);
           return false;
@@ -260,7 +262,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
             const snap = await getDoc(doc(db, "users", fbUser.uid));
             if (snap.exists()) {
               const d = snap.data();
-              const userRole = d.role;
+              const userRole = (d.role ?? "").trim();
 
               if (userRole === "join-request") {
                 await signOut(auth);

@@ -95,6 +95,7 @@ type Props = { visible: boolean; onClose: () => void };
 // ── Component ─────────────────────────────────────────────────────────────────
 export function ManageAdminsModal({ visible, onClose }: Props) {
   const { user: currentUser } = useAuth();
+  const isSuperAdmin = currentUser?.role === "super-admin";
   const [view, setView] = useState<"list" | "form">("list");
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [listLoading, setListLoading] = useState(true);
@@ -273,16 +274,20 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
           <Ionicons name="close" size={24} color="#fff" />
         </Pressable>
         <Text style={s.headerTitle}>Manage Admins</Text>
-        <Pressable
-          style={s.addChip}
-          onPress={() => {
-            resetForm();
-            setView("form");
-          }}
-        >
-          <Ionicons name="add" size={18} color={C.teal} />
-          <Text style={s.addChipText}>Add</Text>
-        </Pressable>
+        {isSuperAdmin ? (
+          <Pressable
+            style={s.addChip}
+            onPress={() => {
+              resetForm();
+              setView("form");
+            }}
+          >
+            <Ionicons name="add" size={18} color={C.teal} />
+            <Text style={s.addChipText}>Add</Text>
+          </Pressable>
+        ) : (
+          <View style={{ width: 60 }} />
+        )}
       </View>
 
       <ScrollView
@@ -319,13 +324,15 @@ export function ManageAdminsModal({ visible, onClose }: Props) {
                   <Text style={s.adminMeta}>📞 {admin.phone}</Text>
                 ) : null}
               </View>
-              <TouchableOpacity
-                onPress={() => handleDelete(admin)}
-                hitSlop={20}
-                style={{ padding: 10 }}
-              >
-                <Ionicons name="trash-outline" size={20} color={C.red} />
-              </TouchableOpacity>
+              {isSuperAdmin && (
+                <TouchableOpacity
+                  onPress={() => handleDelete(admin)}
+                  hitSlop={20}
+                  style={{ padding: 10 }}
+                >
+                  <Ionicons name="trash-outline" size={20} color={C.red} />
+                </TouchableOpacity>
+              )}
             </View>
           ))
         )}
