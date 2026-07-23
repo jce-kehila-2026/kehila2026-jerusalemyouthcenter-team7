@@ -1150,7 +1150,7 @@ function SingerLeaderboard({
 export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "super-admin";
 
   const [loading, setLoading] = useState(true);
   const [singerCount, setSingerCount] = useState(0);
@@ -1369,7 +1369,10 @@ export default function DashboardScreen() {
       unsubNotif();
       unsubMsg();
     };
-  }, [user?.uid]);
+    // Depend on user?.uid (not the whole `user` object) so this doesn't
+    // re-run on every AuthContext re-render — only on an actual identity change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, isAdmin]);
 
   // Live admin KPI counts — achievements and total forms.
   // Using onSnapshot (instead of a one-time getDocs) so the dashboard

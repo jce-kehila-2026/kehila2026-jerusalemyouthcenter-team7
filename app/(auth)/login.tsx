@@ -9,7 +9,10 @@ import {
   loadCredentials,
   saveCredentials,
 } from "@/src/utils/biometricAuth";
+import { auth, db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import { Link, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useRef, useState } from "react";
@@ -70,7 +73,7 @@ function RoleToggle({
         </Text>
       </Pressable>
       <Pressable
-        style={[rt.pill, role === "admin" && { backgroundColor: "#C9A24E" }]}
+        style={[rt.pill, role === "admin" && { backgroundColor: COLORS.yellow }]}
         onPress={() => onChange("admin")}
       >
         <Text style={rt.icon}>🛡️</Text>
@@ -113,11 +116,14 @@ export default function LoginScreen() {
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
   const [touched, setTouched] = useState<{ id?: boolean; pass?: boolean }>({});
+  const [showPass, setShowPass] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState<
     "face" | "fingerprint" | "none"
   >("none");
   const [biometricLoading, setBiometricLoading] = useState(false);
+  const [adminResetLoading, setAdminResetLoading] = useState(false);
+  const [adminResetSent, setAdminResetSent] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -138,13 +144,51 @@ export default function LoginScreen() {
     })();
   }, []);
 
-  const accent = role === "admin" ? "#C9A24E" : COLORS.teal;
+  const accent = role === "admin" ? COLORS.yellow : COLORS.teal;
 
   const handleRoleChange = (r: UserRole) => {
     setRole(r);
     setIdentifier("");
     setError("");
+    setAdminResetSent(false);
     setTouched({});
+  };
+
+  const handleAdminForgotPassword = async () => {
+    const email = identifier.trim();
+    if (!email) {
+      setError("Enter your email address above, then tap 'Forgot password?'");
+      return;
+    }
+    setAdminResetLoading(true);
+    setError("");
+    try {
+      // Firebase's Email Enumeration Protection silently succeeds even for
+      // non-existent emails, giving a false "reset sent" impression. Check
+      // Firestore first so we can surface a real error to the user.
+      const snap = await getDocs(
+        query(
+          collection(db, "users"),
+          where("email", "==", email),
+          where("role", "==", "admin"),
+          limit(1),
+        ),
+      );
+      if (snap.empty) {
+        setError("No admin account found for this email address.");
+        return;
+      }
+      await sendPasswordResetEmail(auth, email);
+      setAdminResetSent(true);
+    } catch (e: any) {
+      if (e?.code === "auth/invalid-email") {
+        setError("Enter a valid email address.");
+      } else {
+        setError("Could not send reset email. Please try again.");
+      }
+    } finally {
+      setAdminResetLoading(false);
+    }
   };
 
   const validate = (): string | null => {
@@ -170,41 +214,54 @@ export default function LoginScreen() {
 
     setError("");
     setLoading(true);
-    console.log("Attempting login with", { identifier, password, role });
     const result = await login(identifier.trim(), password, role);
     setLoading(false);
 
     if (result === true) {
       if (Platform.OS !== "web") {
-        const canUseBiometric = await isBiometricAvailable();
-        const alreadyEnrolled = await SecureStore.getItemAsync(ENROLLMENT_FLAG_KEY);
-        if (canUseBiometric && alreadyEnrolled === null) {
-          const type = await getBiometricType();
-          const label = type === "face" ? "Face ID" : "Fingerprint";
-          Alert.alert(`Enable ${label}?`, `Sign in faster next time using ${label}. You can change this later in your profile.`, [
-            {
-              text: "Not Now",
-              style: "cancel",
-              onPress: async () => {
-                await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "declined");
-                router.replace("/(tabs)" as any);
-              },
-            },
-            {
-              text: "Enable",
-              onPress: async () => {
-                const ok = await authenticateWithBiometrics(`Confirm with ${label} to enable quick sign-in`);
-                if (ok) {
-                  await saveCredentials(identifier.trim(), password, role);
-                  await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "true");
-                } else {
-                  await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "declined");
-                }
-                router.replace("/(tabs)" as any);
-              },
-            },
-          ]);
-        } else {
+        try {
+          const canUseBiometric = await isBiometricAvailable();
+          const alreadyEnrolled =
+            await SecureStore.getItemAsync(ENROLLMENT_FLAG_KEY);
+          if (canUseBiometric && alreadyEnrolled === null) {
+            const type = await getBiometricType();
+            const label = type === "face" ? "Face ID" : "Fingerprint";
+            Alert.alert(
+              `Enable ${label}?`,
+              `Sign in faster next time using ${label}. You can change this later in your profile.`,
+              [
+                {
+                  text: "Not Now",
+                  style: "cancel",
+                  onPress: async () => {
+                    await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "declined");
+                    router.replace("/(tabs)" as any);
+                  },
+                },
+                {
+                  text: "Enable",
+                  onPress: async () => {
+                    const ok = await authenticateWithBiometrics(
+                      `Confirm with ${label} to enable quick sign-in`,
+                    );
+                    if (ok) {
+                      await saveCredentials(identifier.trim(), password, role);
+                      await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "true");
+                    } else {
+                      await SecureStore.setItemAsync(
+                        ENROLLMENT_FLAG_KEY,
+                        "declined",
+                      );
+                    }
+                    router.replace("/(tabs)" as any);
+                  },
+                },
+              ],
+            );
+          } else {
+            router.replace("/(tabs)" as any);
+          }
+        } catch {
           router.replace("/(tabs)" as any);
         }
       } else {
@@ -337,7 +394,7 @@ export default function LoginScreen() {
                 s.badge,
                 {
                   backgroundColor:
-                    role === "admin" ? "#FBF2E0" : COLORS.tealLight,
+                    role === "admin" ? COLORS.yellowLight : COLORS.tealLight,
                 },
               ]}
             >
@@ -385,22 +442,61 @@ export default function LoginScreen() {
             ) : null}
 
             <Text style={s.label}>Password</Text>
-            <TextInput
-              style={inp("pass")}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              placeholderTextColor="#aab"
-              secureTextEntry
-              onFocus={() => setFocused("pass")}
-              onBlur={() => {
-                setFocused(null);
-                setTouched((t) => ({ ...t, pass: true }));
-              }}
-            />
+            <View style={s.pwWrap}>
+              <TextInput
+                style={[inp("pass"), { marginBottom: 0, paddingRight: 46 }]}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                placeholderTextColor="#aab"
+                secureTextEntry={!showPass}
+                onFocus={() => setFocused("pass")}
+                onBlur={() => {
+                  setFocused(null);
+                  setTouched((t) => ({ ...t, pass: true }));
+                }}
+              />
+              <Pressable style={s.eyeBtn} onPress={() => setShowPass((p) => !p)}>
+                <Ionicons
+                  name={showPass ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color="#aab"
+                />
+              </Pressable>
+            </View>
             {touched.pass && !password ? (
               <Text style={s.fieldErrTxt}>⚠ Password is required</Text>
             ) : null}
+
+            {role === "singer" ? (
+              <Pressable
+                style={s.forgotRow}
+                onPress={() => router.push("/(auth)/forgot-password" as any)}
+              >
+                <Text style={s.forgotTxt}>Did you forget your password?</Text>
+              </Pressable>
+            ) : adminResetSent ? (
+              <View style={s.resetSentBox}>
+                <Text style={s.resetSentTxt}>
+                  ✉ Password reset email sent to {identifier.trim()}.{"\n"}
+                  Check your inbox and follow the link to set a new password.
+                </Text>
+              </View>
+            ) : (
+              <Pressable
+                style={[s.forgotRow, adminResetLoading && { opacity: 0.5 }]}
+                onPress={handleAdminForgotPassword}
+                disabled={adminResetLoading}
+              >
+                {adminResetLoading ? (
+                  <ActivityIndicator size="small" color={COLORS.yellow} />
+                ) : (
+                  <Text style={[s.forgotTxt, { color: COLORS.yellow }]}>
+                    Forgot password?
+                  </Text>
+                )}
+              </Pressable>
+            )}
 
             <Pressable
               style={({ pressed }) => [
@@ -622,4 +718,19 @@ const s = StyleSheet.create({
     fontWeight: "600",
     color: COLORS.teal,
   },
+  forgotRow: { alignItems: "flex-end", marginTop: -8, marginBottom: 16 },
+  forgotTxt: { fontSize: 13, fontWeight: "600", color: COLORS.teal },
+
+  resetSentBox: {
+    backgroundColor: "#e6f4ea",
+    borderLeftWidth: 3,
+    borderLeftColor: "#1fa971",
+    borderRadius: 8,
+    padding: 10,
+    marginTop: -8,
+    marginBottom: 16,
+  },
+  resetSentTxt: { color: "#155724", fontSize: 13, fontWeight: "500", lineHeight: 19 },
+  pwWrap: { position: "relative", marginBottom: 16 },
+  eyeBtn: { position: "absolute", right: 12, top: 13, padding: 2 },
 });

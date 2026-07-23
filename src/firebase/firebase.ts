@@ -1,4 +1,4 @@
-import { getApp, getApps, initializeApp } from "firebase/app";
+import { getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
@@ -18,10 +18,11 @@ const app = initializeApp(firebaseConfig);
 // Secondary app used ONLY for creating Firebase Auth accounts (admin → singer/admin creation)
 // without replacing the currently logged-in admin's session.
 const SECONDARY = "admin-creator";
-const secondaryApp = getApps().find((a) => a.name === SECONDARY)
-  ?? initializeApp(firebaseConfig, SECONDARY);
+const secondaryApp =
+  getApps().find((a) => a.name === SECONDARY) ??
+  initializeApp(firebaseConfig, SECONDARY);
 
 export const db = getFirestore(app);
-export const auth = getAuth(app);
 export const storage = getStorage(app);
 export const secondaryAuth = getAuth(secondaryApp);
+export const auth = getAuth(app);

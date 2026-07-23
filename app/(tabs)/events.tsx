@@ -7,7 +7,7 @@ export default function EventsTab() {
   const { user } = useAuth();
   const router = useRouter();
 
-  if (user?.role === "admin") {
+  if (user?.role === "admin" || user?.role === "super-admin") {
     return <EventsScreen />;
   }
 

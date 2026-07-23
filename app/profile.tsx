@@ -136,6 +136,10 @@ export default function ProfileScreen() {
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [showCurPw, setShowCurPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
+  const [showBioPw, setShowBioPw] = useState(false);
 
   // Biometric toggle state
   const [biometricHardwareAvailable, setBiometricHardwareAvailable] =
@@ -264,6 +268,10 @@ export default function ProfileScreen() {
       setBioError("Please enter your password.");
       return;
     }
+    if (!user) {
+      setBioError("User session not found. Please sign in again.");
+      return;
+    }
     setBioLoading(true);
     setBioError("");
     try {
@@ -277,9 +285,21 @@ export default function ProfileScreen() {
         setBioLoading(false);
         return;
       }
+      // For singers the login identifier is the phone number; email is the fallback.
+      // For admins it is the email directly.
       const identifier =
-        user?.role === "singer" ? (user?.phone ?? "") : (user?.email ?? "");
-      await saveCredentials(identifier, bioPassword, user?.role);
+        user.role === "singer"
+          ? (user.phone ?? user.email ?? "")
+          : (user.email ?? "");
+      if (!identifier) {
+        setBioError(
+          "Could not determine your account identifier. Please sign in manually.",
+        );
+        setBioLoading(false);
+        return;
+      }
+      await saveCredentials(identifier, bioPassword, user.role);
+
       await SecureStore.setItemAsync(ENROLLMENT_FLAG_KEY, "true");
       setBiometricEnabled(true);
       setShowBiometricModal(false);
@@ -295,7 +315,7 @@ export default function ProfileScreen() {
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const isSinger = user?.role === "singer";
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "super-admin";
 
   const profileName = fullData?.full_name || user?.full_name || "Unknown User";
   const profileRole = isAdmin ? "ADMIN" : "SINGER";
@@ -603,14 +623,23 @@ export default function ProfileScreen() {
             ) : null}
 
             <Text style={s.modalLabel}>Password</Text>
-            <TextInput
-              style={s.modalInput}
-              value={bioPassword}
-              onChangeText={setBioPassword}
-              secureTextEntry
-              placeholder="••••••••"
-              placeholderTextColor={ds.subtext}
-            />
+            <View style={s.pwWrap}>
+              <TextInput
+                style={[s.modalInput, { marginBottom: 0, paddingRight: 46 }]}
+                value={bioPassword}
+                onChangeText={setBioPassword}
+                secureTextEntry={!showBioPw}
+                placeholder="••••••••"
+                placeholderTextColor={ds.subtext}
+              />
+              <Pressable style={s.eyeBtn} onPress={() => setShowBioPw((p) => !p)}>
+                <Ionicons
+                  name={showBioPw ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color={ds.subtext}
+                />
+              </Pressable>
+            </View>
 
             <Pressable
               style={[s.modalBtn, bioLoading && { opacity: 0.6 }]}
@@ -673,34 +702,61 @@ export default function ProfileScreen() {
             ) : null}
 
             <Text style={s.modalLabel}>Current Password</Text>
-            <TextInput
-              style={s.modalInput}
-              value={curPassword}
-              onChangeText={setCurPassword}
-              secureTextEntry
-              placeholder="••••••••"
-              placeholderTextColor={ds.subtext}
-            />
+            <View style={s.pwWrap}>
+              <TextInput
+                style={[s.modalInput, { marginBottom: 0, paddingRight: 46 }]}
+                value={curPassword}
+                onChangeText={setCurPassword}
+                secureTextEntry={!showCurPw}
+                placeholder="••••••••"
+                placeholderTextColor={ds.subtext}
+              />
+              <Pressable style={s.eyeBtn} onPress={() => setShowCurPw((p) => !p)}>
+                <Ionicons
+                  name={showCurPw ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color={ds.subtext}
+                />
+              </Pressable>
+            </View>
 
             <Text style={s.modalLabel}>New Password</Text>
-            <TextInput
-              style={s.modalInput}
-              value={newPassword}
-              onChangeText={setNewPassword}
-              secureTextEntry
-              placeholder="••••••••"
-              placeholderTextColor={ds.subtext}
-            />
+            <View style={s.pwWrap}>
+              <TextInput
+                style={[s.modalInput, { marginBottom: 0, paddingRight: 46 }]}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry={!showNewPw}
+                placeholder="••••••••"
+                placeholderTextColor={ds.subtext}
+              />
+              <Pressable style={s.eyeBtn} onPress={() => setShowNewPw((p) => !p)}>
+                <Ionicons
+                  name={showNewPw ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color={ds.subtext}
+                />
+              </Pressable>
+            </View>
 
             <Text style={s.modalLabel}>Confirm New Password</Text>
-            <TextInput
-              style={s.modalInput}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry
-              placeholder="••••••••"
-              placeholderTextColor={ds.subtext}
-            />
+            <View style={s.pwWrap}>
+              <TextInput
+                style={[s.modalInput, { marginBottom: 0, paddingRight: 46 }]}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showConfirmPw}
+                placeholder="••••••••"
+                placeholderTextColor={ds.subtext}
+              />
+              <Pressable style={s.eyeBtn} onPress={() => setShowConfirmPw((p) => !p)}>
+                <Ionicons
+                  name={showConfirmPw ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color={ds.subtext}
+                />
+              </Pressable>
+            </View>
 
             <Pressable
               style={[s.modalBtn, changingPassword && { opacity: 0.6 }]}
@@ -920,6 +976,8 @@ const s = StyleSheet.create({
     marginBottom: 14,
     backgroundColor: ds.bg,
   },
+  pwWrap: { position: "relative", marginBottom: 14 },
+  eyeBtn: { position: "absolute", right: 12, top: 13, padding: 2 },
   modalBtn: {
     backgroundColor: ds.teal,
     borderRadius: 12,

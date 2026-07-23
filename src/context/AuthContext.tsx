@@ -5,7 +5,16 @@ import {
   signOut,
   User,
 } from "firebase/auth";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
+} from "firebase/firestore";
 import React, {
   createContext,
   useContext,
@@ -16,7 +25,7 @@ import React, {
 import { auth, db } from "../firebase/firebase";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-export type UserRole = "singer" | "admin";
+export type UserRole = "singer" | "admin" | "super-admin";
 
 export type UserType = {
   uid: string;
@@ -51,6 +60,8 @@ export type StudentSignupPayload = {
   parent_phone: string;
   medical_situation: string;
   password: string;
+  // True once the signup screen has confirmed an SMS OTP for `phone`.
+  phoneVerified: boolean;
 };
 
 type AuthContextType = {
@@ -95,10 +106,10 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
           const snap = await getDoc(doc(db, "users", fb.uid));
           if (snap.exists()) {
             const d = snap.data();
-            const userRole = d.role;
+            const userRole = (d.role ?? "").trim();
 
-            // Only allow singer and admin roles to have an active session
-            if (userRole !== "singer" && userRole !== "admin") {
+            // Only allow singer, admin, and super-admin roles to have an active session
+            if (userRole !== "singer" && userRole !== "admin" && userRole !== "super-admin") {
               console.log("AUTH: blocking session restore for role:", userRole);
               if (!isSigningUpRef.current) {
                 await signOut(auth);
@@ -180,7 +191,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
 
       if (snap.exists()) {
         const d = snap.data();
-        const userRole = d.role;
+        const userRole = (d.role ?? "").trim();
 
         if (userRole === "join-request") {
           console.log("LOGIN: user pending admin approval");
@@ -194,7 +205,9 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
           return "rejected";
         }
 
-        if (userRole !== role) {
+        // Super-admin logs in via the "admin" toggle — treat it as a match.
+        const isSuperAdminLoginAsAdmin = role === "admin" && userRole === "super-admin";
+        if (userRole !== role && !isSuperAdminLoginAsAdmin) {
           console.log(`LOGIN: role mismatch expected=${role} got=${userRole}`);
           await signOut(auth);
           return false;
@@ -249,7 +262,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
             const snap = await getDoc(doc(db, "users", fbUser.uid));
             if (snap.exists()) {
               const d = snap.data();
-              const userRole = d.role;
+              const userRole = (d.role ?? "").trim();
 
               if (userRole === "join-request") {
                 await signOut(auth);
@@ -303,7 +316,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
   ): Promise<"submitted" | "rejected" | false> => {
     isSigningUpRef.current = true;
     try {
-      const { password, ...fields } = payload;
+      const { password, phoneVerified, ...fields } = payload;
       const phoneDigits = fields.phone.replace(/\D/g, "");
 
       // Block re-registration for previously rejected phones
@@ -312,6 +325,21 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         console.log("SIGNUP: phone previously rejected");
         isSigningUpRef.current = false;
         return "rejected";
+      }
+
+      // Look up by phone BEFORE touching Firebase Auth — a Firebase Auth
+      // account is created exactly once per phone, at signup. Every later
+      // status change (pending → singer/admin/rejected) is a Firestore-only
+      // write (see JoinRequestsModal/students.tsx approve/reject handlers),
+      // so an existing `users` doc here means this phone already has an
+      // Auth account and createUserWithEmailAndPassword would only fail.
+      const existingByPhone = await getDocs(
+        query(collection(db, "users"), where("phone", "==", fields.phone.trim())),
+      );
+      if (!existingByPhone.empty) {
+        console.log("SIGNUP: phone already registered, skipping Auth creation");
+        isSigningUpRef.current = false;
+        return false;
       }
 
       let uid: string;
@@ -324,6 +352,11 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         );
         uid = result.user.uid;
       } catch (authErr: any) {
+        // Defensive fallback only (e.g. a race between two signups for the
+        // same brand-new phone, or an orphaned Auth account left behind by a
+        // signup that crashed before its `users` doc was written) — the
+        // pre-check above means the normal "already registered" path no
+        // longer reaches here.
         if (authErr.code === "auth/email-already-in-use") {
           const result = await signInWithEmailAndPassword(
             auth,
@@ -366,6 +399,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
         parent_name: fields.parent_name.trim(),
         parent_phone: fields.parent_phone.trim(),
         medical_situation: fields.medical_situation.trim(),
+        verified: phoneVerified,
         createdAt: serverTimestamp(),
       });
 

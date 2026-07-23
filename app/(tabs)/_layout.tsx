@@ -28,7 +28,7 @@ function GlobalHeader({ title }: { title: string }) {
     const unsub = notificationService.subscribe(
       (notifs) => setUnreadNotifs(notifs.filter((n) => !n.is_read).length),
       currentUid,
-      user?.role === "admin" ? "admin" : "singer",
+      (user?.role === "admin" || user?.role === "super-admin") ? "admin" : "singer",
     );
     return unsub;
   }, [currentUid]);
@@ -187,6 +187,7 @@ export default function TabLayout() {
             paddingBottom: 4,
           },
           headerShown: true,
+
           header: () => {
             const titles: Record<string, string> = {
               index: "Dashboard",

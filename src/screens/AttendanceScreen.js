@@ -12,8 +12,8 @@ import {
 import {
   getAttendance,
   saveAttendance as saveToFirebase,
-} from "../backend/attendanceService";
-import { getStudents } from "../backend/eventsService";
+} from "../../backend/attendanceService";
+import { getStudents } from "../../backend/eventsService";
 
 const C = {
   teal: "#039899",

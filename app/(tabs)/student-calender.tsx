@@ -6,7 +6,7 @@ export default function StudentCalendarPage() {
     <StudentCalendarScreen
       studentYear={1}
       studentName="Ali"
-      onEventPress={(event) =>
+      onEventPress={(event: any) =>
         router.push({
           pathname: "/event-detail",
           params: { event: JSON.stringify(event) },

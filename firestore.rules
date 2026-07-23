@@ -16,8 +16,19 @@ service cloud.firestore {
     // returns null and the role comparison is false, which is the same outcome.
     // The exists() calls inside function bodies caused the CLI "Invalid variable
     // name: request" warnings on the path interpolation $(request.auth.uid).
+
+    // isSuperAdmin: only the super-admin account passes this check.
+    function isSuperAdmin() {
+      return isSignedIn() && getUserData(request.auth.uid).role == "super-admin";
+    }
+
+    // isAdmin: true for both "admin" and "super-admin" — used for general
+    // content management (events, library, forms, etc.).
     function isAdmin() {
-      return isSignedIn() && getUserData(request.auth.uid).role == "admin";
+      return isSignedIn() && (
+        getUserData(request.auth.uid).role == "admin" ||
+        getUserData(request.auth.uid).role == "super-admin"
+      );
     }
 
     function isSinger() {
@@ -27,10 +38,32 @@ service cloud.firestore {
     // ── Collections ────────────────────────────────────────────────────────────
 
     match /users/{uid} {
-      allow read:   if true;
-      allow create: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow update: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow delete: if isAdmin();
+      allow read: if true;
+
+      // Self-create (signup flow), super-admin creates any user,
+      // or regular admin creates non-admin/non-super-admin users only.
+      allow create: if isSignedIn() && (
+        request.auth.uid == uid ||
+        isSuperAdmin() ||
+        (isAdmin() &&
+          request.resource.data.role != "admin" &&
+          request.resource.data.role != "super-admin")
+      );
+
+      // Self-update, super-admin updates any user,
+      // or regular admin updates non-admin users without role escalation.
+      allow update: if isSignedIn() && (
+        request.auth.uid == uid ||
+        isSuperAdmin() ||
+        (isAdmin() &&
+          resource.data.role != "admin" &&
+          resource.data.role != "super-admin" &&
+          request.resource.data.role != "admin" &&
+          request.resource.data.role != "super-admin")
+      );
+
+      // Only super-admin can delete user documents.
+      allow delete: if isSuperAdmin();
     }
 
     match /join_requests/{docId} {

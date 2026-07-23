@@ -10,7 +10,7 @@ This project is developed for the Jerusalem Youth Center, an organization that w
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Rania Shqerat    | Full Stack Developer: Events, Attendance, Calendar & Music Library (UI + Firebase Integration)                                                                       |
 | Hadeel Shehadeh  | Full Stack Developer: Student Management Module (UI + Firebase Integration)                                                                                          |
-| Afnan Rabeih     | Full Stack Developer: Authentication (Login & Signup) (UI + Firebase Integration)                                                                                    |
+| Afnan Rabeih     | Full Stack Developer: Authentication (Login, Signup with Phone OTP, Forgot Password / SMS Password Recovery) (UI + Firebase Integration)                              |
 | Mahmoud Masri    | Full Stack Developer: Forms Module (UI + Firebase Integration)                                                                                                       |
 | George Abu Said  | Full Stack Developer: Dashboard (Admin & Singer), Notifications, Messages & Chat, Statistics, Leaderboard, Streaks, Achievements, Biometric Auth (UI + Firebase Integration) |
 
@@ -28,9 +28,11 @@ A cross-platform mobile app (iOS / Android / Web) for managing the Jerusalem You
 | ----------------------- | ------------------------------ |
 | React Native + Expo     | Mobile framework               |
 | Expo Router             | File-based navigation          |
-| Firebase Auth           | Authentication                 |
+| Firebase Auth (JS SDK)  | Email/password authentication  |
+| @react-native-firebase/auth | Native SMS OTP (phone verification & password recovery) |
 | Cloud Firestore         | Real-time database             |
 | Firebase Storage        | File & media storage           |
+| Firebase Functions      | Server-side password reset via Cloud Function |
 | expo-local-authentication | Biometric / Face ID login    |
 | expo-secure-store       | Encrypted credential storage   |
 | expo-av                 | Audio recording & playback     |
@@ -47,19 +49,25 @@ A cross-platform mobile app (iOS / Android / Web) for managing the Jerusalem You
 - Upload materials to Music Library
 - View Calendar with event dots
 - Manage singers (users with role "singer")
+- Manage admin accounts (add / remove admins)
+- Manage choir year groups via dedicated screen
+- Approve or reject singer join requests
 - Manage leaderboard challenges and manually adjust points
 - Create and award custom achievement badges
 - Send direct messages and manage group chats
 - View real-time statistics and analytics
+- View all form submissions per form
 
 ### Singer (Student)
 
+- Register with phone OTP verification
+- Reset password via SMS without admin help
 - View upcoming events (by year group)
 - View Calendar
 - Access Music Library materials
 - See personal streak, rank, and achievements on dashboard
 - Send and receive direct messages and group chats
-- Submit forms
+- Submit forms; see pending forms that need completion
 
 ---
 
@@ -71,9 +79,11 @@ mobile-app/
 ├── app/                                # Expo Router — screens & navigation
 │   ├── _layout.tsx                     # Root layout (AuthProvider, Stack)
 │   ├── index.tsx                       # Entry point — redirect by role
-│   ├── attendance.js                   # Attendance screen
+│   ├── Attendance.js                   # Attendance screen
 │   ├── event-detail.tsx                # Event detail screen
 │   ├── create-form.tsx                 # Create form screen
+│   ├── pending-forms.tsx               # Singer: list of pending/incomplete forms
+│   ├── manage-years.tsx                # Admin: add/delete choir year groups
 │   ├── profile.tsx                     # Profile screen (with biometric enrolment)
 │   ├── statistics.tsx                  # Statistics & analytics screen
 │   ├── leaderboard.tsx                 # Full leaderboard with podium
@@ -83,7 +93,8 @@ mobile-app/
 │   ├── (auth)/                         # Authentication screens
 │   │   ├── _layout.tsx                 # Auth stack layout
 │   │   ├── login.tsx                   # Login (Admin: email, Singer: phone) + Face ID
-│   │   └── signup.tsx                  # Singer registration
+│   │   ├── signup.tsx                  # Singer registration with phone OTP verification
+│   │   └── forgot-password.tsx         # 3-step password recovery (phone → OTP → new password)
 │   │
 │   ├── (tabs)/                         # Main tab navigation
 │   │   ├── _layout.tsx                 # Tab bar configuration
@@ -97,12 +108,12 @@ mobile-app/
 │   │   ├── calendar.js                 # Calendar (hidden — merged into Events)
 │   │   ├── admin.tsx                   # Admin panel (hidden)
 │   │   ├── explore.tsx                 # Explore (hidden)
-│   │   ├── Join-requests.tsx           # Join requests (hidden)
 │   │   ├── student-events.tsx          # Student events (hidden)
 │   │   └── student-calender.tsx        # Student calendar (hidden)
 │   │
 │   ├── event/[id].tsx                  # Dynamic event detail
-│   ├── form/[id].tsx                   # Dynamic form detail
+│   ├── form/[id].tsx                   # Dynamic form detail / submission
+│   ├── form-submissions/[id].tsx       # Admin: view all submissions for a form
 │   └── student/[id].tsx                # Dynamic student detail
 │
 ├── src/                                # Source files
@@ -123,10 +134,15 @@ mobile-app/
 │   │
 │   ├── components/                     # Reusable components
 │   │   ├── NotificationBell.tsx        # Bell icon with unread badge (header)
+│   │   ├── PhoneVerify.tsx             # SMS OTP phone verification widget (signup)
+│   │   ├── ForcePasswordChangeModal.tsx # Modal shown when admin requires password change
+│   │   ├── JoinRequestsModal.tsx       # Admin: approve / reject join requests
+│   │   ├── ManageAdminsModal.tsx       # Admin: add / remove admin accounts
 │   │   └── ManageAchievementsModal.tsx # Admin: create/award/delete achievement badges
 │   │
 │   ├── firebase/                       # Firebase configuration
-│   │   ├── firebase.ts                 # Firebase app init (db, auth)
+│   │   ├── firebase.ts                 # Firebase app init (db, auth, storage)
+│   │   ├── phoneAuth.ts                # Native phone OTP helpers (sendOtp, confirmOtp, confirmOtpAndGetToken)
 │   │   ├── firestoreService.ts         # Firestore helpers
 │   │   └── interfaces.ts              # TypeScript interfaces
 │   │
@@ -134,6 +150,7 @@ mobile-app/
 │   │   ├── mockData.js                 # Brand colors & constants
 │   │   ├── mockData.ts                 # TypeScript mock data
 │   │   ├── studentService.ts           # Student CRUD service
+│   │   ├── storageService.ts           # Firebase Storage upload helper (images/files/audio)
 │   │   ├── messageService.ts           # Real-time DM + group chat service
 │   │   ├── notificationService.ts      # Real-time notifications service
 │   │   ├── leaderboardService.ts       # Points, challenges, rankings service
@@ -142,6 +159,7 @@ mobile-app/
 │   │
 │   └── utils/                          # Utility functions
 │       ├── biometricAuth.ts            # Face ID / fingerprint auth + SecureStore
+│       ├── validation.ts               # Email, phone, and E.164 format validators
 │       ├── eventUtils.js               # Event helper functions
 │       ├── timeUtils.ts                # Relative timestamp formatting
 │       └── notifMeta.ts               # Notification icon/color metadata
@@ -319,6 +337,8 @@ npx expo start
 - Create, edit, and delete dynamic forms (Admin)
 - Real-time database integration for form generation
 - Manage, view, and track user form submissions
+- `app/form-submissions/[id].tsx` — Admin view of all individual submissions for a specific form, with per-field answers rendered inline
+- `app/pending-forms.tsx` — Singer view listing forms that are assigned but not yet submitted; tapping a form navigates to the submission screen
 - Dedicated "Pending Forms" view to notify students of incomplete surveys
 
 ### Profile & Authentication
@@ -327,6 +347,56 @@ npx expo start
 - Manage personal information display
 - Implement robust Sign-Out functionality
 - Secure Password Change capabilities from within the profile screen
+- Force password change modal shown when an admin resets a singer's temporary password
+
+### Phone Verification (Signup)
+
+- `PhoneVerify` component embedded in the signup flow
+- Uses `@react-native-firebase/auth` for native SMS OTP (Play Integrity on Android, silent push on iOS)
+- Phone number validated against Israeli/international formats before sending the code
+- Verification result gating: singer cannot complete registration until the OTP is confirmed
+- Web fallback: phone OTP is skipped on web (SMS is a native-only capability)
+- Helpers isolated in `src/firebase/phoneAuth.ts` (`sendOtp`, `confirmOtp`) — runs on a separate native auth instance that never touches the logged-in session
+
+### Forgot Password (Password Recovery)
+
+`app/(auth)/forgot-password.tsx` — 3-step self-service password reset for singers.
+
+**Step 1 — Phone:**
+- Singer enters their Israeli mobile number (local format, `+972` prefix pre-filled)
+- Firestore is checked for a matching `phone` field across all common storage formats (E.164, local, digits-only)
+- If no matching account is found the flow stops with a clear error
+
+**Step 2 — OTP:**
+- Firebase SMS OTP is sent via `sendOtp()` in `phoneAuth.ts`
+- Singer enters the 6-digit code; on success `confirmOtpAndGetToken()` extracts the phone-auth idToken before signing out the temporary session
+
+**Step 3 — New Password:**
+- Singer sets and confirms a new password (min 6 characters)
+- The idToken + new password are sent to the `resetUserPassword` Cloud Function (Firebase Functions v2)
+- The Cloud Function verifies the token via the Admin SDK and updates the singer's email-based Auth password
+- On success the singer is redirected back to login
+
+**Step progress bar** tracks completion visually. Web users see a clear "use the mobile app" message.
+
+### Manage Admins
+
+`src/components/ManageAdminsModal.tsx` — admin-only modal for managing administrator accounts.
+
+- View all existing admin accounts in real-time
+- Create new admin accounts (email + temporary password) — uses an isolated secondary Firebase app instance to avoid displacing the current admin's session
+- Delete admin accounts from Firestore and Auth
+- Real-time list via `onSnapshot` on the `users` collection filtered by `role == "admin"`
+
+### Manage Year Groups
+
+`app/manage-years.tsx` — admin screen for managing choir year groups.
+
+- View all existing year groups ordered by `year_id`
+- Add new year groups with a custom name
+- Delete year groups (default groups Year 1–3 are protected)
+- Prevents adding duplicate group names
+- Changes propagate in real-time to the student filter and group assignment UI
 
 ### User Permissions
 
@@ -642,5 +712,22 @@ A modal with two tabs for full achievement lifecycle management:
 | TC-59 | Biometric Auth          | Disabling biometric clears stored credentials      | Pass   |
 | TC-60 | Presence Tracking       | Singer shows as online when app is active          | Pass   |
 | TC-61 | Presence Tracking       | Singer shows as offline when app is backgrounded   | Pass   |
+| TC-62 | Phone Verification      | OTP code sent to valid Israeli mobile number       | Pass   |
+| TC-63 | Phone Verification      | Invalid phone number shows validation error        | Pass   |
+| TC-64 | Phone Verification      | Correct OTP confirms and enables registration      | Pass   |
+| TC-65 | Phone Verification      | Incorrect OTP shows error and allows retry         | Pass   |
+| TC-66 | Forgot Password         | Phone not found in Firestore shows error           | Pass   |
+| TC-67 | Forgot Password         | Correct OTP advances to password step              | Pass   |
+| TC-68 | Forgot Password         | New password and confirm must match                | Pass   |
+| TC-69 | Forgot Password         | Cloud Function resets password and redirects to login | Pass |
+| TC-70 | Forgot Password         | Web platform shows "use mobile app" message        | Pass   |
+| TC-71 | Manage Admins           | Admin can create a new admin account               | Pass   |
+| TC-72 | Manage Admins           | Admin can delete an existing admin account         | Pass   |
+| TC-73 | Manage Years            | Admin can add a new year group                     | Pass   |
+| TC-74 | Manage Years            | Duplicate year group name is rejected              | Pass   |
+| TC-75 | Manage Years            | Default Year 1–3 groups cannot be deleted          | Pass   |
+| TC-76 | Form Submissions        | Admin views all submissions for a specific form    | Pass   |
+| TC-77 | Pending Forms           | Singer sees only unsubmitted assigned forms        | Pass   |
+| TC-78 | Force Password Change   | Modal appears when admin has flagged a reset       | Pass   |
 
 ---
