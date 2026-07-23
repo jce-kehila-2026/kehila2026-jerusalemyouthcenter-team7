@@ -5,7 +5,6 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDocs,
   onSnapshot,
   updateDoc,
 } from "firebase/firestore";
@@ -398,28 +397,36 @@ export default function EventsScreen() {
     }
   }, [action]);
 
-  // ── Data loading — direct Firestore, no backend service ────────────────
+  // ── Data loading — live Firestore listeners ─────────────────────────────
   useEffect(() => {
-    const loadEvents = async () => {
-      try {
-        // Google Calendar sync runs in background — does NOT block loading
-        fetch(
-          "https://us-central1-fullstack-team-7.cloudfunctions.net/getGoogleCalendarEvents",
-        ).catch((syncErr) =>
-          console.error("Google Calendar sync error:", syncErr),
-        );
+    // Google Calendar sync runs in background — does NOT block loading.
+    // NOTE: this only tells the backend to sync; it does not return data
+    // that needs to be merged locally. The events listener below (onSnapshot)
+    // is what picks up any fields (e.g. googleCalendarEventId) that the
+    // Cloud Function writes back to Firestore afterwards.
+    fetch(
+      "https://us-central1-fullstack-team-7.cloudfunctions.net/getGoogleCalendarEvents",
+    ).catch((syncErr) => console.error("Google Calendar sync error:", syncErr));
 
-        // Direct Firestore query using the shared db instance
-        const snapshot = await getDocs(collection(db, "events"));
+    // Live listener on events — replaces the old one-time getDocs() call.
+    // This is the fix: getDocs() only ever fetched events ONCE when the
+    // screen mounted. If the Cloud Function wrote googleCalendarEventId to
+    // a doc *after* that fetch (which is the normal case for a just-created
+    // event), the local state never found out about it and the 📅 icon
+    // never appeared until a full remount. onSnapshot keeps events in sync
+    // with Firestore in real time, the same way groups/voice_types already do.
+    const unsubscribeEvents = onSnapshot(
+      collection(db, "events"),
+      (snapshot) => {
         const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
         setEvents(data);
-      } catch (e) {
-        console.error("Error loading events:", e);
-      } finally {
         setLoading(false);
-      }
-    };
-    loadEvents();
+      },
+      (error) => {
+        console.error("Events listener failed:", error);
+        setLoading(false);
+      },
+    );
 
     const unsubscribeVoices = onSnapshot(
       collection(db, "voice_types"),
@@ -466,39 +473,55 @@ export default function EventsScreen() {
     );
 
     return () => {
+      unsubscribeEvents();
       unsubscribeGroups();
       unsubscribeVoices();
     };
   }, []);
 
-  const uniqueGroupLabels = Array.from(
-    new Set(
-      events.map(
-        (e) => e.groupLabel || (e.group === "all" ? "All Groups" : e.group),
-      ),
-    ),
-  ).filter(Boolean);
+  // ── Hide events whose date has already passed (kept in Firestore for
+  // attendance history — only filtered out of what's displayed here) ─────
+  const todayObj = new Date();
+  const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, "0")}-${String(todayObj.getDate()).padStart(2, "0")}`;
+  const visibleEvents = events.filter((e) => {
+    const eventDateOnly = (e.date || "").split("T")[0];
+    return !eventDateOnly || eventDateOnly >= todayStr;
+  });
 
-  const baseLabels = ["All Groups", "Year 1", "Year 2", "Year 3"];
-  const finalGroupLabels = Array.from(
-    new Set([...baseLabels, ...uniqueGroupLabels]),
-  )
-    .filter((label) => {
-      if (label === "All Groups") return true;
-      if (["Year 1", "Year 2", "Year 3"].includes(label)) return true;
-      const normalizedLabel = label.toLowerCase().replace(/[\s_]+/g, "");
-      return events.some((e) => {
-        const eventLabel = (e.groupLabel || e.group || "")
-          .toLowerCase()
-          .replace(/[\s_]+/g, "");
-        return eventLabel === normalizedLabel;
+  const computeGroupLabels = (source) => {
+    const uniqueLabels = Array.from(
+      new Set(
+        source.map(
+          (e) => e.groupLabel || (e.group === "all" ? "All Groups" : e.group),
+        ),
+      ),
+    ).filter(Boolean);
+
+    const baseLabels = ["All Groups", "Year 1", "Year 2", "Year 3"];
+    return Array.from(new Set([...baseLabels, ...uniqueLabels]))
+      .filter((label) => {
+        if (label === "All Groups") return true;
+        if (["Year 1", "Year 2", "Year 3"].includes(label)) return true;
+        const normalizedLabel = label.toLowerCase().replace(/[\s_]+/g, "");
+        return source.some((e) => {
+          const eventLabel = (e.groupLabel || e.group || "")
+            .toLowerCase()
+            .replace(/[\s_]+/g, "");
+          return eventLabel === normalizedLabel;
+        });
+      })
+      .sort((a, b) => {
+        if (a === "All Groups") return -1;
+        if (b === "All Groups") return 1;
+        return a.localeCompare(b, undefined, { numeric: true });
       });
-    })
-    .sort((a, b) => {
-      if (a === "All Groups") return -1;
-      if (b === "All Groups") return 1;
-      return a.localeCompare(b, undefined, { numeric: true });
-    });
+  };
+
+  // List tab pills — scoped to upcoming events only.
+  const finalGroupLabels = computeGroupLabels(visibleEvents);
+  // Calendar tab legend — scoped to full history, since the calendar keeps
+  // past events when scrolling back through months.
+  const calendarGroupLabels = computeGroupLabels(events);
 
   const dynamicFilters = [
     { key: "all_events", label: "All" },
@@ -526,7 +549,7 @@ export default function EventsScreen() {
         e.voiceSection === "all_voices" ||
         e.voiceSection === activeVoiceFilter;
 
-  const filtered = events.filter(
+  const filtered = visibleEvents.filter(
     (e) => matchesYearFilter(e) && matchesVoiceFilter(e),
   );
 
@@ -544,9 +567,6 @@ export default function EventsScreen() {
   const calendarEvents = selectedDate
     ? events.filter((e) => (e.date || "").split("T")[0] === selectedDate)
     : events;
-
-  const todayObj = new Date();
-  const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, "0")}-${String(todayObj.getDate()).padStart(2, "0")}`;
 
   const calendarDays = [];
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
@@ -583,6 +603,13 @@ export default function EventsScreen() {
   };
 
   // ── CRUD — direct Firestore calls ──────────────────────────────────────
+  // NOTE: manual setEvents(...) optimistic updates were removed from
+  // saveNew / saveEdit / doDelete below. Now that `events` comes from a
+  // live onSnapshot listener, Firestore's local cache already reflects
+  // pending writes instantly (this is "latency compensation" — the
+  // listener fires immediately with the local write, then again when the
+  // server confirms it). Keeping the manual state edits AND the listener
+  // would just cause double updates / flicker.
   const saveNew = async () => {
     const { errors, valid } = validateForm(newForm);
     setNewErrors(errors);
@@ -605,19 +632,10 @@ export default function EventsScreen() {
         date: isoDate,
         groupLabel: computedLabel,
       };
-      const clientSideEvent = {
-        ...eventPayload,
-        id: "temp-" + Date.now().toString(),
-      };
-      setEvents((p) => [clientSideEvent, ...p]);
 
-      // Direct Firestore addDoc
-      const docRef = await addDoc(collection(db, "events"), eventPayload);
-      setEvents((p) =>
-        p.map((e) =>
-          e.id === clientSideEvent.id ? { ...e, id: docRef.id } : e,
-        ),
-      );
+      // Direct Firestore addDoc — the events listener will pick this up
+      // automatically (including any googleCalendarEventId written later).
+      await addDoc(collection(db, "events"), eventPayload);
     } catch (e) {
       console.error(e);
     }
@@ -644,11 +662,8 @@ export default function EventsScreen() {
         ? matchingGroupObj.name || matchingGroupObj.label
         : form.groupLabel;
       const formWithIso = { ...form, date: isoDate, groupLabel: computedLabel };
-      setEvents((p) =>
-        p.map((e) => (e.id === editTarget.id ? { ...e, ...formWithIso } : e)),
-      );
 
-      // Direct Firestore updateDoc
+      // Direct Firestore updateDoc — the events listener will pick this up.
       await updateDoc(doc(db, "events", editTarget.id), formWithIso);
     } catch (e) {
       console.error(e);
@@ -661,10 +676,9 @@ export default function EventsScreen() {
     const targetId = deleteTarget.id;
     const googleEventId = deleteTarget.googleCalendarEventId;
     try {
-      setEvents((prev) => prev.filter((e) => e.id !== targetId));
       setDeleteTarget(null);
 
-      // Direct Firestore deleteDoc
+      // Direct Firestore deleteDoc — the events listener will pick this up.
       await deleteDoc(doc(db, "events", targetId));
       try {
         await deleteDoc(doc(db, "attendance", targetId));
@@ -1048,7 +1062,7 @@ export default function EventsScreen() {
           </View>
 
           <View style={s.legend}>
-            {finalGroupLabels.map((label) => (
+            {calendarGroupLabels.map((label) => (
               <View key={label} style={s.legendItem}>
                 <View
                   style={[
@@ -1064,7 +1078,7 @@ export default function EventsScreen() {
           <Text style={s.sectionTitle}>
             {selectedDate
               ? `Events on ${formatDisplayDate(selectedDate)}`
-              : "All Upcoming Events"}
+              : "All Events"}
           </Text>
 
           {calendarEvents.length === 0 ? (

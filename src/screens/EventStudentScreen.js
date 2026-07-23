@@ -100,7 +100,6 @@ const getDateParts = (dateStr) => {
   };
 };
 
-
 // Decorative music notes used as a subtle accent on the right edge of cards.
 function MusicTrace() {
   return (
@@ -125,7 +124,14 @@ export default function EventStudentScreen({
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [gcalMenuTarget, setGcalMenuTarget] = useState(null);
 
-  const myEvents = events.filter((e) => {
+  // ── Hide events whose date has already passed (kept in Firestore for
+  // attendance history — only filtered out of what's displayed here) ─────
+  const todayObj = new Date();
+  const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, "0")}-${String(todayObj.getDate()).padStart(2, "0")}`;
+
+  // Full history for this student's group/voice (used by the Calendar tab,
+  // which keeps past events when scrolling back through months).
+  const myEventsAll = events.filter((e) => {
     const yearMatch =
       e.group === "all" ||
       e.group_name === "All Groups" ||
@@ -142,6 +148,13 @@ export default function EventStudentScreen({
     return yearMatch && voiceMatch;
   });
 
+  // Upcoming-only — used by the List tab and the "You have X upcoming
+  // events" count.
+  const myEvents = myEventsAll.filter((e) => {
+    const eventDateOnly = (e.date || "").split("T")[0];
+    return !eventDateOnly || eventDateOnly >= todayStr;
+  });
+
   const getGroupColor = (item) =>
     GROUP_COLORS[item.groupLabel] || GROUP_COLORS[item.group_name] || T.teal;
 
@@ -156,7 +169,7 @@ export default function EventStudentScreen({
 
   // ── Calendar helpers ────────────────────────────────────────────────
   const eventsByDate = {};
-  myEvents.forEach((event) => {
+  myEventsAll.forEach((event) => {
     const date = (event.date || "").split("T")[0];
     if (!date) return;
     if (!eventsByDate[date]) {
@@ -166,9 +179,6 @@ export default function EventStudentScreen({
   });
 
   // Generate calendar grid
-  const todayObj = new Date();
-  const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, "0")}-${String(todayObj.getDate()).padStart(2, "0")}`;
-
   const calendarDays = [];
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -214,8 +224,8 @@ export default function EventStudentScreen({
   };
 
   const calendarEvents = selectedDate
-    ? myEvents.filter((e) => (e.date || "").split("T")[0] === selectedDate)
-    : myEvents;
+    ? myEventsAll.filter((e) => (e.date || "").split("T")[0] === selectedDate)
+    : myEventsAll;
 
   // ── Render list card (matches the admin Events card design) ─────────
   const renderEvent = ({ item }) => {
@@ -480,7 +490,7 @@ export default function EventStudentScreen({
           <Text style={s.sectionTitle}>
             {selectedDate
               ? `Events on ${formatDate(selectedDate)}`
-              : "All Upcoming Events"}
+              : "All Events"}
           </Text>
 
           {calendarEvents.length === 0 ? (
