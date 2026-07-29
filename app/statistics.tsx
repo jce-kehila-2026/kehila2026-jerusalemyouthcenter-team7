@@ -1,18 +1,17 @@
 import { COLORS } from "@/src/data/mockData";
-import {
-  MONTHLY_ATTENDANCE,
-  SESSIONS_PER_MONTH,
-  STAT_GROUPS,
-  STAT_STUDENTS,
-  STAT_YEARS,
-  YEARLY_TOTALS,
-} from "@/src/data/statsData";
 import { db } from "@/src/firebase/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
+  where,
+} from "firebase/firestore";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -48,19 +47,36 @@ const MONTH_SHORT = [
   "Nov",
   "Dec",
 ];
+const F_COLOR = "#ec4899";
+const M_COLOR = "#3b82f6";
+const C_TEAL = "#0a7ea4";
+const C_ORA = "#FF6B35";
 
-// Original chart palette (preserved from pre-brand version)
-const F_COLOR = "#ec4899"; // pink  — female
-const M_COLOR = "#3b82f6"; // blue  — male
-const C_TEAL = "#0a7ea4"; // chart line / YoY bars
-const C_ORA = "#FF6B35"; // sessions bars (orange)
+// ── Real data types ────────────────────────────────────────────────────────────
+type Singer = {
+  id: string;
+  gender: "male" | "female" | "";
+  voice_type: string;
+  year_joined: number | null; // calendar year, e.g. 2024
+  year_id: number | null; // program cohort, e.g. 1 / 2 / 3
+};
+
+type AttendanceDoc = {
+  id: string; // event id
+  records: Record<string, string>; // { [uid]: statusKey }
+};
+
+type FirestoreEvent = {
+  id: string;
+  title: string;
+  date: string; // ISO-ish string
+};
 
 // ── SVG helpers ────────────────────────────────────────────────────────────────
 function polar(cx: number, cy: number, r: number, deg: number) {
   const rad = ((deg - 90) * Math.PI) / 180;
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
 }
-
 function donutArc(
   cx: number,
   cy: number,
@@ -98,7 +114,6 @@ function AreaTrendChart({
     PB = 32;
   const PW = chartWidth - PL - PR;
   const PH = H - PT - PB;
-
   if (values.length < 2) {
     return (
       <View
@@ -110,17 +125,16 @@ function AreaTrendChart({
       </View>
     );
   }
-
+  const maxV = Math.max(...values, 1);
   const pts = values.map((v, i) => ({
     x: PL + (i / (values.length - 1)) * PW,
-    y: PT + PH - (v / 100) * PH,
+    y: PT + PH - (v / maxV) * PH,
   }));
-
   const linePath = pts
     .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
     .join(" ");
   const areaPath = `${linePath} L ${pts[pts.length - 1].x} ${PT + PH} L ${pts[0].x} ${PT + PH} Z`;
-
+  const gridVals = [0, 25, 50, 75, 100];
   return (
     <Svg width={chartWidth} height={H}>
       <Defs>
@@ -129,9 +143,7 @@ function AreaTrendChart({
           <Stop offset="100%" stopColor={color} stopOpacity="0.02" />
         </LinearGradient>
       </Defs>
-
-      {/* Grid lines */}
-      {[0, 25, 50, 75, 100].map((v) => {
+      {gridVals.map((v) => {
         const y = PT + PH - (v / 100) * PH;
         return (
           <G key={v}>
@@ -155,7 +167,6 @@ function AreaTrendChart({
           </G>
         );
       })}
-
       <Path d={areaPath} fill="url(#aG)" />
       <Path
         d={linePath}
@@ -165,7 +176,6 @@ function AreaTrendChart({
         strokeLinejoin="round"
         strokeLinecap="round"
       />
-
       {pts.map((p, i) => (
         <G key={i}>
           <Circle
@@ -220,7 +230,6 @@ function BarChart({
   const step = PW / n;
   const barW = Math.max(step * 0.56, 4);
   const maxIdx = values.indexOf(Math.max(...values));
-
   return (
     <Svg width={chartWidth} height={chartHeight}>
       {[0, 50, 100].map((pct) => {
@@ -380,7 +389,7 @@ const bc = StyleSheet.create({
   },
 });
 
-// ── KPI card (no inner title) ──────────────────────────────────────────────────
+// ── KPI card ───────────────────────────────────────────────────────────────────
 function KpiCard({
   icon,
   accent,
@@ -451,28 +460,41 @@ function FilterChips<T extends string>({
   options,
   value,
   onChange,
+  label,
 }: {
   options: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
+  label?: string;
 }) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      {options.map((opt) => (
-        <Pressable
-          key={opt.value}
-          onPress={() => onChange(opt.value)}
-          style={[fc.chip, opt.value === value && fc.active]}
-        >
-          <Text style={[fc.text, opt.value === value && fc.textActive]}>
-            {opt.label}
-          </Text>
-        </Pressable>
-      ))}
-    </ScrollView>
+    <View>
+      {label && <Text style={fc.rowLabel}>{label}</Text>}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {options.map((opt) => (
+          <Pressable
+            key={opt.value}
+            onPress={() => onChange(opt.value)}
+            style={[fc.chip, opt.value === value && fc.active]}
+          >
+            <Text style={[fc.text, opt.value === value && fc.textActive]}>
+              {opt.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 const fc = StyleSheet.create({
+  rowLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: COLORS.muted,
+    letterSpacing: 0.6,
+    marginBottom: 6,
+    textTransform: "uppercase",
+  },
   chip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -487,158 +509,301 @@ const fc = StyleSheet.create({
   textActive: { color: COLORS.teal, fontWeight: "700" },
 });
 
-// ── Filter types ───────────────────────────────────────────────────────────────
-// "all" | a year_id as a string (e.g. "1", "2", "3", "4"...). Years 1-3 are
-// always available; anything beyond that is fetched live from the real
-// `groups` collection in Firestore (the same source manage-years.tsx uses),
-// so newly added program years show up here automatically.
-type YearFilter = "all" | string;
-type GroupFilter = "all" | "g1" | "g2" | "g3" | "g4";
-
-// Hardcoded base — always present regardless of what's in Firestore.
-const BASE_YEAR_OPTS: { value: YearFilter; label: string }[] = [
-  { value: "all", label: "All Years" },
-  { value: "1", label: "Year 1" },
-  { value: "2", label: "Year 2" },
-  { value: "3", label: "Year 3" },
-];
-
-const GROUP_OPTS: { value: GroupFilter; label: string }[] = [
-  { value: "all", label: "All Groups" },
-  ...STAT_GROUPS.map((g) => ({ value: g.id as GroupFilter, label: g.name })),
-];
-
 // ── Main screen ────────────────────────────────────────────────────────────────
 export default function StatisticsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const fullW = width - 32;
+  const halfW = (width - 40) / 2;
 
-  const [selYear, setSelYear] = useState<YearFilter>("all");
-  const [selGroup, setSelGroup] = useState<GroupFilter>("all");
+  // ── Filter state ──────────────────────────────────────────────────────────
+  // Row 1: calendar year (year_joined field) — "all" or e.g. "2024"
+  // Row 2: program year  (year_id field)     — "all" or e.g. "1"
+  const [selJoinYear, setSelJoinYear] = useState<string>("all");
+  const [selProgramYear, setSelProgramYear] = useState<string>("all");
 
-  // Live years beyond 1-3, fetched from the real `groups` collection —
-  // same source as Manage Years & Voices, so adding a year there makes
-  // it show up here automatically without any code changes.
-  const [extraYears, setExtraYears] = useState<
-    { value: YearFilter; label: string }[]
+  // ── Firestore raw data ────────────────────────────────────────────────────
+  const [loading, setLoading] = useState(true);
+  const [singers, setSingers] = useState<Singer[]>([]);
+  const [attendanceDocs, setAttendanceDocs] = useState<AttendanceDoc[]>([]);
+  const [events, setEvents] = useState<FirestoreEvent[]>([]);
+  const [extraProgYears, setExtraProgYears] = useState<
+    { value: string; label: string }[]
   >([]);
+  const [savedJoinYears, setSavedJoinYears] = useState<number[]>([]);
 
+  // Live: all singers
   useEffect(() => {
     const unsub = onSnapshot(
-      query(collection(db, "groups"), orderBy("year_id")),
+      query(collection(db, "users"), where("role", "==", "singer")),
       (snap) => {
-        const dynamic = snap.docs
-          .map((d) => d.data() as { name?: string; year_id?: number })
-          .filter((g) => typeof g.year_id === "number" && g.year_id > 3)
-          .map((g) => ({
-            value: String(g.year_id) as YearFilter,
-            label: g.name ?? `Year ${g.year_id}`,
-          }));
-        setExtraYears(dynamic);
+        setSingers(
+          snap.docs.map((d) => {
+            const data = d.data() as any;
+            const yj =
+              data.year_joined != null ? Number(data.year_joined) : null;
+            const yi = data.year_id != null ? Number(data.year_id) : null;
+            return {
+              id: d.id,
+              gender: data.gender ?? "",
+              voice_type: data.voice_type ?? "",
+              year_joined: Number.isNaN(yj) ? null : yj,
+              year_id: Number.isNaN(yi) ? null : yi,
+            };
+          }),
+        );
+        setLoading(false);
       },
-      (error) => console.error("Error listening to groups:", error),
+      (err) => {
+        console.error("singers listener:", err);
+        setLoading(false);
+      },
     );
     return unsub;
   }, []);
 
-  const YEAR_OPTS = useMemo(
-    () => [...BASE_YEAR_OPTS, ...extraYears],
-    [extraYears],
-  );
-
-  const fullW = width - 32;
-  const halfW = (width - 40) / 2;
-
-  // ── Derived data ──────────────────────────────────────────────────────────
-  // Maps a program-year filter (e.g. "1") onto the matching mock groupId
-  // ("g1"), so picking "Year 1" here filters students the same way picking
-  // it in the Group row does. Years beyond what exists in the mock dataset
-  // (4+) simply match nothing yet — there's no fabricated data for them.
-  const selectedYearGroupId = selYear === "all" ? null : `g${selYear}`;
-
-  const filteredStudents = useMemo(() => {
-    let result = STAT_STUDENTS;
-    if (selGroup !== "all")
-      result = result.filter((s) => s.groupId === selGroup);
-    if (selectedYearGroupId)
-      result = result.filter((s) => s.groupId === selectedYearGroupId);
-    return result;
-  }, [selGroup, selectedYearGroupId]);
-
-  const genderData = useMemo(() => {
-    const f = filteredStudents.filter((s) => s.gender === "female").length;
-    const m = filteredStudents.filter((s) => s.gender === "male").length;
-    return { female: f, male: m, total: f + m };
-  }, [filteredStudents]);
-
-  const groupGenderData = useMemo(
-    () =>
-      STAT_GROUPS.map((g) => {
-        const gs = STAT_STUDENTS.filter((s) => s.groupId === g.id);
-        return {
-          ...g,
-          female: gs.filter((s) => s.gender === "female").length,
-          male: gs.filter((s) => s.gender === "male").length,
-          total: gs.length,
-        };
-      }),
-    [],
-  );
-
-  // Note: trend/sessions/hours below are tracked by real calendar year
-  // (program-wide growth over time), which is a different axis from the
-  // "Year 1 / Year 2 / Year 3" cohort filter above. There's no per-cohort
-  // breakdown for this historical data, so these three always show the
-  // full multi-year view regardless of which program year is selected —
-  // only the Group filter (Year 1/2/3/Alumni cohorts) affects them.
-  const { trendValues, trendLabels } = useMemo(() => {
-    const gKey = selGroup === "all" ? "all" : selGroup;
-    const vals = Array.from(STAT_YEARS).map((y) => {
-      const e = MONTHLY_ATTENDANCE.find(
-        (m) => m.year === y && m.groupId === gKey,
-      );
-      if (!e) return 0;
-      const active = e.rates.filter((r) => r > 0);
-      return active.length
-        ? Math.round(active.reduce((a, b) => a + b, 0) / active.length)
-        : 0;
-    });
-    return {
-      trendValues: vals,
-      trendLabels: Array.from(STAT_YEARS).map(String),
-    };
-  }, [selGroup]);
-
-  const avgAttendance = useMemo(() => {
-    if (!trendValues.length) return 0;
-    return Math.round(
-      trendValues.reduce((a, b) => a + b, 0) / trendValues.length,
+  // Live: attendance collection — one doc per event
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, "attendance"),
+      (snap) =>
+        setAttendanceDocs(
+          snap.docs.map((d) => ({
+            id: d.id,
+            records: (d.data() as any).records ?? {},
+          })),
+        ),
+      (err) => console.error("attendance listener:", err),
     );
-  }, [trendValues]);
-
-  const yoyData = useMemo(
-    () => ({
-      values: Array.from(STAT_YEARS).map(
-        (y) => YEARLY_TOTALS[y]?.students ?? 0,
-      ),
-      labels: Array.from(STAT_YEARS).map(String),
-    }),
-    [],
-  );
-
-  const sessionData = useMemo(() => {
-    const raw = SESSIONS_PER_MONTH[2025];
-    return {
-      values: raw.filter((v) => v > 0),
-      labels: MONTH_SHORT.filter((_, i) => raw[i] > 0),
-    };
+    return unsub;
   }, []);
 
-  const totalHours = useMemo(
-    () => Object.values(YEARLY_TOTALS).reduce((acc, v) => acc + v.hours, 0),
-    [],
+  // Live: events — for the Sessions/Month chart
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, "events"),
+      (snap) =>
+        setEvents(
+          snap.docs.map((d) => {
+            const data = d.data() as any;
+            return { id: d.id, title: data.title ?? "", date: data.date ?? "" };
+          }),
+        ),
+      (err) => console.error("events listener:", err),
+    );
+    return unsub;
+  }, []);
+
+  // Live: program years beyond 3 (from groups collection)
+  useEffect(() => {
+    const unsub = onSnapshot(
+      query(collection(db, "groups"), orderBy("year_id")),
+      (snap) => {
+        setExtraProgYears(
+          snap.docs
+            .map((d) => d.data() as { name?: string; year_id?: number })
+            .filter((g) => typeof g.year_id === "number" && g.year_id > 3)
+            .map((g) => ({
+              value: String(g.year_id),
+              label: g.name ?? `Year ${g.year_id}`,
+            })),
+        );
+      },
+      (err) => console.error("groups listener:", err),
+    );
+    return unsub;
+  }, []);
+
+  // Live: manually-added join years from manage-years settings screen.
+  // Merged with auto-detected years from singers, so the filter shows
+  // both real years (from existing singers) and future years the admin
+  // added in advance (e.g. 2027 before any singers sign up with it).
+  useEffect(() => {
+    const unsub = onSnapshot(
+      query(collection(db, "join_years"), orderBy("year")),
+      (snap) =>
+        setSavedJoinYears(
+          snap.docs.map((d) => (d.data() as any).year as number),
+        ),
+      (err) => console.error("join_years listener:", err),
+    );
+    return unsub;
+  }, []);
+
+  // ── Filter options ────────────────────────────────────────────────────────
+
+  // Row 1: union of (a) year_joined values found in real singers' profiles
+  // and (b) years manually added by the admin in Manage Years & Voices.
+  // This way existing singers auto-populate the filter AND the admin can
+  // add a future year like 2027 in advance before anyone signs up with it.
+  const joinYearOpts = useMemo<{ value: string; label: string }[]>(() => {
+    const fromSingers = singers
+      .map((s) => s.year_joined)
+      .filter((y): y is number => y !== null);
+    const merged = Array.from(
+      new Set([...fromSingers, ...savedJoinYears]),
+    ).sort((a, b) => a - b);
+    return [
+      { value: "all", label: "All Years" },
+      ...merged.map((y) => ({ value: String(y), label: String(y) })),
+    ];
+  }, [singers, savedJoinYears]);
+
+  // Row 2: hardcoded Years 1-3 + dynamic extra years from groups collection.
+  const programYearOpts = useMemo<{ value: string; label: string }[]>(
+    () => [
+      { value: "all", label: "All Cohorts" },
+      { value: "1", label: "Year 1" },
+      { value: "2", label: "Year 2" },
+      { value: "3", label: "Year 3" },
+      ...extraProgYears,
+    ],
+    [extraProgYears],
   );
+
+  // ── Filtered singer set (both filters combined) ───────────────────────────
+  const filtered = useMemo(() => {
+    let result = singers;
+    if (selJoinYear !== "all")
+      result = result.filter((s) => s.year_joined === Number(selJoinYear));
+    if (selProgramYear !== "all")
+      result = result.filter((s) => s.year_id === Number(selProgramYear));
+    return result;
+  }, [singers, selJoinYear, selProgramYear]);
+
+  const filteredIds = useMemo(
+    () => new Set(filtered.map((s) => s.id)),
+    [filtered],
+  );
+
+  // ── KPI: Total Students ───────────────────────────────────────────────────
+  const totalStudents = filtered.length;
+
+  // ── KPI: Avg Attendance ───────────────────────────────────────────────────
+  // For each (student, event) pair in the attendance records, count
+  // how many are "present" (any status other than "absent").
+  const avgAttendance = useMemo(() => {
+    if (filteredIds.size === 0 || attendanceDocs.length === 0) return 0;
+    let present = 0,
+      total = 0;
+    attendanceDocs.forEach((doc) => {
+      Object.entries(doc.records).forEach(([uid, status]) => {
+        if (!filteredIds.has(uid)) return;
+        total += 1;
+        if (status !== "absent") present += 1;
+      });
+    });
+    return total === 0 ? 0 : Math.round((present / total) * 100);
+  }, [filteredIds, attendanceDocs]);
+
+  // ── Gender data (real) ────────────────────────────────────────────────────
+  const genderData = useMemo(() => {
+    const f = filtered.filter((s) => s.gender === "female").length;
+    const m = filtered.filter((s) => s.gender === "male").length;
+    return { female: f, male: m, total: f + m };
+  }, [filtered]);
+
+  // ── By-cohort gender breakdown (always across all singers, not filtered) ──
+  // Shows gender split per program year — meaningful across the full choir.
+  const cohortGenderData = useMemo(() => {
+    const years = [1, 2, 3, ...extraProgYears.map((y) => Number(y.value))];
+    return years
+      .map((yi) => {
+        const cohort = singers.filter((s) => s.year_id === yi);
+        const f = cohort.filter((s) => s.gender === "female").length;
+        const m = cohort.filter((s) => s.gender === "male").length;
+        return {
+          label: `Year ${yi}`,
+          female: f,
+          male: m,
+          total: cohort.length,
+        };
+      })
+      .filter((c) => c.total > 0);
+  }, [singers, extraProgYears]);
+
+  // ── Attendance trend: monthly avg % per calendar year ────────────────────
+  // Groups real attendance records by event date → calendar year → month,
+  // computes the monthly attendance rate for the filtered student set,
+  // then averages to a single % per year for the trend line.
+  const { trendValues, trendLabels } = useMemo(() => {
+    if (
+      filteredIds.size === 0 ||
+      attendanceDocs.length === 0 ||
+      events.length === 0
+    ) {
+      return { trendValues: [], trendLabels: [] };
+    }
+
+    // Build a map: eventId → calendar year
+    const eventYear = new Map<string, number>();
+    events.forEach((e) => {
+      if (!e.date) return;
+      const y = new Date(e.date).getFullYear();
+      if (!Number.isNaN(y)) eventYear.set(e.id, y);
+    });
+
+    // year → { present, total }
+    const byYear = new Map<number, { present: number; total: number }>();
+    attendanceDocs.forEach((doc) => {
+      const y = eventYear.get(doc.id);
+      if (y == null) return;
+      if (!byYear.has(y)) byYear.set(y, { present: 0, total: 0 });
+      const bucket = byYear.get(y)!;
+      Object.entries(doc.records).forEach(([uid, status]) => {
+        if (!filteredIds.has(uid)) return;
+        bucket.total += 1;
+        if (status !== "absent") bucket.present += 1;
+      });
+    });
+
+    const sortedYears = Array.from(byYear.keys()).sort((a, b) => a - b);
+    const vals = sortedYears.map((y) => {
+      const b = byYear.get(y)!;
+      return b.total === 0 ? 0 : Math.round((b.present / b.total) * 100);
+    });
+    return { trendValues: vals, trendLabels: sortedYears.map(String) };
+  }, [filteredIds, attendanceDocs, events]);
+
+  // ── YoY growth: singers per join-year ────────────────────────────────────
+  // Counts total singers (unfiltered — shows full choir growth over time).
+  const yoyData = useMemo(() => {
+    const yearCounts = new Map<number, number>();
+    singers.forEach((s) => {
+      if (s.year_joined == null) return;
+      yearCounts.set(s.year_joined, (yearCounts.get(s.year_joined) ?? 0) + 1);
+    });
+    const sorted = Array.from(yearCounts.keys()).sort((a, b) => a - b);
+    return {
+      values: sorted.map((y) => yearCounts.get(y)!),
+      labels: sorted.map(String),
+    };
+  }, [singers]);
+
+  // ── Sessions/Month: real event count per month ────────────────────────────
+  // Counts events per month across all years (filtered by join year if set),
+  // aggregated into Jan-Dec buckets to show which months are busiest.
+  const sessionData = useMemo(() => {
+    let evts = events;
+    if (selJoinYear !== "all") {
+      const y = Number(selJoinYear);
+      evts = evts.filter((e) => e.date && new Date(e.date).getFullYear() === y);
+    }
+    const counts = new Array(12).fill(0);
+    evts.forEach((e) => {
+      if (!e.date) return;
+      const m = new Date(e.date).getMonth();
+      if (m >= 0 && m < 12) counts[m] += 1;
+    });
+    const activeMonths = counts
+      .map((c, i) => ({ c, label: MONTH_SHORT[i] }))
+      .filter((x) => x.c > 0);
+    return {
+      values: activeMonths.map((x) => x.c),
+      labels: activeMonths.map((x) => x.label),
+    };
+  }, [events, selJoinYear]);
 
   const fPct =
     genderData.total > 0
@@ -646,9 +811,15 @@ export default function StatisticsScreen() {
       : 0;
   const mPct = genderData.total > 0 ? 100 - fPct : 0;
 
+  const joinYearLabel =
+    joinYearOpts.find((o) => o.value === selJoinYear)?.label ?? "";
+  const programYearLabel =
+    programYearOpts.find((o) => o.value === selProgramYear)?.label ?? "";
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={s.screen}>
-      {/* ── Teal Brand Header ──────────────────────────────────────────────── */}
+      {/* Header */}
       <View style={[s.header, { paddingTop: insets.top + 16 }]}>
         <Pressable onPress={() => router.back()} style={s.backBtn} hitSlop={12}>
           <Ionicons name="chevron-back" size={26} color="#fff" />
@@ -659,183 +830,229 @@ export default function StatisticsScreen() {
         </View>
       </View>
 
-      {/* ── Sticky filter bar ─────────────────────────────────────────────── */}
+      {/* Filter bar */}
       <View style={s.filterBar}>
         <FilterChips
-          options={YEAR_OPTS}
-          value={selYear}
-          onChange={setSelYear}
+          label="Join Year"
+          options={joinYearOpts}
+          value={selJoinYear}
+          onChange={setSelJoinYear}
         />
-        <View style={{ height: 8 }} />
+        <View style={{ height: 10 }} />
         <FilterChips
-          options={GROUP_OPTS}
-          value={selGroup}
-          onChange={setSelGroup}
+          label="Program Year"
+          options={programYearOpts}
+          value={selProgramYear}
+          onChange={setSelProgramYear}
         />
       </View>
 
-      {/* ── Scrollable content ────────────────────────────────────────────── */}
-      <ScrollView
-        contentContainerStyle={[
-          s.scroll,
-          { paddingBottom: insets.bottom + 32 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* KPI row A */}
-        <View style={s.row}>
-          <KpiCard
-            icon="people"
-            accent={COLORS.teal}
-            label="Total Students"
-            main={String(genderData.total)}
-            sub={`${totalHours.toLocaleString()} mentoring hrs`}
-          />
-          <KpiCard
-            icon="checkmark-circle"
-            accent={COLORS.teal}
-            label="Avg Attendance"
-            main={`${avgAttendance}%`}
-            sub="across all years"
-          />
+      {/* Content */}
+      {loading ? (
+        <View
+          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+        >
+          <ActivityIndicator color={COLORS.teal} size="large" />
         </View>
-
-        {/* KPI row B */}
-        <View style={[s.row, { marginTop: 8 }]}>
-          <KpiCard
-            icon="female"
-            accent={F_COLOR}
-            label="Female"
-            main={String(genderData.female)}
-            sub={`${fPct}% of group`}
-          />
-          <KpiCard
-            icon="male"
-            accent={M_COLOR}
-            label="Male"
-            main={String(genderData.male)}
-            sub={`${mPct}% of group`}
-          />
-        </View>
-
-        {/* Attendance Trend */}
-        <View style={{ marginTop: 16 }}>
-          <BrandCard barColor={COLORS.teal} title="Yearly avg attendance (%)">
-            <AreaTrendChart
-              values={trendValues}
-              labels={trendLabels}
-              color={COLORS.teal}
-              chartWidth={fullW - 32}
+      ) : (
+        <ScrollView
+          contentContainerStyle={[
+            s.scroll,
+            { paddingBottom: insets.bottom + 32 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* KPI row A — real Firestore data */}
+          <View style={s.row}>
+            <KpiCard
+              icon="people"
+              accent={COLORS.teal}
+              label="Total Students"
+              main={String(totalStudents)}
+              sub={
+                selJoinYear === "all" && selProgramYear === "all"
+                  ? "all singers"
+                  : [
+                      selJoinYear !== "all" && joinYearLabel,
+                      selProgramYear !== "all" && programYearLabel,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+              }
             />
-          </BrandCard>
-        </View>
+            <KpiCard
+              icon="checkmark-circle"
+              accent={COLORS.teal}
+              label="Avg Attendance"
+              main={totalStudents === 0 ? "—" : `${avgAttendance}%`}
+              sub={
+                totalStudents === 0
+                  ? "no singers in filter"
+                  : "present vs absent"
+              }
+            />
+          </View>
 
-        {/* Demographics row */}
-        <View style={[s.row, { marginTop: 8 }]}>
-          <BrandCard
-            barColor={COLORS.teal}
-            title="Gender Split"
-            style={{ width: halfW }}
-          >
-            <View style={{ alignItems: "center" }}>
-              <DonutChart
-                female={genderData.female}
-                male={genderData.male}
-                size={108}
+          {/* KPI row B — real gender data */}
+          <View style={[s.row, { marginTop: 8 }]}>
+            <KpiCard
+              icon="female"
+              accent={F_COLOR}
+              label="Female"
+              main={String(genderData.female)}
+              sub={`${fPct}% of filtered`}
+            />
+            <KpiCard
+              icon="male"
+              accent={M_COLOR}
+              label="Male"
+              main={String(genderData.male)}
+              sub={`${mPct}% of filtered`}
+            />
+          </View>
+
+          {/* Attendance Trend — real per-year attendance % */}
+          <View style={{ marginTop: 16 }}>
+            <BrandCard barColor={COLORS.teal} title="Attendance % by year">
+              <AreaTrendChart
+                values={trendValues}
+                labels={trendLabels}
+                color={COLORS.teal}
+                chartWidth={fullW - 32}
               />
-              <View style={s.legend}>
-                <View style={s.lgItem}>
-                  <View style={[s.lgDot, { backgroundColor: F_COLOR }]} />
-                  <Text style={s.lgTxt}>F · {genderData.female}</Text>
-                </View>
-                <View style={s.lgItem}>
-                  <View style={[s.lgDot, { backgroundColor: M_COLOR }]} />
-                  <Text style={s.lgTxt}>M · {genderData.male}</Text>
+            </BrandCard>
+          </View>
+
+          {/* Demographics row — real gender data */}
+          <View style={[s.row, { marginTop: 8 }]}>
+            <BrandCard
+              barColor={COLORS.teal}
+              title="Gender Split"
+              style={{ width: halfW }}
+            >
+              <View style={{ alignItems: "center" }}>
+                <DonutChart
+                  female={genderData.female}
+                  male={genderData.male}
+                  size={108}
+                />
+                <View style={s.legend}>
+                  <View style={s.lgItem}>
+                    <View style={[s.lgDot, { backgroundColor: F_COLOR }]} />
+                    <Text style={s.lgTxt}>F · {genderData.female}</Text>
+                  </View>
+                  <View style={s.lgItem}>
+                    <View style={[s.lgDot, { backgroundColor: M_COLOR }]} />
+                    <Text style={s.lgTxt}>M · {genderData.male}</Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          </BrandCard>
+            </BrandCard>
 
-          <BrandCard
-            barColor={COLORS.yellow}
-            title="By Group"
-            style={{ width: halfW }}
-          >
-            {groupGenderData.map((g) => {
-              const frac = g.total > 0 ? g.female / g.total : 0;
-              return (
-                <View key={g.id} style={{ marginBottom: 8 }}>
-                  <Text style={s.gLabel}>{g.name}</Text>
-                  <View style={s.gBar}>
-                    <View
-                      style={[
-                        s.gSeg,
-                        { flex: frac || 0.01, backgroundColor: F_COLOR },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        s.gSeg,
-                        { flex: 1 - frac || 0.01, backgroundColor: M_COLOR },
-                      ]}
-                    />
-                  </View>
-                  <Text style={s.gSub}>
-                    {g.female}F · {g.male}M
-                  </Text>
-                </View>
-              );
-            })}
-          </BrandCard>
-        </View>
-
-        {/* Growth & Engagement row */}
-        <View style={[s.row, { marginTop: 8 }]}>
-          <BrandCard
-            barColor={COLORS.teal}
-            title="YoY Growth"
-            style={{ width: halfW }}
-          >
-            <BarChart
-              values={yoyData.values}
-              labels={yoyData.labels}
-              color={COLORS.teal}
-              chartWidth={halfW - 32}
-              chartHeight={130}
-            />
-          </BrandCard>
-
-          <BrandCard
-            barColor={COLORS.yellow}
-            title="Sessions / Month"
-            style={{ width: halfW }}
-          >
-            {sessionData.values.length > 0 ? (
-              <BarChart
-                values={sessionData.values}
-                labels={sessionData.labels}
-                color={C_ORA}
-                accentMax
-                accentColor={C_TEAL}
-                chartWidth={halfW - 32}
-                chartHeight={130}
-              />
-            ) : (
-              <View
-                style={{
-                  height: 100,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
+            <BrandCard
+              barColor={COLORS.yellow}
+              title="By Cohort"
+              style={{ width: halfW }}
+            >
+              {cohortGenderData.length === 0 ? (
                 <Text style={{ color: COLORS.muted, fontSize: 12 }}>
                   No data
                 </Text>
-              </View>
-            )}
-          </BrandCard>
-        </View>
-      </ScrollView>
+              ) : (
+                cohortGenderData.map((g) => {
+                  const frac = g.total > 0 ? g.female / g.total : 0;
+                  return (
+                    <View key={g.label} style={{ marginBottom: 8 }}>
+                      <Text style={s.gLabel}>{g.label}</Text>
+                      <View style={s.gBar}>
+                        <View
+                          style={[
+                            s.gSeg,
+                            { flex: frac || 0.01, backgroundColor: F_COLOR },
+                          ]}
+                        />
+                        <View
+                          style={[
+                            s.gSeg,
+                            {
+                              flex: 1 - frac || 0.01,
+                              backgroundColor: M_COLOR,
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text style={s.gSub}>
+                        {g.female}F · {g.male}M
+                      </Text>
+                    </View>
+                  );
+                })
+              )}
+            </BrandCard>
+          </View>
+
+          {/* Growth & Sessions row — real data */}
+          <View style={[s.row, { marginTop: 8 }]}>
+            <BrandCard
+              barColor={COLORS.teal}
+              title="Singers per join year"
+              style={{ width: halfW }}
+            >
+              {yoyData.values.length > 0 ? (
+                <BarChart
+                  values={yoyData.values}
+                  labels={yoyData.labels}
+                  color={COLORS.teal}
+                  chartWidth={halfW - 32}
+                  chartHeight={130}
+                />
+              ) : (
+                <View
+                  style={{
+                    height: 100,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={{ color: COLORS.muted, fontSize: 12 }}>
+                    No data
+                  </Text>
+                </View>
+              )}
+            </BrandCard>
+
+            <BrandCard
+              barColor={COLORS.yellow}
+              title="Events per month"
+              style={{ width: halfW }}
+            >
+              {sessionData.values.length > 0 ? (
+                <BarChart
+                  values={sessionData.values}
+                  labels={sessionData.labels}
+                  color={C_ORA}
+                  accentMax
+                  accentColor={C_TEAL}
+                  chartWidth={halfW - 32}
+                  chartHeight={130}
+                />
+              ) : (
+                <View
+                  style={{
+                    height: 100,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={{ color: COLORS.muted, fontSize: 12 }}>
+                    No events
+                  </Text>
+                </View>
+              )}
+            </BrandCard>
+          </View>
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -843,8 +1060,6 @@ export default function StatisticsScreen() {
 // ── Styles ─────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg },
-
-  // Teal header
   header: {
     backgroundColor: COLORS.teal,
     paddingHorizontal: 16,
@@ -860,8 +1075,6 @@ const s = StyleSheet.create({
     fontWeight: "500",
   },
   headerTitle: { color: "#fff", fontSize: 32, fontWeight: "900", marginTop: 4 },
-
-  // Filter bar
   filterBar: {
     backgroundColor: COLORS.card,
     paddingHorizontal: 16,
@@ -870,17 +1083,12 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
   },
-
   scroll: { padding: 16 },
   row: { flexDirection: "row", gap: 8 },
-
-  // Legend
   legend: { flexDirection: "row", gap: 12, marginTop: 8 },
   lgItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   lgDot: { width: 8, height: 8, borderRadius: 4 },
   lgTxt: { fontSize: 11, color: COLORS.sub },
-
-  // Group bars
   gLabel: {
     fontSize: 10,
     color: COLORS.text,
